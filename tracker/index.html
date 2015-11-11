@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+  <title>Browser tracking for mobile</title>
+
+  <link rel="stylesheet" href="../stylesheets/application.css" />
+  <script src='jquery-1.11.0.min.js'></script>
+  <script src='gl-matrix.js'></script>
+
+</head>
+
+<body>
+
+
+<h1>Data for tracking</h1>
+
+<h2>Be sure to approve requests for the camera(s).</h2>
+
+<img id="reference" src="../images/apple-keyboard.jpg" width=150></img>
+<img id="static1" src="../images/apple-keyboard2.jpg" width=150></img>
+<img id="static2" src="../images/apple-keyboard3.jpg" width=150></img>
+
+<span id="graphics"></span>
+<div id="canvases"></div>
+
+<script>
+//
+// This is the graphics part.
+// Responsible for calculating an estimate of the camera offset that generated the frames.
+//
+
+// first, the shaders
+</script>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+
+precision highp float;
+
+attribute vec3 coordinate;
+attribute vec2 textureCoordinate;
+
+varying vec2 varyingTextureCoordinate;
+
+// helpers
+// handy refernce: http://www.3dgep.com/understanding-the-view-matrix/
+mat4 perspective (float fovy, float aspect, float near, float far) {
+    float f = 1.0 / tan(fovy / 2.);
+    float nf = 1. / (near - far);
+    mat4 perspectiveMatrix = mat4(1.);
+    perspectiveMatrix[0][0] = f / aspect;
+    perspectiveMatrix[1][1] = f;
+    perspectiveMatrix[2][2] = (far + near) * nf;
+    perspectiveMatrix[2][3] = (2. * far * near) * nf;
+    perspectiveMatrix[3][3] = 0.;
+    return (perspectiveMatrix);
+}
+
+mat4 lookAt (vec3 eye, vec3 center, vec3 up) {
+  vec3 x, y, z, w;
+  float len;
+  vec3 direction = normalize(eye - center);
+  vec3 right = normalize(cross(direction,up));
+  vec3 actualUp = normalize(cross(direction,right));
+
+  mat4 viewMatrix = mat4(1);
+  viewMatrix[0] = vec4(right,0);
+  viewMatrix[1] = vec4(actualUp,0);
+  viewMatrix[2] = vec4(direction,0);
+  viewMatrix[3][0] = -dot(right,eye);
+  viewMatrix[3][1] = -dot(actualUp,eye);
+  viewMatrix[3][2] = -dot(direction,eye);
+
+  return (viewMatrix);
+}
+
+void main(void) {
+
+  mat4 viewMatrix = lookAt(vec3(0, 50, 55), vec3(5, 5, 0), vec3(0, 1, 0));
+
+  mat4 perspectiveMatrix = perspective(radians(30.), 1., 1., 100.);
+
+  gl_Position = perspectiveMatrix * viewMatrix * vec4(coordinate,1.);
+
+  varyingTextureCoordinate = textureCoordinate;
+}
+</script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">
+precision highp float;
+
+uniform sampler2D referenceTextureSampler;
+uniform sampler2D videoTextureSampler;
+
+varying vec2 varyingTextureCoordinate;
+
+void main(void) {
+
+  vec4 referenceRGBA = texture2D(referenceTextureSampler, varyingTextureCoordinate);
+  vec4 videoRGBA = texture2D(videoTextureSampler, varyingTextureCoordinate);
+
+  vec4 rgba;
+  //rgba = abs(referenceRGBA - videoRGBA);
+
+  rgba = referenceRGBA;
+  rgba = videoRGBA;
+  rgba = 0.5 * (referenceRGBA + videoRGBA);
+
+  rgba.a = 1.;
+  gl_FragColor = rgba;
+}
+</script>
+
+<script>
+//
+// Now, the rendering code
+//
+
+// add a canvas for 3D
+var canvasID = "canvas3D";
+$('#canvases').append('<canvas id=canvas3D></canvas><p>Rendered View</p>');
+var canvas3D = document.querySelector('#canvas3D');
+</script>
+
+<script>
+'use strict'
+
+var useLiveVideo = false;
+
+//
+// set up webgl
+//
+var gl = canvas3D.getContext('webgl');
+gl.clearColor(0.0, 0.0, 0.0, 1.0); // black, fully opaque
+gl.enable(gl.DEPTH_TEST);
+gl.depthFunc(gl.LEQUAL); // Near things obscure far things
+
+// create the keyboard vertex buffer
+var keyboardOrigin = [-100., -100.];
+var keyboardDimensions = [280., 130.];
+//var keyboardOrigin = [-1., -1.];
+//var keyboardDimensions = [2., 2.];
+var keyboardVertices = [
+  keyboardOrigin[0], keyboardOrigin[1], 0.0,
+  keyboardOrigin[0]+keyboardDimensions[0], keyboardOrigin[1], 0.0,
+  keyboardOrigin[0], keyboardOrigin[1]+keyboardDimensions[1], 0.0,
+  keyboardOrigin[0]+keyboardDimensions[0], keyboardOrigin[1]+keyboardDimensions[1], 0.0,
+];
+var keyboardCoordinatesBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, keyboardCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(keyboardVertices), gl.STATIC_DRAW);
+
+var keyboardAspect = 1024 / 576;
+var keyboardTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
+var keyboardTexureCoordinatesBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, keyboardTexureCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(keyboardTextureCoordinates), gl.STATIC_DRAW);
+
+// create the reference texture and video texture
+var referenceTextureImage = new Image();
+var referenceTexture = gl.createTexture();
+var setupReferenceTexture = function() {
+  gl.bindTexture(gl.TEXTURE_2D, referenceTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, referenceTextureImage);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  var textureDimensions = [referenceTextureImage.width,referenceTextureImage.height];
+};
+var videoTexture = gl.createTexture();
+var setupVideoTexture = function() {
+  gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+};
+
+//
+// create the program and shaders
+//
+var glProgram = gl.createProgram();
+var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
+gl.compileShader(vertexShader);
+if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile vertexShader');
+  console.log(gl.getShaderInfoLog(vertexShader));
+}
+var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
+gl.compileShader(fragmentShader);
+if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile fragmentShader');
+  console.log(gl.getShaderInfoLog(fragmentShader));
+}
+gl.attachShader(glProgram, vertexShader);
+gl.deleteShader(vertexShader);
+gl.attachShader(glProgram, fragmentShader);
+gl.deleteShader(fragmentShader);
+gl.linkProgram(glProgram);
+
+
+
+// render a frame
+function render3D() {
+  gl.viewport(0, 0, canvas3D.width, canvas3D.height);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  gl.useProgram(glProgram);
+
+  // the referenceTexture
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, referenceTexture);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "referenceTextureSampler"), 0);
+
+  // the videoTexture
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "videoTextureSampler"), 1);
+
+  // the coordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, keyboardCoordinatesBuffer);
+  var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
+  gl.enableVertexAttribArray( gl.getAttribLocation(glProgram, "coordinate") );
+  gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
+
+  // the textureCoordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, keyboardTexureCoordinatesBuffer);
+  var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
+  gl.enableVertexAttribArray( gl.getAttribLocation(glProgram, "textureCoordinate") );
+  gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+referenceTextureImage.src = "../images/apple-keyboard.jpg";
+referenceTextureImage.onload = setupReferenceTexture;
+
+</script>
+
+
+<span id="video"></span>
+<div id='videos'> </div>
+<div id='videoTime'> </div>
+<script>
+//
+// This is the video part - it is responsible for collecting
+// frames and putting them into a canvas.
+//
+
+'use strict';
+
+var videoLabel = document.getElementById('video');
+videoLabel.innerHTML = "<p> waiting for video events...</p>";
+
+
+// handle browser differences
+navigator.getUserMedia = navigator.getUserMedia ||
+  navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+
+
+// when sources are found
+function gotSources(sourceInfos) {
+  // seems only one video stream can be active at a time, at least
+  // on chrome on android so we pick the second video source
+  // TODO allow switching sources on the fly
+  var videoSourceCount = 0;
+  for (var i = 0; i !== sourceInfos.length; ++i) {
+    var sourceInfo = sourceInfos[i];
+    if (sourceInfo.kind === 'video') {
+      videoSourceCount++;
+    }
+  }
+  var skipFirstVideo = false;
+  if (videoSourceCount > 1) {
+    skipFirstVideo = true;
+  }
+  for (var i = 0; i !== sourceInfos.length; ++i) {
+    var sourceInfo = sourceInfos[i];
+    if (sourceInfo.kind === 'video') {
+      if (!skipFirstVideo) {
+        videoLabel.innerHTML = "<p> Found some video </p>";
+        videoStart(sourceInfo.id);
+      }
+      skipFirstVideo = false;
+    }
+    if (sourceInfo.kind === 'audio') {
+      console.log("There's audio available, but we don't care");
+    } else {
+      console.log('Some other kind of source: ', sourceInfo);
+    }
+  }
+}
+
+// ask for sources
+// getSources inspired from https://github.com/samdutton/simpl/tree/master/getusermedia
+if (typeof MediaStreamTrack.getSources === 'undefined'){
+  alert('This browser does not support MediaStreamTrack.\n\nTry a newer browser.');
+} else {
+  if (useLiveVideo) {
+    MediaStreamTrack.getSources(gotSources);
+  }
+}
+
+var videoCount = 0;
+// play the video when it's available
+function videoSuccessCallback(stream) {
+  videoCount += 1;
+  var videoID = "video"+videoCount;
+  $('#videos').append('<video autoplay id='+videoID+'></video><p>'+videoID+'</p>');
+  var videoElement = document.querySelector('#video1');
+  videoElement.src = window.URL.createObjectURL(stream);
+  videoElement.addEventListener('canplay', function(ev){
+    var width = 200;
+    var height = videoElement.videoHeight / (videoElement.videoWidth/width);
+    videoElement.setAttribute('width', width);
+    videoElement.setAttribute('height', height);
+    canvas3D.setAttribute('width', width);
+    canvas3D.setAttribute('height', height);
+
+    render3D(); // initial render
+
+  }, false);
+  var videoTime = document.getElementById('videoTime');
+  videoElement.addEventListener('timeupdate', function() {
+    videoTime.innerHTML = "<p>Time: " + videoElement.currentTime + "</p>";
+  });
+}
+
+// or error out
+function errorCallback(error){
+  console.log('navigator.getUserMedia error: ', error);
+  videoLabel.innerHTML = "<p> Error Accessing video </p>";
+}
+
+// entry point for video
+function videoStart(videoSource){
+  var constraints = {
+    video: {
+      optional: [{sourceId: videoSource}]
+    }
+  };
+  navigator.getUserMedia(constraints, videoSuccessCallback, errorCallback);
+}
+
+// end of video section
+</script>
+
+
+<script>
+
+// the render loop using static images
+var staticAnimationFrame = function() {
+  gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  staticElement = document.querySelector('#static2');
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, staticElement);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  render3D();
+  requestAnimationFrame(staticAnimationFrame);
+}
+
+
+// the render loop to move the video into texture
+var videoElement = null;
+var videoAnimationFrame = function() {
+  if (videoCount > 0) {
+    if (!videoElement) {
+      videoElement = document.querySelector('#video1');
+      setupVideoTexture();
+    } else {
+      if (videoElement.videoHeight) { // only defined when loaded
+        gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        render3D();
+      }
+    }
+  }
+  requestAnimationFrame(videoAnimationFrame);
+}
+
+if (useLiveVideo) {
+  requestAnimationFrame(videoAnimationFrame);
+} else {
+  staticElement = document.querySelector('#static2');
+  staticElement.onload = function () {
+    setupVideoTexture();
+    requestAnimationFrame(staticAnimationFrame);
+  };
+}
+
+
+
+</script>
+
+
+<span id="orientation"></span>
+
+<script>
+
+//
+// The orientation api provides an approximate orientation of the device, but
+// may not be stable enough to use for tracking.  The X and Y rotations (with respect
+// to the screen seem very quick and stable (gyro-based) but the Z rotation
+// appears to be poor (based on accelerometer and magnetometer readings).
+//
+
+
+//
+// from http://w3c.github.io/deviceorientation/spec-source-orientation.html#deviceorientation
+//
+
+var degtorad = Math.PI / 180; // Degree-to-Radian conversion
+
+function getRotationMatrix( alpha, beta, gamma ) {
+
+  var _x = beta  ? beta  * degtorad : 0; // beta value
+  var _y = gamma ? gamma * degtorad : 0; // gamma value
+  var _z = alpha ? alpha * degtorad : 0; // alpha value
+
+  var cX = Math.cos( _x );
+  var cY = Math.cos( _y );
+  var cZ = Math.cos( _z );
+  var sX = Math.sin( _x );
+  var sY = Math.sin( _y );
+  var sZ = Math.sin( _z );
+
+  //
+  // ZXY rotation matrix construction.
+  //
+
+  var m11 = cZ * cY - sZ * sX * sY;
+  var m12 = - cX * sZ;
+  var m13 = cY * sZ * sX + cZ * sY;
+
+  var m21 = cY * sZ + cZ * sX * sY;
+  var m22 = cZ * cX;
+  var m23 = sZ * sY - cZ * cY * sX;
+
+  var m31 = - cX * sY;
+  var m32 = sX;
+  var m33 = cX * cY;
+
+  return [
+    m11,    m12,    m13,
+    m21,    m22,    m23,
+    m31,    m32,    m33
+  ];
+
+};
+
+function matrixTable(m) {
+  var t = "<table>";
+  for (row = 0; row < 3; row++) {
+    t += "<tr>";
+    for (column = 0; column < 3; column++) {
+      t += "<td>" + m[3*row+column].toFixed(3) + "</td>";
+    }
+    t += "</tr>";
+  }
+  t += "</table>";
+  return (t);
+}
+
+var orientationLabel = document.getElementById('orientation');
+orientationLabel.innerHTML = "<p> waiting for orientation events...</p>";
+
+
+var pendingAjax = undefined;
+var currentMatrix = undefined;
+var currentEulers = undefined;
+var useEulers = true;
+
+// used if sending rotation matrix
+var sendTransform = function() {
+  if (useEulers) {
+    var action = "slicer/eulers?angles=" + String(currentEulers);
+  } else {
+    var action = "slicer/transform?m=" + String(currentMatrix);
+  }
+
+  pendingAjax = $.ajax(action)
+  .done(function() {
+    sendTransform();
+  })
+  .fail(function() {
+    console.log("Could not send transform, aborting");
+  });
+}
+
+window.addEventListener('deviceorientation', function(e) {
+        /* e.alpha, beta: e.beta, gamma: e.gamma */
+        var orientationLabel = document.getElementById('orientation');
+        orientationLabel.innerHTML = "<p> e = " + e + "</p>";
+        orientationLabel.innerHTML += "<p> alpha = " + e.alpha + "</p>";
+        orientationLabel.innerHTML += "<p> beta = " + e.beta + "</p>";
+        orientationLabel.innerHTML += "<p> gamma = " + e.gamma + "</p>";
+        orientationLabel.innerHTML += "<p> absolute = " + e.absolute + "</p>";
+
+        currentEulers = [e.alpha, e.beta, e.gamma];
+
+        currentMatrix = getRotationMatrix(e.alpha, e.beta, e.gamma);
+
+        if (pendingAjax === undefined) {
+          sendTransform();
+        }
+
+        orientationLabel.innerHTML += "<p> " + matrixTable(currentMatrix);
+
+}, true);
+
+// end of orientation section
+</script>
+
+
+<p>
+This demo uses advanced web APIs to access sensors.  Not all devices and browsers are supported.
+</p>
+
+
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <title>Chronicle Colony</title>
+
+  <link href="./css/colony.css" rel="stylesheet" type="text/css" />
+
+  <script type="text/javascript" src="js/three.js"></script>
+  <script type="text/javascript" src="js/stats.js"></script>
+  <script type="text/javascript" src="js/tween.js"></script>
+  <script type="text/javascript" src="js/physi.js"></script>
+
+  <script type="text/javascript" src="js/jquery-1.10.2.js"></script>
+  <script type="text/javascript" src="js/jquery.couch.js"></script>
+
+  <script type="text/javascript">
+
+  // based on https://github.com/chandlerprall/Physijs/blob/d19a7bf4cb65a38b9e3221d47c999589bd6cf0da/examples/shapes.html
+
+  'use strict';
+
+  Physijs.scripts.worker = 'js/physijs_worker.js';
+  Physijs.scripts.ammo = 'ammo.js';
+
+  // render and physics related
+  var initScene, render, createSeriesBlock, seriesCount = 0,
+    renderer, render_stats, physics_stats, scene, light, ground, ground_material, camera, videoStream;
+
+  // video related
+  var streaming = false,
+      video,
+      canvas,
+      width = 200,
+      height = 0;
+
+  var groundOptions = {
+    width : 50,
+    breadth : 50,
+    depth : 1,
+    mass : 0,
+  };
+
+  var requestVideo = function() {
+
+    video        = document.querySelector('#video'),
+    canvas       = document.querySelector('#canvas'),
+
+    navigator.getUserMedia = ( navigator.getUserMedia ||
+                               navigator.webkitGetUserMedia ||
+                               navigator.mozGetUserMedia ||
+                               navigator.msGetUserMedia );
+
+    navigator.getUserMedia(
+      {
+        video: true,
+        audio: false
+      },
+      function(stream) {
+        videoStream = stream;
+        if (navigator.mozGetUserMedia) {
+          video.mozSrcObject = stream;
+        } else {
+          var vendorURL = window.URL || window.webkitURL;
+          video.src = vendorURL ? vendorURL.createObjectURL(stream) : stream;
+        }
+        video.play();
+      },
+      function(err) {
+        console.log("An error occured! " + err);
+      }
+    );
+
+    video.addEventListener('canplay', function(ev){
+      if (!streaming) {
+        height = video.videoHeight / (video.videoWidth/width);
+        video.setAttribute('width', width);
+        video.setAttribute('height', height);
+        streaming = true;
+      }
+    }, false);
+
+  };
+
+
+  initScene = function() {
+    TWEEN.start();
+
+    requestVideo();
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize( 0.9 * window.innerWidth, 0.7 * window.innerHeight );
+    renderer.shadowMapEnabled = true;
+    renderer.shadowMapSoft = true;
+    document.getElementById( 'viewport' ).appendChild( renderer.domElement );
+
+    render_stats = new Stats();
+    render_stats.domElement.style.position = 'absolute';
+    render_stats.domElement.style.top = '0px';
+    render_stats.domElement.style.left = '700px';
+    render_stats.domElement.style.zIndex = 100;
+    document.getElementById( 'viewport' ).appendChild( render_stats.domElement );
+
+    physics_stats = new Stats();
+    physics_stats.domElement.style.position = 'absolute';
+    physics_stats.domElement.style.top = '50px';
+    physics_stats.domElement.style.left = '700px';
+    physics_stats.domElement.style.zIndex = 100;
+    document.getElementById( 'viewport' ).appendChild( physics_stats.domElement );
+
+    scene = new Physijs.Scene({ fixedTimeStep: 1 / 120 });
+    scene.setGravity(new THREE.Vector3( 0, -9.8, 0 ));
+    scene.addEventListener(
+      'update',
+      function() {
+        scene.simulate( undefined, 2 );
+        physics_stats.update();
+      }
+    );
+
+    camera = new THREE.PerspectiveCamera(
+      35,
+      window.innerWidth / window.innerHeight,
+      1,
+      1000
+    );
+    camera.position.set( 60, 50, 60 );
+    camera.lookAt( scene.position );
+    scene.add( camera );
+
+    // Light
+    light = new THREE.DirectionalLight( 0xFFFFFF );
+    light.position.set( 20, 40, -15 );
+    light.target.position.copy( scene.position );
+    light.castShadow = true;
+    light.shadowCameraLeft = -60;
+    light.shadowCameraTop = -60;
+    light.shadowCameraRight = 60;
+    light.shadowCameraBottom = 60;
+    light.shadowCameraNear = 20;
+    light.shadowCameraFar = 200;
+    light.shadowBias = -.0001
+    light.shadowMapWidth = light.shadowMapHeight = 2048;
+    light.shadowDarkness = .7;
+    scene.add( light );
+
+    // Materials
+    var imageURL = 'http://common.bwh.harvard.edu:5984/chronicle/1.2.276.0.7230010.3.1.4.0.50979.1410120363.325199/image.jpg'
+    THREE.ImageUtils.crossOrigin = '';
+    ground_material = Physijs.createMaterial(
+      new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( imageURL ) }),
+      .5, // high friction
+      .4 // low restitution
+    );
+    ground_material.map.wrapS = ground_material.map.wrapT = THREE.RepeatWrapping;
+
+
+    // Ground
+    var ground = new Physijs.BoxMesh(
+      new THREE.BoxGeometry(groundOptions.width, groundOptions.depth, groundOptions.breadth),
+      ground_material,
+      groundOptions.mass
+    );
+    ground.receiveShadow = true;
+    scene.add( ground );
+
+    requestAnimationFrame( render );
+    scene.simulate();
+
+    var value = "Slicer Series Render";
+    $.couch.urlPrefix = "http://common.bwh.harvard.edu:5984";
+    var pendingUpdateRequest = $.couch.db("chronicle").view("tags/byTagAndValue", {
+      startkey: ["0008103E", value],
+      endkey: ["0008103E", value+"\u9999"],
+      reduce : false,
+      stale : 'update_after',
+      limit : 500,
+      success: function(data) {
+        $.each(data.rows, function(index,row) {
+          var id = row.id;
+          var imageURL = 'http://common.bwh.harvard.edu:5984/chronicle/' + id + '/image.jpg';
+          createSeriesBlock(imageURL);
+        });
+      },
+    });
+
+  };
+
+
+  var loading = false;
+  render = function() {
+    if (streaming && !loading) {
+      canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+      var url = canvas.toDataURL('image/png');
+      var mapping = THREE.UVMapping;
+      var onLoad = function(texture) {
+        ground_material.map = texture;
+        loading = false;
+      };
+      var onError = function(event) {
+        console.log(event);
+        loading = false;
+      };
+      THREE.ImageUtils.loadTexture(url, mapping, onLoad, onError);
+      loading = true;
+    }
+    renderer.render( scene, camera );
+    render_stats.update();
+    requestAnimationFrame( render );
+  };
+
+  createSeriesBlock = function(imageURL) {
+    var box_geometry = new THREE.BoxGeometry( 10, .2, 10 );
+
+    THREE.ImageUtils.crossOrigin = '';
+    var shape,
+        material = new THREE.MeshLambertMaterial({ opacity: 0, transparent: true,
+                                                   map: THREE.ImageUtils.loadTexture( imageURL ),
+        });
+
+    shape = new Physijs.BoxMesh(
+      box_geometry,
+      material,
+      0.1 // mass
+    );
+
+    var randomComponent = function() {return (0.5 + Math.random() / 2.);};
+    shape.material.color.setRGB( randomComponent(), randomComponent(), randomComponent() );
+    shape.castShadow = true;
+    shape.receiveShadow = true;
+
+    shape.position.set(
+      Math.random() * groundOptions.width - groundOptions.width/2,
+      10 + Math.random() * 40,
+      Math.random() * groundOptions.width - groundOptions.width/2
+    );
+
+    shape.rotation.set(
+      Math.random() * Math.PI,
+      Math.random() * Math.PI,
+      Math.random() * Math.PI
+    );
+
+    scene.add( shape );
+
+    new TWEEN.Tween(shape.material).to({opacity: 1}, 500).start();
+
+    document.getElementById( 'seriesCount' ).textContent = ( ++seriesCount ) + ' series displayed';
+  };
+
+  window.onload = initScene;
+
+  </script>
+</head>
+
+<body>
+  <div>
+    <h1>Chronicle Colony</h1>
+    <p>
+    A view of the contents of a Chronicle instance.
+    </p>
+    <p>
+    <span id="seriesCount"></span>
+    </p>
+  </div>
+
+
+
+  <div id="viewport"></div>
+
+  <video autoplay id="video"></video>
+  <canvas id="canvas"></canvas>
+
+  <span id="orientation"></span>
+
+  <script>
+    
+        var b = document.getElementById('orientation');
+        b.innerHTML = "<p> listening for orientation events...</p>";
+    
+        window.addEventListener('deviceorientation', function(e) {
+                /* e.alpha, beta: e.beta, gamma: e.gamma */
+                var b = document.getElementById('orientation');
+                b.innerHTML = "<p> e = " + e + "</p>";
+                b.innerHTML += "<p> alpha = " + e.alpha + "</p>";
+                b.innerHTML += "<p> beta = " + e.beta + "</p>";
+                b.innerHTML += "<p> gamma = " + e.gamma + "</p>";
+                b.innerHTML += "<p> absolute = " + e.absolute + "</p>";
+        }, true);
+  </script>
+
+  <script type='text/javascript' id="__bs_script__">//<![CDATA[
+      /* This is for browser-sync.  Use it with:
+          browser-sync start --server --files "*"
+      */
+      document.write(
+        "<script async src='//HOST:PORT/browser-sync/browser-sync-client.1.7.1.js'><\/script>"
+        .replace(/HOST/g, location.hostname).replace(/PORT/g, location.port)
+      );
+  //]]></script>
+
+</body>
+
+</html>

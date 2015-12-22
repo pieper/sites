@@ -1,0 +1,11 @@
+BODY {
+	font-family: Helvetica, Arial, Sans-Serif;
+}
+
+BODY H1 {
+  background: #aaa;
+  width: 100%;
+  height: 3em;
+  left: 3em;
+}
+

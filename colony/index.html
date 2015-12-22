@@ -146,7 +146,8 @@
     scene.add( light );
 
     // Materials
-    var imageURL = 'http://common.bwh.harvard.edu:5984/chronicle/1.2.276.0.7230010.3.1.4.0.50979.1410120363.325199/image.jpg'
+    //var imageURL = 'http://common.bwh.harvard.edu:5984/chronicle/1.2.276.0.7230010.3.1.4.0.50979.1410120363.325199/image.jpg'
+    var imageURL = 'http://quantome.org:5984/chronicle/1.2.276.0.7230010.3.1.4.0.50979.1410120363.325199/image.jpg'
     THREE.ImageUtils.crossOrigin = '';
     ground_material = Physijs.createMaterial(
       new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( imageURL ) }),
@@ -169,7 +170,8 @@
     scene.simulate();
 
     var value = "Slicer Series Render";
-    $.couch.urlPrefix = "http://common.bwh.harvard.edu:5984";
+    //$.couch.urlPrefix = "http://common.bwh.harvard.edu:5984";
+    $.couch.urlPrefix = "http://quantome.org:5984";
     var pendingUpdateRequest = $.couch.db("chronicle").view("tags/byTagAndValue", {
       startkey: ["0008103E", value],
       endkey: ["0008103E", value+"\u9999"],
@@ -179,7 +181,8 @@
       success: function(data) {
         $.each(data.rows, function(index,row) {
           var id = row.id;
-          var imageURL = 'http://common.bwh.harvard.edu:5984/chronicle/' + id + '/image.jpg';
+          //var imageURL = 'http://common.bwh.harvard.edu:5984/chronicle/' + id + '/image.jpg';
+          var imageURL = 'http://quantome.org:5984/chronicle/' + id + '/image.jpg';
           createSeriesBlock(imageURL);
         });
       },

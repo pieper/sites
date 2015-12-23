@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Study flight</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+      body {
+        color: #000;
+        font-family:Monospace;
+        font-size:13px;
+        text-align:center;
+
+        background-color: #fff;
+        margin: 0px;
+        padding: 0px;
+        overflow: hidden;
+      }
+
+      #info {
+        position: absolute;
+        top: 0px; width: 100%;
+        padding: 5px;
+        z-index:100;
+      }
+
+    </style>
+
+    <script src="./jslib/jquery-1.11.3.min.js"></script>
+    <script src="./jslib/jquery.dataTables.min.js"></script>
+    <script src="./jslib/pouchdb-5.1.0.js"></script>
+    <script src="./jslib/pouchdb.memory.js"></script>
+
+    <script src="jslib/three.min.js"></script>
+    <script src="jslib/Detector.js"></script>
+
+  </head>
+
+  <body>
+    <div id="info">
+      <h3>Abstract study review</h3>
+    </div>
+
+    <p id="count">No events yet</p>
+
+    <script>
+
+      if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+      var SCREEN_WIDTH = window.innerWidth;
+      var SCREEN_HEIGHT = window.innerHeight;
+
+      var container;
+
+      var camera, scene, renderer, projector, raycaster;
+
+      var mouseX = 0, mouseY = 0;
+      var rayMouse = {x: 1, y: 1};
+      var mouseButtonDown = false;
+
+      var windowHalfX = window.innerWidth / 2.;
+      var windowHalfY = window.innerHeight / 2.;
+
+      // images object holds state of rendering
+      var images = {};
+      images.urls = [];
+      images.renderObjects = {}; // indexed by urls offset
+
+      images.cursor = 0;
+      images.lookAhead = 20;
+      images.intersectedFrame = null;
+      images.zoomUp = 1.5;
+      images.frameCount = 0;
+      images.animating = true;
+
+
+      $(document).ready(function() {
+
+        var db = new PouchDB('http://quantome.org:5984/chronicle');
+        document.db = db;
+
+        // count of change activity - just a demo
+        document.updateActivityCount = function() {
+          db.info().then(function (info) {
+            $('#count').text("Count: " + String(info.doc_count));
+            document.changes = db.changes({
+              since: 'now',
+              live: false,
+              include_docs: false
+            }).then(function(change) {
+              setTimeout(document.updateActivityCount, 1000);
+            }).catch(function (err) {
+              console.log(err);
+            });
+          }).catch(function(err) {
+            console.log(err);
+          });
+        };
+        document.updateActivityCount();
+
+        //
+        // get and display series render images
+        //
+        var key = "0008103E"; // Series Description
+        var value = "Slicer Series Render";
+        db.query("tags/byTagAndValue", {
+          startkey: [key, value],
+          endkey: [key, value+"\u9999"],
+          reduce : false,
+          stale : 'update_after',
+          limit : 500,
+        }).then(function(data) {
+          console.log('series data', data);
+          for (var row = 0; row < data.rows.length; row += 1) {
+            var id = data.rows[row].id;
+            var imageURL = 'http://quantome.org:5984/chronicle/' + id + '/image.jpg';
+            images.urls.push(imageURL);
+            images.renderObjects[row] = null;
+          };
+          console.log('images', images);
+          init();
+          animate();
+        }).catch(function (err) {
+          console.log(err);
+        });
+      });
+
+      function init() {
+
+        container = document.createElement( 'div' );
+        document.body.appendChild( container );
+
+        renderer = new THREE.WebGLRenderer( { antialias: true } );
+
+        //
+
+        camera = new THREE.PerspectiveCamera( 35, SCREEN_WIDTH / SCREEN_HEIGHT, 1, 25000 );
+        camera.position.z = 300;
+
+        scene = new THREE.Scene();
+
+        scene.add( new THREE.AmbientLight( 0xeef0ff ) );
+
+        var light1 = new THREE.DirectionalLight( 0xffffff, 2 );
+        light1.position.set( 1, 1, 1 );
+        scene.add( light1 );
+
+        // background
+
+        var geometry = new THREE.PlaneGeometry( 1000, 1000 );
+        var backgroundMaterial = new THREE.MeshBasicMaterial( { color: 0x808080 } );
+
+        var backgroundPlane = new THREE.Mesh( geometry, backgroundMaterial );
+        backgroundPlane.position.z = -2000;
+        backgroundPlane.scale.set( 1000, 1000, 1000 );
+        backgroundPlane.name = 'backgroundPlane';
+
+        scene.add( backgroundPlane );
+
+
+        // photo
+
+        showPhotos({});
+
+        // for intersections
+        projector = new THREE.Projector();
+        raycaster = new THREE.Raycaster();
+
+        // RENDERER
+
+        renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+        renderer.autoClear = false;
+
+        renderer.domElement.style.position = "relative";
+        container.appendChild( renderer.domElement );
+
+        document.addEventListener( 'keydown', onKeyDown, true );
+        document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+        document.addEventListener( 'dragover', onDocumentMouseMove, false );
+        document.addEventListener( 'mousedown', function(event) {mouseButtonDown = true; images.animating = false;}, false );
+        document.addEventListener( 'mouseup', function(event) {mouseButtonDown = false}, false );
+
+      }
+
+      function photosLoaded() {
+        var cursor = images.cursor;
+
+        for (var photoIndex = 0; photoIndex < cursor + images.lookAhead; photoIndex += 1) {
+          var objects = images.renderObjects[photoIndex];
+          if (objects) {
+            if (!objects.loaded) {
+              return false;
+            }
+          }
+        }
+        return true;
+      };
+
+      function showPhotos(options) {
+
+        var cursor = options.cursor || images.cursor;
+        images.cursor = cursor;
+
+        // remove images before cursor
+        for (var photoIndex = 0; photoIndex < cursor; photoIndex +=1) {
+          if (images.renderObjects[photoIndex]) {
+            removePhoto( photoIndex );
+          }
+        }
+
+        // add any images in the lookAhead range
+        for (var photoIndex = cursor; photoIndex < cursor + images.lookAhead; photoIndex +=1) {
+          var z = 100. * (-0.5 + (photoIndex - cursor) / (1.0 * images.lookAhead));
+          if (!images.renderObjects[photoIndex]) {
+            addPhoto( {index: photoIndex, offsetZ: z} );
+          } else {
+            images.renderObjects[photoIndex].mesh.position.z = z;
+            images.renderObjects[photoIndex].meshFrame.position.z = z;
+          }
+        }
+
+        // remove images after cursor plus lookAhead
+        for (var photoIndex = cursor + images.lookAhead; photoIndex < images.urls.length; photoIndex +=1) {
+          if (images.renderObjects[photoIndex]) {
+            removePhoto( photoIndex );
+          }
+        }
+
+      }
+
+      function addPhoto(options) {
+
+        var index = options.index || 0;
+        images.renderObjects[index] = {};
+        var objects = images.renderObjects[index];
+
+        // PHOTO
+        options.photoPath = images.urls[index];
+        var photoScale = options.scale || 0.5 + Math.random() / 2.;
+        var photoOffsetX = options.offsetX || 0.5 - Math.random();
+        var photoOffsetY = options.offsetY || 0.5 - Math.random();
+        var photoOffsetZ = options.offsetZ || 100 * (0.5 - Math.random());
+
+        var callbackPhoto = function() {
+
+          var image = objects.texturePhoto.image;
+          var aspectRatio = image.width / (1. * image.height);
+
+          objects.geometry = new THREE.PlaneGeometry( 100, 100 );
+          objects.mesh = new THREE.Mesh( objects.geometry, objects.materialPhoto );
+
+          addPhotoFrame( scene, objects.mesh );
+
+          function addPhotoFrame( zscene, zmesh ) {
+
+            zmesh.scale.x = photoScale * aspectRatio;
+            zmesh.scale.y = photoScale;
+
+            zmesh.position.x = photoOffsetX * 100;
+            zmesh.position.y = photoOffsetY * 100;
+            zmesh.position.z = photoOffsetZ;
+
+            zscene.add( zmesh );
+
+            objects.meshFrame = new THREE.Mesh( objects.geometry, new THREE.MeshBasicMaterial( { color: 0x000000, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 5 } )  );
+            objects.meshFrame.scale.x = 1.02 * zmesh.scale.x;
+            objects.meshFrame.scale.y = 1.02 * zmesh.scale.y;
+            objects.meshFrame.position.x = zmesh.position.x;
+            objects.meshFrame.position.y = zmesh.position.y;
+            objects.meshFrame.position.z = zmesh.position.z;
+
+            objects.mesh.userData.frame = objects.meshFrame;
+            objects.mesh.userData.fileName = images.urls[index];
+            objects.mesh.userData.index = index;
+            objects.mesh.name = images.urls[index];
+            objects.meshFrame.name = images.urls[index] + '-frame';
+            objects.meshFrame.userData.mesh = objects.mesh;
+
+            objects.loaded = true;
+
+            zscene.add( objects.meshFrame );
+          }
+        };
+
+        function callbackPhotoError(err) {
+          console.log(error);
+          objects.loaded = true;
+        };
+
+        objects.loaded = false;
+        THREE.ImageUtils.crossOrigin = 'anonymous';
+        objects.texturePhoto = THREE.ImageUtils.loadTexture( options.photoPath, 
+                                                         THREE.UVMapping, 
+                                                         callbackPhoto, callbackPhotoError ),
+        objects.materialPhoto = new THREE.MeshBasicMaterial( { color: 0xffffff, map: objects.texturePhoto } );
+
+        //objects.texturePhoto.minFilter = objects.texturePhoto.magFilter = THREE.LinearFilter;
+        objects.texturePhoto.minFilter = objects.texturePhoto.magFilter = THREE.LinearMipMapLinearFilter;
+      }
+
+      function removePhoto(index) {
+        var objects = images.renderObjects[index];
+        scene.remove( objects.mesh );
+        scene.remove( objects.meshFrame );
+        images.renderObjects[index] = null;
+      }
+
+      function onKeyDown(event) {
+
+        if (event.which === 32) {
+          images.animating = !images.animating;
+        }
+        if (event.which === 37) { // left arrow
+          incrPhoto(-1);
+        }
+        if (event.which === 38) {
+          alert('up');
+        }
+        if (event.which === 39) {  // right arrow
+          incrPhoto(1);
+        }
+        if (event.which === 40) {
+          alert('down');
+        }
+
+      };
+
+      function incrPhoto(delta) {
+        console.log('incr', delta);
+        if (photosLoaded()) {
+          images.cursor += delta;
+          if (images.cursor < 0) { images.cursor = 0; }
+          if (images.cursor >= images.urls.length - images.lookAhead) { images.cursor = 0; }
+          showPhotos({});
+        }
+      }
+
+      function onDocumentMouseMove(event) {
+
+        mouseX = ( event.clientX - windowHalfX );
+        mouseY = ( event.clientY - windowHalfY );
+
+				rayMouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+				rayMouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+      }
+
+
+      function animate() {
+
+        requestAnimationFrame( animate );
+
+        if (images.animating) {
+          images.frameCount += 1;
+          if (images.frameCount % 3 === 0) {
+            incrPhoto(1);
+          }
+        }
+
+        render();
+
+      }
+
+      function render() {
+
+        camera.position.x += ( mouseX - camera.position.x ) * .05;
+        camera.position.y = THREE.Math.clamp( camera.position.y + ( - ( mouseY - 200 ) - camera.position.y ) * .05, -500, 1000 );
+
+        camera.lookAt( scene.position );
+
+        // reset previous selection
+        if ( images.intersectedFrame ) {
+          images.intersectedFrame.material.color.setHex( images.intersectedFrame.userData.originalColor );
+          images.intersectedFrame.scale.x /= 3;
+          images.intersectedFrame.scale.y /= 3;
+          images.intersectedFrame.position.z = images.intersectedFrame.userData.originalZ;
+          images.intersectedFrame.userData.mesh.scale.x /= 3;
+          images.intersectedFrame.userData.mesh.scale.y /= 3;
+          images.intersectedFrame.userData.mesh.position.z = images.intersectedFrame.userData.originalZ;
+          images.intersectedFrame = null;
+        }
+
+        // highlight current selection
+        if (mouseButtonDown) {
+          handleIntersect();
+        }
+
+        renderer.clear();
+
+        renderer.render( scene, camera );
+
+      }
+
+      function handleIntersect() {
+
+        // find intersections
+
+        var vector = new THREE.Vector3( rayMouse.x, rayMouse.y, 1 );
+        projector.unprojectVector( vector, camera );
+
+        raycaster.set( camera.position, vector.sub( camera.position ).normalize() );
+
+        var intersects = raycaster.intersectObjects( scene.children );
+        var newIntersectFrame = null;
+        var intersect = null;
+
+        if ( intersects.length > 0 ) {
+          var intersect = intersects[ 0 ].object;
+          if (intersect.name !== "backgroundPlane") { // TODO: remove hack
+            newIntersectFrame = intersect.userData.frame || intersect;
+          }
+        } 
+
+        if ( newIntersectFrame ) {
+          images.intersectedFrame = newIntersectFrame;
+          images.intersectedFrame.userData.originalColor = images.intersectedFrame.material.color.getHex();
+          images.intersectedFrame.material.color.setHex( 0xffff80 );
+          images.intersectedFrame.userData.originalZ = images.intersectedFrame.position.z;
+          images.intersectedFrame.scale.x *= 3;
+          images.intersectedFrame.scale.y *= 3;
+          images.intersectedFrame.position.z = 130;
+          images.intersectedFrame.userData.mesh.scale.x *= 3;
+          images.intersectedFrame.userData.mesh.scale.y *= 3;
+          images.intersectedFrame.userData.mesh.position.z = 130;
+        }
+      }
+
+    </script>
+
+  </body>
+</html>

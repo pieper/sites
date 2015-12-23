@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="./css/jquery.dataTables.min.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="./css/StudyBrowser.css" media="screen" />
+
+    <script src="./jslib/jquery-1.11.3.min.js"></script>
+    <script src="./jslib/jquery.dataTables.min.js"></script>
+    <script src="./jslib/pouchdb-5.1.0.js"></script>
+    <script src="./jslib/pouchdb.memory.js"></script>
+
+    <script>
+      $(document).ready(function() {
+
+        var db = new PouchDB('http://quantome.org:5984/chronicle');
+        document.db = db;
+
+        var seriesTable = null;
+
+        //
+        // get and display series render images
+        //
+        db.query("instances/context", {
+          reduce : true,
+          group_level : 2,
+          stale : 'update_after',
+        }).then(function(data) {
+          var studyList = [];
+          for (var rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
+            var row = data.rows[rowIndex].key;
+            var studyEntry = [];
+            studyEntry.push(row);
+            studyEntry.push(row[0][0]);
+            studyEntry.push(row[0][1]);
+            studyEntry.push(row[1][0]);
+            studyEntry.push(data.rows[rowIndex].value);
+            studyList.push(studyEntry);
+          };
+
+          var studyTable = $('#studyTable').DataTable({
+            data : studyList,
+            columns : [
+              { title: "studyKey" }, // hidden, used for drill down
+              { title: "Institution" },
+              { title: "Subject" },
+              { title: "Description" },
+              { title: "Instance Count" },
+            ],
+            scrollY : "350px",
+            scrollCollapse : true,
+            paging : true,
+            rowID : "StudyUID",
+            initComplete : function () {
+              var api = this.api();
+              api.column(0).visible( false );
+              api.$('tr').click( function () {
+                var row = api.row(this)[0][0];
+                var studyKey = studyTable.data()[row][0];
+                showStudy(studyKey);
+              });
+            },
+          });
+        }).catch(function (err) {
+          console.log(err);
+        });
+
+        function showStudy(key) {
+          var endKey = key.slice(0);
+          endKey.push({});
+          db.query("instances/context", {
+            start_key : key,
+            end_key : endKey,
+            reduce : true,
+            group_level : 3,
+            stale : 'update_after',
+          }).then(function(data) {
+            var seriesList = [];
+            for (var rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
+              var row = data.rows[rowIndex].key;
+              var seriesEntry = [];
+              seriesEntry.push(row);
+              seriesEntry.push(row[2][0]);
+              seriesEntry.push(row[2][1]);
+              seriesEntry.push(data.rows[rowIndex].value);
+              seriesList.push(seriesEntry);
+            };
+
+            if (seriesTable) {
+              seriesTable.destroy();
+            }
+
+            seriesTable = $('#seriesTable').DataTable({
+              data : seriesList,
+              columns : [
+                { title: "seriesKey" }, // hidden, used for drill down
+                { title: "Modality" },
+                { title: "Description" },
+                { title: "Instance Count" },
+              ],
+              scrollY : "350px",
+              scrollCollapse : true,
+              paging : false,
+              rowID : "StudyUID",
+              initComplete : function () {
+                var api = this.api();
+                api.column(0).visible( false );
+                api.$('tr').click( function () {
+                  var row = api.row(this)[0][0];
+                  var seriesKey = seriesTable.data()[row][0];
+                  showStudy(seriesKey);
+                });
+              },
+            });
+          }).catch(function (err) {
+            console.log(err);
+          });
+        };
+
+      });
+
+    </script>
+
+    <title>Chronicle Study List</title>
+
+  </head>
+
+<body>
+
+<header>
+  <div class="container">
+    <h1>Studies</h1>
+  </div>
+</header>
+
+<table id="studyTable" class="display" cellspacing="0" width="100%">
+  <tr><td>Study data loading...</td>/<tr>
+</table>
+
+<table id="seriesTable" class="display" cellspacing="0" width="100%">
+  <tr><td>No series data.</td>/<tr>
+</table>
+
+</body>
+</html>

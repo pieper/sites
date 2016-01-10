@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-
   <title>Experimental GLSL Image Processing</title>
-
   <link rel="stylesheet" href="glimp.css" />
   <script src='jquery-1.11.0.min.js'></script>
-
+  <script src="//rawgit.com/ngryman/jquery.finger/v0.1.2/dist/jquery.finger.js"></script>
 </head>
 
 <body>
@@ -158,6 +156,9 @@ $(function () {
 
   // pass the mouse location as a uniform variable to the fragment shader
   $('#renderCanvas').mousemove(function(event) {
+    focusPoint = [event.offsetX / sourceTextureImage.width, 1. - (event.offsetY / sourceTextureImage.height)];
+  });
+  $('#renderCanvas').on('drag', function(event) {
     focusPoint = [event.offsetX / sourceTextureImage.width, 1. - (event.offsetY / sourceTextureImage.height)];
   });
 });

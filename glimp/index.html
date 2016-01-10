@@ -138,25 +138,22 @@ function render() {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-// the render loop using sourceImage images
-var sourceImageAnimationFrame = function() {
-  render();
-  requestAnimationFrame(sourceImageAnimationFrame);
-}
-
 // initialize after load is complete
 $(function () {
   // once the image is loaded, setup the texture and start the loop
   sourceTextureImage.src = "./lion.jpg";
   sourceTextureImage.onload = function () {
     setupSourceTexture();
-    requestAnimationFrame(sourceImageAnimationFrame);
+    render();
   };
 
   // pass the mouse location as a uniform variable to the fragment shader
-  $('#renderCanvas').mousemove(function(event) {
+  var updateFocus = function(event) {
     focusPoint = [event.offsetX / sourceTextureImage.width, 1. - (event.offsetY / sourceTextureImage.height)];
-  });
+    render();
+  };
+  $('#renderCanvas').mousedown(updateFocus);
+  $('#renderCanvas').mousemove(updateFocus);
 });
 
 </script>

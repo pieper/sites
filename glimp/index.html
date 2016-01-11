@@ -40,9 +40,11 @@ uniform vec2 focusPoint;
 varying vec2 varyingTextureCoordinate;
 
 void main(void) {
-  vec4 sourceRGBA = texture2D(sourceTextureSampler, varyingTextureCoordinate);
-  // 'dodge' the image around the focusPoint
-  gl_FragColor = sourceRGBA * distance(varyingTextureCoordinate, focusPoint);
+  float d = distance(varyingTextureCoordinate, focusPoint);
+  vec2 sampleCoordinate = varyingTextureCoordinate - .05/d * (varyingTextureCoordinate - focusPoint);
+  vec4 sourceRGBA = texture2D(sourceTextureSampler, sampleCoordinate);
+  sourceRGBA.g *= 1. - pow(d, 3.);
+  gl_FragColor = sourceRGBA;
 }
 </script>
 

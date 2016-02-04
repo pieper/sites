@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Experimental GLSL Image Processing</title>
+  <link rel="stylesheet" href="glimp.css" />
+  <script src='jquery-1.11.0.min.js'></script>
+</head>
+
+<body>
+
+<h1>GLSL Image Processing Demo</h1>
+
+<h2>Source Image</h2>
+<img id="sourceImage" src="./lion.jpg" width=600></img>
+
+<h2>Processed Image</h2>
+<canvas id=renderCanvas width=600 height=400></canvas>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+precision highp float;
+
+attribute vec3 coordinate;
+attribute vec2 textureCoordinate;
+
+varying vec2 varyingTextureCoordinate;
+
+void main(void) {
+  gl_Position = vec4(coordinate,1.);
+  varyingTextureCoordinate = textureCoordinate;
+}
+</script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">
+precision highp float;
+
+// Bilateral filter.  Based on https://www.shadertoy.com/view/4dfGDH#
+//
+//
+#define SIGMA 10.0
+//#define BSIGMA 0.1
+#define BSIGMA 0.3
+#define MSIZE 15
+
+
+float normpdf(in float x, in float sigma)
+{
+  return 0.39894*exp(-0.5*x*x/(sigma*sigma))/sigma;
+}
+
+float normpdf3(in vec3 v, in float sigma)
+{
+  return 0.39894*exp(-0.5*dot(v,v)/(sigma*sigma))/sigma;
+}
+
+uniform sampler2D sourceTextureSampler;
+uniform vec2 sourceTextureSize;
+uniform vec2 focusPoint;
+
+varying vec2 varyingTextureCoordinate;
+
+void main(void) {
+  vec4 c = texture2D(sourceTextureSampler, varyingTextureCoordinate);
+  vec4 bc = c;
+
+  // only smooth to the right of the mouse
+  if (varyingTextureCoordinate.x > focusPoint.x)
+  {
+    //declare stuff
+    const int kSize = (MSIZE-1)/2;
+    float kernel[MSIZE];
+    vec3 bfinal_colour = vec3(0.0);
+
+    float bZ = 0.0;
+
+    //create the 1-D kernel
+    for (int j = 0; j <= kSize; ++j) {
+      kernel[kSize+j] = kernel[kSize-j] = normpdf(float(j), SIGMA);
+    }
+
+    vec3 cc;
+    float gfactor;
+    float bfactor;
+    float bZnorm = 1.0/normpdf(0.0, BSIGMA);
+    //read out the texels
+    for (int i=-kSize; i <= kSize; ++i)
+    {
+      for (int j=-kSize; j <= kSize; ++j)
+      {
+        // color at pixel in the neighborhood
+        vec2 coord = (varyingTextureCoordinate.xy * sourceTextureSize.xy + vec2(float(i), float(j))) / sourceTextureSize.xy;
+        cc = texture2D(sourceTextureSampler, coord).rgb;
+
+        // compute both the gaussian smoothed and bilateral
+        gfactor = kernel[kSize+j]*kernel[kSize+i];
+        bfactor = normpdf3(cc-c.rgb, BSIGMA)*bZnorm*gfactor;
+        bZ += bfactor;
+
+        bfinal_colour += bfactor*cc;
+      }
+    }
+
+    bc = vec4(bfinal_colour/bZ, 1.0);
+  }
+
+  gl_FragColor = bc;
+}
+
+</script>
+
+<script>
+'use strict'
+
+var focusPoint = [0., 0.5]; // holds a value to be passed as a uniform to the shader
+
+var sourceTextureSize = [0,0];
+
+
+//
+// set up webgl
+//
+var renderCanvas = document.querySelector('#renderCanvas');
+var gl = renderCanvas.getContext('webgl');
+gl.clearColor(0.0, 0.0, 0.0, 1.0); // black, fully opaque
+gl.enable(gl.DEPTH_TEST);
+gl.depthFunc(gl.LEQUAL); // Near things obscure far things
+
+// buffers for the textured plane in normalized space
+var renderImageCoordinatesBuffer = gl.createBuffer();
+var renderImageTexureCoordinatesBuffer = gl.createBuffer();
+var renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1.,  1., 0., 1.,  1., 0., ];
+gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
+
+var renderImageTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
+gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
+
+// the source texture
+var sourceTextureImage = new Image();
+var sourceTexture = gl.createTexture();
+var setupSourceTexture = function() {
+  gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceTextureImage);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
+  sourceTextureSize[0] = sourceTextureImage.width;
+  sourceTextureSize[1] = sourceTextureImage.height;
+};
+
+// the program and shaders
+var glProgram = gl.createProgram();
+var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
+gl.compileShader(vertexShader);
+if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile vertexShader');
+  console.log(gl.getShaderInfoLog(vertexShader));
+}
+var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
+gl.compileShader(fragmentShader);
+if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile fragmentShader');
+  console.log(gl.getShaderInfoLog(fragmentShader));
+}
+gl.attachShader(glProgram, vertexShader);
+gl.deleteShader(vertexShader);
+gl.attachShader(glProgram, fragmentShader);
+gl.deleteShader(fragmentShader);
+gl.linkProgram(glProgram);
+
+// render a frame
+function render() {
+  gl.viewport(0, 0, renderCanvas.width, renderCanvas.height);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  gl.useProgram(glProgram);
+
+  // set up the focus point (pointer position)
+  gl.uniform2f(gl.getUniformLocation(glProgram, "focusPoint"), focusPoint[0], focusPoint[1]);
+
+  // set up the sourceTextureSize
+  gl.uniform2f(gl.getUniformLocation(glProgram, "sourceTextureSize"), sourceTextureSize[0], sourceTextureSize[1]);
+
+  // the sourceTexture
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "sourceTextureSampler"), 0);
+
+  // the coordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
+  var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
+  gl.enableVertexAttribArray( coordinateLocation );
+  gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
+
+  // the textureCoordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
+  var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
+  gl.enableVertexAttribArray( textureCoordinateLocation );
+  gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
+
+  // the primitive
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// initialize after load is complete
+$(function () {
+  // once the image is loaded, setup the texture and start the loop
+  sourceTextureImage.src = "./lion.jpg";
+  sourceTextureImage.onload = function () {
+    setupSourceTexture();
+    render();
+  };
+
+  // pass the mouse location as a uniform variable to the fragment shader
+  var updateFocus = function(event) {
+    focusPoint = [event.offsetX / sourceTextureImage.width, 1. - (event.offsetY / sourceTextureImage.height)];
+    render();
+  };
+  $('#renderCanvas').mousedown(updateFocus);
+  $('#renderCanvas').mousemove(updateFocus);
+});
+
+</script>
+
+<p>
+Move pointer over lower image.
+<br>
+Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
+</p>
+
+<p>
+This demo uses WebGL.  Not all devices and browsers are supported.
+</p>
+
+</body>
+</html>

@@ -16,6 +16,10 @@
 Grow Cut is a simple and powerful segmentation technique. This algorithm requires multiple passes across an image while maintaining two intermediate result images.
 </p>
 
+<p>
+The managment of multiple input textures is based of <a href="http://webglfundamentals.org/webgl/lessons/webgl-2-textures.html">this work</a>.
+</p>
+
 <h2>Source Image and Input Seeds</h2>
 <img id="sourceImage" src="./lion.jpg" width=600></img>
 <img id="seedImage" src="./lion_growcut_seeds.jpg" width=600></img>
@@ -45,44 +49,118 @@ precision highp float;
 // GrowCut needs the color input, a strength image (float) and label/mask image (unsigned char).
 // On each iteration, there are 3 inputs and 2 outputs.
 // Inputs can be handled as separate texture units.
-// How do we handle the multiple outputs?
-//      1. Each iteration uses two passes through the image. One to compute the new strength. One to compute the new label.
-//      2. Stack the two outputs into a vector image, then pull off one field for the final output.
-//
-// Do we need a general way for an algorithm to specify the types of textures it needs for temporary storage, output, ....?
-
+// To handle multiple outputs, we pack the tow images into a single image. The strength is stored in rgb and the initial
+// label in the alpha.
 
 
 uniform sampler2D sourceTextureSampler;
+uniform sampler2D initialLabelTextureSampler;
+uniform sampler2D intermediateTextureSampler;
 uniform vec2 sourceTextureSize;
 uniform vec2 focusPoint;
+uniform int iteration;
+uniform int numberOfIterations;
 
 varying vec2 varyingTextureCoordinate;
 
 void main(void) {
-  vec4 c = texture2D(sourceTextureSampler, varyingTextureCoordinate);
-  vec4 dc = c;
+  // First time called, pack a texture using rgb for strength and alpha for the label.
+  // Last time called, move the label into RGB and clear the alpha
+  // Rest of the iterations, run the grow cut
 
-  // only xxx to the right of the mouse
-  if (varyingTextureCoordinate.x > focusPoint.x)
-  {
-    vec3 cc;
-    //read out the texels
+  vec4 c = texture2D(sourceTextureSampler, varyingTextureCoordinate);
+  vec4 l = texture2D(initialLabelTextureSampler, varyingTextureCoordinate);
+  vec4 sl = texture2D(intermediateTextureSampler, varyingTextureCoordinate);
+
+  vec4 gc = c;
+
+if (varyingTextureCoordinate.x > focusPoint.x) {
+  if (iteration == 0) {
+    // first iteration - pack strength and label into one rgba
+    if (l.r > 0.0) {
+      // pixel was labelled initially. Set strength to the maximum. Set alpha to the label.
+      gc.rgb = vec3(1.0,1.0,1.0);
+      gc.a = l.r;
+    } else {
+      // pixel was not labelled initially. Set strength to zero. Set label to zero.
+      gc = vec4(0.0, 0.0, 0.0, 0.0);
+    }
+  } else if (iteration != numberOfIterations) {
+    // calculate an iteration of Grow Cut
+    //
+
+
+    // unpack current pixel strength and label
+    float s = sl.r+sl.g+sl.b; //sl.r * 100.0 + sl.g * 10.0 + sl.b;
+    float l = sl.a;
+
+    // read out the texels
     for (int i=-1; i <= 1; ++i)
     {
       for (int j=-1; j <= 1; ++j)
       {
-        // color at pixel in the neighborhood
-        vec2 coord = (varyingTextureCoordinate.xy * sourceTextureSize.xy + vec2(float(i), float(j))) / sourceTextureSize.xy;
-        cc = texture2D(sourceTextureSampler, coord).rgb;
+        // skip center pixel
+        if (i != 0 || j != 0) {
+          // neighbor location
+          vec2 coord = (varyingTextureCoordinate.xy * sourceTextureSize.xy + vec2(float(i), float(j))) / sourceTextureSize.xy;
+          // color at the neighbor
+          vec3 nc = texture2D(sourceTextureSampler, coord).rgb;
+          // strength and label at the neighbor
+          vec4 nsl = texture2D(intermediateTextureSampler, coord);
 
-        // dilate = max, erode = min
-        dc.rgb = max(cc.rgb, dc.rgb); // SWAP IN GROW CUT ALGORITHM
+          // unpack the strength from the label
+          float ns = nsl.r+nsl.g+nsl.b; //nsl.r * 100.0 + nsl.g * 10.0 + nsl.b;
+          float nl = nsl.a;
+
+          // metric
+          float g = 1.0 - (0.6 * distance(c.rgb, nc)) ; // maximum distance is sqrt(3)
+          if (g * ns > s) {
+            s = g*ns;
+            l = nl;
+          }
+          //s = distance(c.rgb, nc);
+          //l = nl;
+        }
       }
     }
-  }
 
-  gl_FragColor = dc;
+    // pack the strength and label into a color
+//    gc.r = floor(s / 100.0);
+//    s = s - gc.r*100.0;
+//    gc.g = floor(s / 10.0);
+//    s = s - gc.g * 10.0;
+//    gc.b = s;
+
+    gc.rgb = vec3(s/3.0, s/3.0, s/3.0 );
+    gc.a = l;
+  }
+  if (iteration == numberOfIterations) {
+    // last iteration - make the output the labels and set the alpha to opaque
+    //gc.rgb = vec3(sl.a, sl.a, sl.a);   // final labeling
+    gc.rgb = sl.rgb;  // final strength
+    gc.a = 1.0;
+  }
+}
+  // only xxx to the right of the mouse
+//  if (varyingTextureCoordinate.x > focusPoint.x)
+//  {
+//    vec3 cc;
+//    //read out the texels
+//    for (int i=-1; i <= 1; ++i)
+//    {
+//      for (int j=-1; j <= 1; ++j)
+//      {
+//        // color at pixel in the neighborhood
+//        vec2 coord = (varyingTextureCoordinate.xy * sourceTextureSize.xy + vec2(float(i), float(j))) / sourceTextureSize.xy;
+//        cc = texture2D(sourceTextureSampler, coord).rgb;
+
+//        // dilate = max, erode = min
+//        dc.rgb = max(cc.rgb, dc.rgb); // SWAP IN GROW CUT ALGORITHM
+//      }
+//    }
+//  }
+
+  gl_FragColor = gc;
 }
 
 </script>
@@ -119,6 +197,7 @@ gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), 
 var sourceTextureImage; // = new Image();
 var sourceTexture = gl.createTexture();
 var setupSourceTexture = function() {
+  gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceTextureImage);
@@ -132,6 +211,21 @@ var setupSourceTexture = function() {
   sourceTextureSize[1] = sourceTextureImage.height;
 };
 
+  // the initial label texture
+var initialLabelTextureImage; // = new Image();
+var initialLabelTexture = gl.createTexture();
+var setupInitialLabelTexture = function() {
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, initialLabelTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, initialLabelTextureImage);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);  // jvm - do we want nearest of linear?
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  //gl.bindTexture(gl.TEXTURE_2D, null); // is this call needed? jvm
+};
+
 // extra textures and framebuffers for intermediate results of iterative filters and pipelines
 var textures = [];
 var framebuffers = [];
@@ -139,12 +233,13 @@ var setupFrameBuffers = function() {
   for (var ii = 0; ii < 2; ++ii) {
       // create a texture for the framebuffer
       var texture = gl.createTexture();
+      //gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_2D, texture);
       //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // do this now at end? or not needed for intermediates? jvm
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, sourceTextureImage.width, sourceTextureImage.height, 0,
         gl.RGBA, gl.UNSIGNED_BYTE, null);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); // jvm - do we want nearest or linear?
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       textures.push(texture);
@@ -199,6 +294,16 @@ function render() {
   gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
   gl.uniform1i(gl.getUniformLocation(glProgram, "sourceTextureSampler"), 0); // then, assign sourceTextureSampler to this texture unit
 
+  // the initialLabelTexture
+  gl.activeTexture(gl.TEXTURE1);  // bind initialLabelTexture to texture unit 1
+  gl.bindTexture(gl.TEXTURE_2D, initialLabelTexture);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "initialLabelTextureSampler"), 1); // then, assign initialLabelTextureSampler to this texture unit
+
+  // the strengthAndLabelTexture
+  gl.activeTexture(gl.TEXTURE2);  // bind strengthAndLabelTexture to texture unit 2
+  gl.bindTexture(gl.TEXTURE_2D, textures[1]); // use the second intermediate texture initially
+  gl.uniform1i(gl.getUniformLocation(glProgram, "intermediateTextureSampler"), 2); // then, assign intermediateTextureSampler to this texture unit
+
   // the coordinate attribute
   gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
   var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
@@ -216,12 +321,16 @@ function render() {
   //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
 
-  var last = 3;
+  var last = 20;
+  gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), last);
+
   var i;
-  for (i=0;i<last;++i)
+  for (i=0;i<=last;++i)
   {
+    gl.uniform1i(gl.getUniformLocation(glProgram, "iteration"), i);
+
     // set the frame buffer to render into
-    if (i < last-1) {
+    if (i < last) {
       // render into one of the texture framebuffers
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[i%2]);
     } else {
@@ -233,7 +342,8 @@ function render() {
     // the primitive, triggers the fragment shader
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    // switch the source texture
+    // switch the intermediate texture
+    gl.activeTexture(gl.TEXTURE2); // Use TEXTURE2 as the intermediate image for  Grow Cut
     gl.bindTexture(gl.TEXTURE_2D, textures[i % 2]);
   }
 }
@@ -269,8 +379,10 @@ $(function () {
 
   function onAllImagesLoaded(images) {
     sourceTextureImage = images[0];   // bit hacky to assume the 0th image loaded was the first one we tried to load
+    initialLabelTextureImage = images[1];
     setupSourceTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
-    setupFrameBuffers(); // jvm - grow cut needs 1 float image (strength) and 1 unsigned char image (mask) on input and output -> 4 buffers are needed
+    setupInitialLabelTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
+   setupFrameBuffers(); // jvm - grow cut needs 1 float image (strength) and 1 unsigned char image (mask) on input and output -> 4 buffers are needed
     render();
   };
 

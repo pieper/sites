@@ -8,7 +8,13 @@
 
 <body>
 
-<h1>GLSL Image Processing Demo</h1>
+<h1>GLSL Iterative Dilation Demo</h1>
+
+<a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
+
+<p>
+Many image processing filters require iterative execution, with the result from the previous iteration serving as the input to the next iteration.  Here, we use morphological dilation as an exemplar for algorithms that iterate to produce a final filtered image. This GLSL example uses multiple framebuffers and multiple textures to manage the iteration.
+</p>
 
 <h2>Source Image</h2>
 <img id="sourceImage" src="./lion.jpg" width=600></img>
@@ -244,8 +250,8 @@ $(function () {
 </script>
 
 <p>
-Move pointer over lower image.
-<br>
+Move pointer over lower image. As you move the mouse, the left side of the image is unfiltered, the right side is grayscale dilated 3 times.
+<br><br>
 Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
 </p>
 

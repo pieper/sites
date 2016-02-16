@@ -8,7 +8,18 @@
 
 <body>
 
-<h1>GLSL Image Processing Demo</h1>
+<h1>GLSL Bilateral Filtering Demo</h1>
+
+<a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
+
+<p>
+Bilatering filtering is a powerful edge preserving denoising technique. However, the Bilateral filter is frequently overlooked in practice, particularly for real time applications, because it is not implemented via separable convolution. However, the Bilateral filter can take advantage of pixel parallelism, just like the <a href="./gaussian.html">Gaussian filtering example</a>.
+</p>
+
+<p>This GLSL implementation is 14 times faster than the multithreaded CPU implementation in the Insight Toolkit (<a href="http://www.itk.org">ITK</a>) on a Macbook Pro with Retina Display.
+</p>
+
+<p>(This implementation is based on the work of <a href="https://www.shadertoy.com/view/4dfGDH#">https://www.shadertoy.com/view/4dfGDH#</a>.)</p>
 
 <h2>Source Image</h2>
 <img id="sourceImage" src="./lion.jpg" width=600></img>
@@ -229,8 +240,8 @@ $(function () {
 </script>
 
 <p>
-Move pointer over lower image.
-<br>
+Move pointer over lower image. As you move the mouse, the left side of the image is unfiltered, the right side is Bilateral filtered. A comparison of Gaussian and Bilateral filtering is <a href="./gaussian+bilateral.html">here</a>.
+<br><br>
 Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
 </p>
 

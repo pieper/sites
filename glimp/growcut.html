@@ -8,10 +8,17 @@
 
 <body>
 
-<h1>GLSL Image Processing Demo</h1>
+<h1>GLSL Grow Cut Demo</h1>
 
-<h2>Source Image</h2>
+<a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
+
+<p>
+Grow Cut is a simple and powerful segmentation technique. This algorithm requires multiple passes across an image while maintaining two intermediate result images.
+</p>
+
+<h2>Source Image and Input Seeds</h2>
 <img id="sourceImage" src="./lion.jpg" width=600></img>
+<img id="seedImage" src="./lion_growcut_seeds.jpg" width=600></img>
 
 <h2>Processed Image</h2>
 <canvas id=renderCanvas width=600 height=400></canvas>
@@ -280,7 +287,7 @@ $(function () {
 
 <p>
 Move pointer over lower image.
-<br>
+<br><br>
 Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
 </p>
 

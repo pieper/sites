@@ -8,13 +8,15 @@
 
 <body>
 
-<h1>GLSL Gaussian and Bilateral Filtering Comparison Demo</h1>
-
+<h1>GLSL Gaussian Filter Demo</h1>
 <a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
 
 <p>
-This demonstration illustrate the difference between Gaussian and Bilateral filtering. As you move the mouse of the processed image, the left side of the image is unfiltered, the top right portion is Bilateral filtered, and the bottom right portion is Gaussian filtered.  The parameters of the spatial Gaussian filters are kep the same between the Gaussian and Bilateral portions.
+Gaussian filtering is a standard step in many image processing and image analysis pipelines due to its execution speed and well behaved numerical properties (differentiation). Historically, fast implementations of Gaussian filtering applied to images has utilized separability, decomposing the 2D convolution into two 1D convolution problems - one along the rows of the image and one along the columns of the image. Here, we illustrate the speed of the GPU even when convolution is not implemented using separability.  Rather, we leverage the pixel parallelism of the GPU to accelerate a brute force implementation of 2D convolution.
 </p>
+
+<p>(This implementation is based on the work of <a href="https://www.shadertoy.com/view/4dfGDH#">https://www.shadertoy.com/view/4dfGDH#</a>.)</p>
+
 
 <h2>Source Image</h2>
 <img id="sourceImage" src="./lion.jpg" width=600></img>
@@ -40,23 +42,16 @@ void main(void) {
 <script id="fragmentShader" type="x-shader/x-fragment">
 precision highp float;
 
-// Bilateral filter.  Based on https://www.shadertoy.com/view/4dfGDH#
+// Gaussian filter.  Based on https://www.shadertoy.com/view/4dfGDH#
 //
 //
 #define SIGMA 10.0
-//#define BSIGMA 0.1
-#define BSIGMA 0.3
 #define MSIZE 15
 
 
 float normpdf(in float x, in float sigma)
 {
   return 0.39894*exp(-0.5*x*x/(sigma*sigma))/sigma;
-}
-
-float normpdf3(in vec3 v, in float sigma)
-{
-  return 0.39894*exp(-0.5*dot(v,v)/(sigma*sigma))/sigma;
 }
 
 uniform sampler2D sourceTextureSampler;
@@ -71,15 +66,13 @@ void main(void) {
   vec4 bc = c;
 
   // only smooth to the right of the mouse
-  if (varyingTextureCoordinate.x > focusPoint.x || varyingTextureCoordinate.y < focusPoint.y)
+  if (varyingTextureCoordinate.x > focusPoint.x)
   {
     //declare stuff
     const int kSize = (MSIZE-1)/2;
     float kernel[MSIZE];
     vec3 gfinal_colour = vec3(0.0);
-    vec3 bfinal_colour = vec3(0.0);
 
-    float bZ = 0.0;
     float gZ = 0.0;
 
     //create the 1-D kernel
@@ -89,8 +82,6 @@ void main(void) {
 
     vec3 cc;
     float gfactor;
-    float bfactor;
-    float bZnorm = 1.0/normpdf(0.0, BSIGMA);
     //read out the texels
     for (int i=-kSize; i <= kSize; ++i)
     {
@@ -100,29 +91,19 @@ void main(void) {
         vec2 coord = (varyingTextureCoordinate.xy * sourceTextureSize.xy + vec2(float(i), float(j))) / sourceTextureSize.xy;
         cc = texture2D(sourceTextureSampler, coord).rgb;
 
-        // compute both the gaussian smoothed and bilateral
+        // compute the gaussian smoothed
         gfactor = kernel[kSize+j]*kernel[kSize+i];
-        bfactor = normpdf3(cc-c.rgb, BSIGMA)*bZnorm*gfactor;
         gZ += gfactor;
-        bZ += bfactor;
 
         gfinal_colour += gfactor*cc;
-        bfinal_colour += bfactor*cc;
       }
     }
 
     gc = vec4(gfinal_colour/gZ, 1.0);
-    bc = vec4(bfinal_colour/bZ, 1.0);
     }
 
   if (varyingTextureCoordinate.x > focusPoint.x) {
-    if (varyingTextureCoordinate.y < focusPoint.y) {
-      // upper right -> bilateral
       c = gc;
-    } else {
-      // upper left -> gaussian
-      c = bc;
-    }
   }
 
 
@@ -252,7 +233,7 @@ $(function () {
 </script>
 
 <p>
-Move pointer over lower image. As you move the mouse of the processed image, the left side of the image is unfiltered, the top right portion is Bilateral filtered, and the bottom right portion is Gaussian filtered.  The parameters of the spatial Gaussian filters are kep the same between the Gaussian and Bilateral portions.
+Move pointer over lower image. As you move the mouse, the left side of the image is unfiltered, the right side is Gaussian filtered.
 <br><br>
 Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
 </p>

@@ -16,6 +16,10 @@
 Many image processing filters require iterative execution, with the result from the previous iteration serving as the input to the next iteration.  Here, we use morphological dilation as an exemplar for algorithms that iterate to produce a final filtered image. This GLSL example uses multiple framebuffers and multiple textures to manage the iteration.
 </p>
 
+<p>
+The management of framebuffers and textures in this example is modeled off of <a href="http://webglfundamentals.org/webgl/lessons/webgl-image-processing-continued.html">this work on chaining filters</a>.
+</p>
+
 <h2>Source Image</h2>
 <img id="sourceImage" src="./lion.jpg" width=600></img>
 

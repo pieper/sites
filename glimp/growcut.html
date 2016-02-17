@@ -64,8 +64,8 @@ uniform int numberOfIterations;
 varying vec2 varyingTextureCoordinate;
 
 void main(void) {
-  // First time called, pack a texture using rgb for strength and alpha for the label.
-  // Last time called, move the label into RGB and clear the alpha
+  // First time called, pack a texture using r for strength and g for the label.
+  // Last time called, move the label into RGB
   // Rest of the iterations, run the grow cut
 
   vec4 c = texture2D(sourceTextureSampler, varyingTextureCoordinate);
@@ -76,13 +76,12 @@ void main(void) {
 
   if (iteration == 0) {
     // first iteration - pack strength and label into one rgba
-    if (il.r > 0.0) {
-      // pixel was labelled initially. Set strength to the maximum. Set alpha to the label.
-      gc.rgb = vec3(1.0,1.0,1.0);
-      gc.a = il.r;
+    if (il.r > 0.01) {  // WHY CAN'T I COMPARE TO 0.0??????  JVM
+      // pixel was labelled initially. Set strength (red) to the maximum. Set label (green).
+      gc = vec4(1.0, il.r, 0.0, 1.0);
     } else {
       // pixel was not labelled initially. Set strength to zero. Set label to zero.
-      gc = vec4(0.0, 0.0, 0.0, 0.0);
+      gc = vec4(0.0, 0.0, 0.0, 1.0);
     }
   } else if (iteration != numberOfIterations) {
     // calculate an iteration of Grow Cut
@@ -90,7 +89,10 @@ void main(void) {
 
     // unpack current pixel strength and label
     float s = sl.r;
-    float l = sl.a;
+    float l = sl.g;
+
+    float tx = 1.0 / sourceTextureSize.x;
+    float ty = 1.0 / sourceTextureSize.y;
 
     // read out the texels
     for (int i=-1; i <= 1; ++i) {
@@ -98,15 +100,16 @@ void main(void) {
         // skip center pixel
         if (i != 0 || j != 0) {
           // neighbor location
-          vec2 coord = (varyingTextureCoordinate.xy * sourceTextureSize.xy + vec2(float(i), float(j))) / sourceTextureSize.xy;
+          //  vec2 coord = (varyingTextureCoordinate.xy * sourceTextureSize.xy + vec2(float(i), float(j))) / sourceTextureSize.xy;
+          vec2 coord = varyingTextureCoordinate.xy + vec2(float(i)*tx, float(j)*ty);
           // color at the neighbor
           vec3 nc = texture2D(sourceTextureSampler, coord).rgb;
           // strength and label at the neighbor
-          vec4 nsl = texture2D(intermediateTextureSampler, coord);
+          vec3 nsl = texture2D(intermediateTextureSampler, coord).rgb;
 
           // unpack the strength from the label
           float ns = nsl.r;
-          float nl = nsl.a;
+          float nl = nsl.g;
 
           // metric
           float g = 1.0 - (0.6 * distance(c.rgb, nc)) ; // maximum distance is sqrt(3)
@@ -118,18 +121,17 @@ void main(void) {
        }
      }
 
-     gc.rgb = vec3(s, s, s);
-     gc.a = l;
+     gc = vec4(s, l, 0.0, 1.0);
     }
     if (iteration == numberOfIterations) {
       // last iteration - output pixel is either the strength/label or an original color pixel to the left of the mouse
-      //gc.rgb = vec3(sl.a, sl.a, sl.a);   // final labeling
-      gc.rgb = sl.rgb;  // final strength
-      gc.a = 1.0;
+      gc = vec4(sl.g, sl.g, sl.g, 1.0); // label
+      //gc = vec4(sl.r, sl.r, sl.r, 1.0); // strength
 
       // if pixel is to the left of the mouse, show the original color pixel
       if (varyingTextureCoordinate.x <=  focusPoint.x) {
-          gc = c;
+          //gc = c;  // color
+          gc = vec4(sl.r, sl.r, sl.r, 1.0); // strength
       }
     }
 
@@ -221,12 +223,12 @@ var setupFrameBuffers = function() {
       var fbo = gl.createFramebuffer();
       framebuffers.push(fbo);
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-      gl.clearColor(0.0, 0.0, 0.0, 0.0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
       // attach texture to frame buffer
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-    }
+      gl.clear(gl.COLOR_BUFFER_BIT);
+   }
 }
 
 // the program and shaders
@@ -296,7 +298,7 @@ function render() {
   //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
 
-  var last = 50;
+  var last = 10;
   gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), last);
 
   var i;

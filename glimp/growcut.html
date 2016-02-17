@@ -72,7 +72,7 @@ void main(void) {
   vec4 il = texture2D(initialLabelTextureSampler, varyingTextureCoordinate);
   vec4 sl = texture2D(intermediateTextureSampler, varyingTextureCoordinate);
 
-  vec4 gc = c;
+  vec4 gc = sl;  // initialize as the strength/label image
 
   if (iteration == 0) {
     // first iteration - pack strength and label into one rgba
@@ -84,10 +84,7 @@ void main(void) {
       // pixel was not labelled initially. Set strength to zero. Set label to zero.
       gc = vec4(0.0, 0.0, 0.0, 0.0);
     }
-  }
-
-  if (varyingTextureCoordinate.x > focusPoint.x) {
-    if (iteration != numberOfIterations) {
+  } else if (iteration != numberOfIterations) {
     // calculate an iteration of Grow Cut
     //
 
@@ -96,10 +93,8 @@ void main(void) {
     float l = sl.a;
 
     // read out the texels
-    for (int i=-1; i <= 1; ++i)
-    {
-      for (int j=-1; j <= 1; ++j)
-      {
+    for (int i=-1; i <= 1; ++i) {
+      for (int j=-1; j <= 1; ++j) {
         // skip center pixel
         if (i != 0 || j != 0) {
           // neighbor location
@@ -119,20 +114,24 @@ void main(void) {
             s = g*ns;
             l = nl;
           }
-        }
+         }
+       }
+     }
+
+     gc.rgb = vec3(s, s, s);
+     gc.a = l;
+    }
+    if (iteration == numberOfIterations) {
+      // last iteration - output pixel is either the strength/label or an original color pixel to the left of the mouse
+      //gc.rgb = vec3(sl.a, sl.a, sl.a);   // final labeling
+      gc.rgb = sl.rgb;  // final strength
+      gc.a = 1.0;
+
+      // if pixel is to the left of the mouse, show the original color pixel
+      if (varyingTextureCoordinate.x <=  focusPoint.x) {
+          gc = c;
       }
     }
-
-    gc.rgb = vec3(s, s, s);
-    gc.a = l;
-  }
-  if (iteration == numberOfIterations) {
-    // last iteration - make the output the labels and set the alpha to opaque
-    gc.rgb = vec3(sl.a, sl.a, sl.a);   // final labeling
-    //gc.rgb = sl.rgb;  // final strength
-    gc.a = 1.0;
-  }
-}
 
   gl_FragColor = gc;
 }
@@ -277,7 +276,7 @@ function render() {
 
   // the strengthAndLabelTexture
   gl.activeTexture(gl.TEXTURE2);  // bind strengthAndLabelTexture to texture unit 2
-  gl.bindTexture(gl.TEXTURE_2D, textures[1]); // use the second intermediate texture initially
+  gl.bindTexture(gl.TEXTURE_2D, textures[1]); // use the first or second intermediate texture initially?
   gl.uniform1i(gl.getUniformLocation(glProgram, "intermediateTextureSampler"), 2); // then, assign intermediateTextureSampler to this texture unit
 
   // the coordinate attribute
@@ -297,7 +296,7 @@ function render() {
   //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
 
-  var last = 20;
+  var last = 50;
   gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), last);
 
   var i;

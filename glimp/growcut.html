@@ -69,29 +69,30 @@ void main(void) {
   // Rest of the iterations, run the grow cut
 
   vec4 c = texture2D(sourceTextureSampler, varyingTextureCoordinate);
-  vec4 l = texture2D(initialLabelTextureSampler, varyingTextureCoordinate);
+  vec4 il = texture2D(initialLabelTextureSampler, varyingTextureCoordinate);
   vec4 sl = texture2D(intermediateTextureSampler, varyingTextureCoordinate);
 
   vec4 gc = c;
 
-if (varyingTextureCoordinate.x > focusPoint.x) {
   if (iteration == 0) {
     // first iteration - pack strength and label into one rgba
-    if (l.r > 0.0) {
+    if (il.r > 0.0) {
       // pixel was labelled initially. Set strength to the maximum. Set alpha to the label.
       gc.rgb = vec3(1.0,1.0,1.0);
-      gc.a = l.r;
+      gc.a = il.r;
     } else {
       // pixel was not labelled initially. Set strength to zero. Set label to zero.
       gc = vec4(0.0, 0.0, 0.0, 0.0);
     }
-  } else if (iteration != numberOfIterations) {
+  }
+
+  if (varyingTextureCoordinate.x > focusPoint.x) {
+    if (iteration != numberOfIterations) {
     // calculate an iteration of Grow Cut
     //
 
-
     // unpack current pixel strength and label
-    float s = sl.r+sl.g+sl.b; //sl.r * 100.0 + sl.g * 10.0 + sl.b;
+    float s = sl.r;
     float l = sl.a;
 
     // read out the texels
@@ -109,7 +110,7 @@ if (varyingTextureCoordinate.x > focusPoint.x) {
           vec4 nsl = texture2D(intermediateTextureSampler, coord);
 
           // unpack the strength from the label
-          float ns = nsl.r+nsl.g+nsl.b; //nsl.r * 100.0 + nsl.g * 10.0 + nsl.b;
+          float ns = nsl.r;
           float nl = nsl.a;
 
           // metric
@@ -118,47 +119,20 @@ if (varyingTextureCoordinate.x > focusPoint.x) {
             s = g*ns;
             l = nl;
           }
-          //s = distance(c.rgb, nc);
-          //l = nl;
         }
       }
     }
 
-    // pack the strength and label into a color
-//    gc.r = floor(s / 100.0);
-//    s = s - gc.r*100.0;
-//    gc.g = floor(s / 10.0);
-//    s = s - gc.g * 10.0;
-//    gc.b = s;
-
-    gc.rgb = vec3(s/3.0, s/3.0, s/3.0 );
+    gc.rgb = vec3(s, s, s);
     gc.a = l;
   }
   if (iteration == numberOfIterations) {
     // last iteration - make the output the labels and set the alpha to opaque
-    //gc.rgb = vec3(sl.a, sl.a, sl.a);   // final labeling
-    gc.rgb = sl.rgb;  // final strength
+    gc.rgb = vec3(sl.a, sl.a, sl.a);   // final labeling
+    //gc.rgb = sl.rgb;  // final strength
     gc.a = 1.0;
   }
 }
-  // only xxx to the right of the mouse
-//  if (varyingTextureCoordinate.x > focusPoint.x)
-//  {
-//    vec3 cc;
-//    //read out the texels
-//    for (int i=-1; i <= 1; ++i)
-//    {
-//      for (int j=-1; j <= 1; ++j)
-//      {
-//        // color at pixel in the neighborhood
-//        vec2 coord = (varyingTextureCoordinate.xy * sourceTextureSize.xy + vec2(float(i), float(j))) / sourceTextureSize.xy;
-//        cc = texture2D(sourceTextureSampler, coord).rgb;
-
-//        // dilate = max, erode = min
-//        dc.rgb = max(cc.rgb, dc.rgb); // SWAP IN GROW CUT ALGORITHM
-//      }
-//    }
-//  }
 
   gl_FragColor = gc;
 }
@@ -248,6 +222,8 @@ var setupFrameBuffers = function() {
       var fbo = gl.createFramebuffer();
       framebuffers.push(fbo);
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.clearColor(0.0, 0.0, 0.0, 0.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
 
       // attach texture to frame buffer
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
@@ -382,7 +358,7 @@ $(function () {
     initialLabelTextureImage = images[1];
     setupSourceTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
     setupInitialLabelTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
-   setupFrameBuffers(); // jvm - grow cut needs 1 float image (strength) and 1 unsigned char image (mask) on input and output -> 4 buffers are needed
+    setupFrameBuffers();
     render();
   };
 

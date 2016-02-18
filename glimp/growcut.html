@@ -21,11 +21,11 @@ The managment of multiple input textures is based on <a href="http://webglfundam
 </p>
 
 <h2>Source Image and Input Seeds</h2>
-<img id="sourceImage" src="./lion.jpg" width=600></img>
-<img id="seedImage" src="./lion_growcut_seeds.png" width=600></img>
+<img id="sourceImage" src="./MRBrainTumor1_76.png" ></img>
+<img id="seedImage" src="./MRBrainTumor1_76_growcut_seeds.png" ></img>
 
 <h2>Processed Image</h2>
-<canvas id=renderCanvas width=600 height=400></canvas>
+<canvas id=renderCanvas width=256 height=256></canvas>
 
 <script id="vertexShader" type="x-shader/x-vertex">
 precision highp float;
@@ -151,8 +151,8 @@ void main(void) {
       if (varyingTextureCoordinate.x <=  focusPoint.x) {
           gc = c;  // color
           //gc = vec4(sl.r, sl.r, sl.r, 1.0); // strength
-          if (sl.g > 0.6) {  // recolor the lion
-            gc = c.gbra;
+          if (sl.g > 0.7) {  // recolor the foreground
+            gc = c + vec4(-0.2, 0.2, -0.2, 0.0);
           }
       }
     }
@@ -351,7 +351,7 @@ function render() {
 // once document is loaded, then load images, set up textures and framebuffers, and render
 $(function () {
   var images = [];
-  var urls = ["./lion.jpg", "./lion_growcut_seeds.png"];
+  var urls = ["./MRBrainTumor1_76.png", "./MRBrainTumor1_76_growcut_seeds.png"];
   loadImages(urls, onAllImagesLoaded);
 
   function loadImage(url, callback) {

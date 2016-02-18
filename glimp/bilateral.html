@@ -25,7 +25,7 @@ Bilatering filtering is a powerful edge preserving denoising technique. However,
 <img id="sourceImage" src="./MRBrainTumor1_76.png"></img>
 
 <h2>Processed Image</h2>
-<canvas id=renderCanvas width=256 height=256></canvas>
+<canvas id=renderCanvas></canvas>
 
 <script id="vertexShader" type="x-shader/x-vertex">
 precision highp float;
@@ -229,6 +229,8 @@ $(function () {
   sourceTextureImage.src = "./MRBrainTumor1_76.png";
   sourceTextureImage.onload = function () {
     setupSourceTexture();
+    renderCanvas.height = sourceTextureImage.height;
+    renderCanvas.width = sourceTextureImage.width;
     render();
   };
 

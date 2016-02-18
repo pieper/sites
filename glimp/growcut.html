@@ -25,7 +25,7 @@ The managment of multiple input textures is based on <a href="http://webglfundam
 <img id="seedImage" src="./MRBrainTumor1_76_growcut_seeds.png" ></img>
 
 <h2>Processed Image</h2>
-<canvas id=renderCanvas width=256 height=256></canvas>
+<canvas id=renderCanvas></canvas>
 
 <script id="vertexShader" type="x-shader/x-vertex">
 precision highp float;
@@ -383,6 +383,8 @@ $(function () {
     setupSourceTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
     setupInitialLabelTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
     setupFrameBuffers();
+    renderCanvas.height = sourceTextureImage.height;
+    renderCanvas.width = sourceTextureImage.width;
     render();
   };
 

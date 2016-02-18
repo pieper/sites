@@ -24,7 +24,7 @@ The management of framebuffers and textures in this example is modeled off of <a
 <img id="sourceImage" src="./MRBrainTumor1_76.png"></img>
 
 <h2>Processed Image</h2>
-<canvas id=renderCanvas width=256 height=256></canvas>
+<canvas id=renderCanvas></canvas>
 
 <script id="vertexShader" type="x-shader/x-vertex">
 precision highp float;
@@ -243,6 +243,8 @@ $(function () {
   sourceTextureImage.onload = function () {
     setupSourceTexture();
     setupFrameBuffers();  // 2 extra framebuffers for intermediate results in iterative filters and pipelines
+    renderCanvas.height = sourceTextureImage.height;
+    renderCanvas.width = sourceTextureImage.width;
     render();
   };
 

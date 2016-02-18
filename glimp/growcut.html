@@ -13,11 +13,11 @@
 <a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
 
 <p>
-Grow Cut is a simple and powerful segmentation technique. This algorithm requires multiple passes across an image while maintaining two intermediate result images.
+Grow Cut is a simple and powerful segmentation technique. The algorithm takes two inputs: an intensity image and an initial set of seeds or strokes from the user depicting the foreground and background. The algorithm is iterative and needs to maintain two intermediate images: a strength image and the current labeling. Here, we pack the two intermediate images into a single texture using different color channels for each intermediate image.
 </p>
 
 <p>
-The managment of multiple input textures is based of <a href="http://webglfundamentals.org/webgl/lessons/webgl-2-textures.html">this work</a>.
+The managment of multiple input textures is based on <a href="http://webglfundamentals.org/webgl/lessons/webgl-2-textures.html">this work</a>.
 </p>
 
 <h2>Source Image and Input Seeds</h2>
@@ -398,7 +398,7 @@ $(function () {
 </script>
 
 <p>
-Move pointer over lower image.
+Move pointer over lower image. To the left of the mouse, the original intensity image is displayed with the pixels under the foreground segmentation recolored. To the right of the mouse, the segmentation or pixel labeling is displayed.
 <br><br>
 Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
 </p>

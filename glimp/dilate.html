@@ -21,10 +21,10 @@ The management of framebuffers and textures in this example is modeled off of <a
 </p>
 
 <h2>Source Image</h2>
-<img id="sourceImage" src="./lion.jpg" width=600></img>
+<img id="sourceImage" src="./MRBrainTumor1_76.png"></img>
 
 <h2>Processed Image</h2>
-<canvas id=renderCanvas width=600 height=400></canvas>
+<canvas id=renderCanvas width=256 height=256></canvas>
 
 <script id="vertexShader" type="x-shader/x-vertex">
 precision highp float;
@@ -214,7 +214,7 @@ function render() {
   //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
 
-  var last = 3;
+  var last = 2;
   var i;
   for (i=0;i<last;++i)
   {
@@ -239,7 +239,7 @@ function render() {
 // initialize after load is complete
 $(function () {
   // once the image is loaded, setup the texture and start the loop
-  sourceTextureImage.src = "./lion.jpg";
+  sourceTextureImage.src = "./MRBrainTumor1_76.png";
   sourceTextureImage.onload = function () {
     setupSourceTexture();
     setupFrameBuffers();  // 2 extra framebuffers for intermediate results in iterative filters and pipelines
@@ -258,7 +258,7 @@ $(function () {
 </script>
 
 <p>
-Move pointer over lower image. As you move the mouse, the left side of the image is unfiltered, the right side is grayscale dilated 3 times.
+Move pointer over lower image. As you move the mouse, the left side of the image is unfiltered, the right side is grayscale dilated 2 times.
 <br><br>
 Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
 </p>

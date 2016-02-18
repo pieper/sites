@@ -17,10 +17,10 @@ This demonstration illustrate the difference between Gaussian and Bilateral filt
 </p>
 
 <h2>Source Image</h2>
-<img id="sourceImage" src="./lion.jpg" width=600></img>
+<img id="sourceImage" src="./MRBrainTumor1_76.png"></img>
 
 <h2>Processed Image</h2>
-<canvas id=renderCanvas width=600 height=400></canvas>
+<canvas id=renderCanvas width=256 height=256></canvas>
 
 
 <script id="vertexShader" type="x-shader/x-vertex">
@@ -238,7 +238,7 @@ function render() {
 // initialize after load is complete
 $(function () {
   // once the image is loaded, setup the texture and start the loop
-  sourceTextureImage.src = "./lion.jpg";
+  sourceTextureImage.src = "./MRBrainTumor1_76.png";
   sourceTextureImage.onload = function () {
     setupSourceTexture();
     render();

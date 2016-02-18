@@ -22,7 +22,7 @@ The managment of multiple input textures is based of <a href="http://webglfundam
 
 <h2>Source Image and Input Seeds</h2>
 <img id="sourceImage" src="./lion.jpg" width=600></img>
-<img id="seedImage" src="./lion_growcut_seeds.jpg" width=600></img>
+<img id="seedImage" src="./lion_growcut_seeds.png" width=600></img>
 
 <h2>Processed Image</h2>
 <canvas id=renderCanvas width=600 height=400></canvas>
@@ -76,12 +76,36 @@ void main(void) {
 
   if (iteration == 0) {
     // first iteration - pack strength and label into one rgba
-    if (il.r > 0.01) {  // WHY CAN'T I COMPARE TO 0.0??????  JVM
+    if (il.r > 0.0) {
       // pixel was labelled initially. Set strength (red) to the maximum. Set label (green).
       gc = vec4(1.0, il.r, 0.0, 1.0);
     } else {
       // pixel was not labelled initially. Set strength to zero. Set label to zero.
       gc = vec4(0.0, 0.0, 0.0, 1.0);
+    }
+  } else if (iteration < 2) {
+    // hack to clean up any antialiasing in the original label map
+    // any pixel with a neighbor of higher value must be an antialias effect.
+    if (il.r > 0.0) {
+      float tx = 1.0 / sourceTextureSize.x;
+      float ty = 1.0 / sourceTextureSize.y;
+
+      // read out the texels
+      for (int i=-1; i <= 1; ++i) {
+        for (int j=-1; j <= 1; ++j) {
+          // skip center pixel
+          if (i != 0 || j != 0) {
+            // neighbor location
+            vec2 coord = varyingTextureCoordinate.xy + vec2(float(i)*tx, float(j)*ty);
+            // label at the neighbor
+            vec3 nil = texture2D(initialLabelTextureSampler, coord).rgb;
+            if (nil.r > il.r) {
+              // any pixel with a neighbor of higher value must be an antialias effect.
+              gc = vec4(0.0, 0.0, 0.0, 1.0);
+            }
+          }
+        }
+      }
     }
   } else if (iteration != numberOfIterations) {
     // calculate an iteration of Grow Cut
@@ -112,7 +136,7 @@ void main(void) {
           float nl = nsl.g;
 
           // metric
-          float g = 1.0 - (0.6 * distance(c.rgb, nc)) ; // maximum distance is sqrt(3)
+          float g = 1.0 - (0.577 * distance(c.rgb, nc)) ; // maximum distance is sqrt(3)
           if (g * ns > s) {
             s = g*ns;
             l = nl;
@@ -127,11 +151,15 @@ void main(void) {
       // last iteration - output pixel is either the strength/label or an original color pixel to the left of the mouse
       gc = vec4(sl.g, sl.g, sl.g, 1.0); // label
       //gc = vec4(sl.r, sl.r, sl.r, 1.0); // strength
+      //gc = il; // seeds
 
       // if pixel is to the left of the mouse, show the original color pixel
       if (varyingTextureCoordinate.x <=  focusPoint.x) {
-          //gc = c;  // color
-          gc = vec4(sl.r, sl.r, sl.r, 1.0); // strength
+          gc = c;  // color
+          //gc = vec4(sl.r, sl.r, sl.r, 1.0); // strength
+          if (sl.g > 0.6) {  // recolor the lion
+            gc = c.gbra;
+          }
       }
     }
 
@@ -298,7 +326,7 @@ function render() {
   //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
 
-  var last = 10;
+  var last = 100;
   gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), last);
 
   var i;
@@ -328,7 +356,7 @@ function render() {
 // once document is loaded, then load images, set up textures and framebuffers, and render
 $(function () {
   var images = [];
-  var urls = ["./lion.jpg", "./lion_growcut_seeds.jpg"];
+  var urls = ["./lion.jpg", "./lion_growcut_seeds.png"];
   loadImages(urls, onAllImagesLoaded);
 
   function loadImage(url, callback) {

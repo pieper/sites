@@ -56,6 +56,7 @@ float normpdf(in float x, in float sigma)
 
 uniform sampler2D sourceTextureSampler;
 uniform vec2 sourceTextureSize;
+uniform vec2 sourceTexelSize;
 uniform vec2 focusPoint;
 
 varying vec2 varyingTextureCoordinate;
@@ -88,7 +89,7 @@ void main(void) {
       for (int j=-kSize; j <= kSize; ++j)
       {
         // color at pixel in the neighborhood
-        vec2 coord = (varyingTextureCoordinate.xy * sourceTextureSize.xy + vec2(float(i), float(j))) / sourceTextureSize.xy;
+        vec2 coord = varyingTextureCoordinate.xy + vec2(float(i), float(j))*sourceTexelSize.xy;
         cc = texture2D(sourceTextureSampler, coord).rgb;
 
         // compute the gaussian smoothed
@@ -190,6 +191,9 @@ function render() {
 
   // set up the sourceTextureSize
   gl.uniform2f(gl.getUniformLocation(glProgram, "sourceTextureSize"), sourceTextureSize[0], sourceTextureSize[1]);
+
+  // set up the sourceTexelSize
+  gl.uniform2f(gl.getUniformLocation(glProgram, "sourceTexelSize"), 1.0/sourceTextureSize[0], 1.0/sourceTextureSize[1]);
 
   // the sourceTexture
   gl.activeTexture(gl.TEXTURE0);

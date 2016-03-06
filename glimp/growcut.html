@@ -23,7 +23,7 @@ The managment of multiple input textures is based on <a href="http://webglfundam
 <h2>Source Image and Input Seeds</h2>
 
 <p>
-Select a color and then click and drag to paint input seeds.
+Select a color and then click and drag to paint input seeds.  Lower image updates automatically.
 </p>
 
 
@@ -457,7 +457,6 @@ function setupInterface() {
   $('.drawable').mousemove(function(event) {
     event.preventDefault();
     drawPoint(event);
-
     if (continuousMode == true) {
       redrawCompositeImage();
       recalculateGrowCut();

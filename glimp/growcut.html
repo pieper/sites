@@ -383,6 +383,9 @@ function render() {
 
 function setupInterface() {
 
+  // run growcut as you paint
+  var continuousMode = true;
+
   //
   // set up the drawCanvas and the compositeCanvas
   // - draw (hidden) contains just the input gestures to send to growcut
@@ -454,6 +457,11 @@ function setupInterface() {
   $('.drawable').mousemove(function(event) {
     event.preventDefault();
     drawPoint(event);
+
+    if (continuousMode == true) {
+      redrawCompositeImage();
+      recalculateGrowCut();
+    }
   });
   $('.drawable').mouseup(function(event) {
     drawing=false;

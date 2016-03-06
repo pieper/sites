@@ -381,31 +381,7 @@ function render() {
   }
 }
 
-// once document is loaded, then load images, set up textures and framebuffers, and render
-$(function () {
-
-  function recalculateGrowCut() {
-    sourceTextureImage = $('#sourceImage')[0];
-    initialLabelTextureImage = new Image();
-    initialLabelTextureImage.src = drawCanvas.toDataURL("image/png");
-    setupSourceTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
-    setupInitialLabelTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
-    setupFrameBuffers();
-    renderCanvas.height = sourceTextureImage.height;
-    renderCanvas.width = sourceTextureImage.width;
-    render();
-  };
-  $('#sourceImage').load(recalculateGrowCut);
-
-  // pass the mouse location as a uniform variable to the fragment shader
-  var updateFocus = function(event) {
-    var sourceImage = $('#sourceImage')[0];
-    focusPoint = [event.offsetX / sourceImage.width, 1. - (event.offsetY / sourceImage.height)];
-    render();
-  };
-  $('#renderCanvas').mousedown(updateFocus);
-  $('#renderCanvas').mousemove(updateFocus);
-  $('#renderCanvas').mouseout(updateFocus);
+function setupInterface() {
 
   //
   // set up the drawCanvas and the compositeCanvas
@@ -434,6 +410,29 @@ $(function () {
     compositeContext.drawImage(overlayImage, 0, 0);
   }
   redrawCompositeImage();
+
+  function recalculateGrowCut() {
+    sourceTextureImage = $('#sourceImage')[0];
+    initialLabelTextureImage = new Image();
+    initialLabelTextureImage.src = drawCanvas.toDataURL("image/png");
+    setupSourceTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
+    setupInitialLabelTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
+    setupFrameBuffers();
+    renderCanvas.height = sourceTextureImage.height;
+    renderCanvas.width = sourceTextureImage.width;
+    render();
+  };
+  recalculateGrowCut();
+
+  // pass the mouse location as a uniform variable to the fragment shader
+  var updateFocus = function(event) {
+    var sourceImage = $('#sourceImage')[0];
+    focusPoint = [event.offsetX / sourceImage.width, 1. - (event.offsetY / sourceImage.height)];
+    render();
+  };
+  $('#renderCanvas').mousedown(updateFocus);
+  $('#renderCanvas').mousemove(updateFocus);
+  $('#renderCanvas').mouseout(updateFocus);
 
   var drawStyle = "#F00";
   var drawing=false;
@@ -490,7 +489,13 @@ $(function () {
     redrawCompositeImage();
     recalculateGrowCut();
   });
+}
+
+// once document is loaded, then load images, set up textures and framebuffers, and render
+$(function () {
+  $('#sourceImage').load(setupInterface);
 });
+
 
 </script>
 

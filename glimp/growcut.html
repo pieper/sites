@@ -42,19 +42,22 @@ td { border: 3px solid black}
 </table>
 
 
+
+
+<canvas id='compositeCanvas' class='drawable'></canvas>
+
+
+
+<h2>Processed Image</h2>
+<canvas id=renderCanvas></canvas>
+
+<h2>Working buffers</h2>
+<canvas id='drawCanvas' class='drawable'></canvas>
 <!--
 <img id="sourceImage" class='drawable' src="./lion.jpg" ></img>
 <img id="sourceImage" class='drawable' src="./MRBrainTumor1_76.png" ></img>
 -->
 <img id="sourceImage" class='drawable' src="./coronal-mr-tumor.png" ></img>
-
-
-<canvas id='compositeCanvas' class='drawable'></canvas>
-<canvas id='drawCanvas' class='drawable'></canvas>
-
-
-<h2>Processed Image</h2>
-<canvas id=renderCanvas></canvas>
 
 <script id="vertexShader" type="x-shader/x-vertex">
 precision highp float;
@@ -392,14 +395,14 @@ function setupInterface() {
   // - composite is background plus gestures to show user
   //
   var sourceImage = $('#sourceImage')[0];
-  sourceImage.hidden = true;
+  //sourceImage.hidden = true;
   var drawCanvas = $('#drawCanvas')[0];
   drawCanvas.width = sourceImage.width;
   drawCanvas.height = sourceImage.height;
   var drawContext = drawCanvas.getContext("2d");
   drawContext.fillStyle = 'rgba(0,0,0,0)';
   drawContext.fillRect(0,0,drawCanvas.width,drawCanvas.height);
-  drawCanvas.hidden = true;
+  //drawCanvas.hidden = true;
 
   var compositeCanvas = $('#compositeCanvas')[0];
   compositeCanvas.width = sourceImage.width;

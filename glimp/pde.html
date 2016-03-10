@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Experimental GLSL Image Processing</title>
+  <link rel="stylesheet" href="glimp.css" />
+  <script src='jquery-1.11.0.min.js'></script>
+</head>
+
+<body>
+
+<h1>GLSL PDE Demo</h1>
+
+<a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
+
+<p>
+Various PDEs have proven interesting for medical imaging.  Here we show a simple PDE implemented in a shader.
+</p>
+
+<p>
+The managment of multiple input textures is based on <a href="http://webglfundamentals.org/webgl/lessons/webgl-2-textures.html">this work</a>.
+</p>
+
+<h2>Source Image and Input Seeds</h2>
+
+<p>
+Drag mouse in lower image.
+</p>
+
+
+<canvas id='compositeCanvas' class='drawable'></canvas>
+
+
+
+<h2>Processed Image</h2>
+<canvas id=renderCanvas></canvas>
+
+<h2>Working buffers</h2>
+<canvas id='drawCanvas' class='drawable'></canvas>
+<!--
+<img id="sourceImage" class='drawable' src="./MRBrainTumor1_76.png" ></img>
+<img id="sourceImage" class='drawable' src="./lion.jpg" ></img>
+<img id="sourceImage" class='drawable' src='checker.png'> </img>
+-->
+<img id="sourceImage" class='drawable' src="./coronal-mr-tumor.png" ></img>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+precision highp float;
+
+attribute vec3 coordinate;
+attribute vec2 textureCoordinate;
+
+varying vec2 varyingTextureCoordinate;
+
+void main(void) {
+  gl_Position = vec4(coordinate,1.);
+  varyingTextureCoordinate = textureCoordinate;
+}
+</script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">
+precision highp float;
+
+// PDE filter.
+//
+// phi is updated as a function of its gradient and the image gradient
+
+
+uniform sampler2D sourceTextureSampler;
+uniform sampler2D intermediateTextureSampler;
+uniform vec2 sourceTextureSize;
+uniform vec2 sourceTexelSize;
+uniform vec2 focusPoint;
+uniform int iteration;
+uniform int numberOfIterations;
+
+varying vec2 varyingTextureCoordinate;
+
+vec4 pack_float(const in float value)
+{
+    const vec4 bit_shift = vec4(256.0*256.0*256.0, 256.0*256.0, 256.0, 1.0);
+    const vec4 bit_mask  = vec4(0.0, 1.0/256.0, 1.0/256.0, 1.0/256.0);
+    vec4 res = fract(value * bit_shift);
+    res -= res.xxyz * bit_mask;
+    return res;
+}
+
+float unpack_float(const in vec4 rgba_value)
+{
+    const vec4 bit_shift = vec4(1.0/(256.0*256.0*256.0), 1.0/(256.0*256.0), 1.0/256.0, 1.0);
+    float value = dot(rgba_value, bit_shift);
+    return value;
+}
+
+void main(void) {
+  // First time called, fill in distance transform
+  // Last time called, move the label into RGB
+  // Rest of the iterations, run the pde
+
+  vec4 sourceColor = texture2D(sourceTextureSampler, varyingTextureCoordinate);
+  vec4 phiRGBA = texture2D(intermediateTextureSampler, varyingTextureCoordinate);
+  float phi = unpack_float(phiRGBA);
+  vec4 outputColor;
+
+  if (iteration == 0) {
+    outputColor = pack_float( clamp( length(varyingTextureCoordinate - focusPoint), 0., 0.9999 ) );
+  }
+
+  if (iteration > 0 && iteration < numberOfIterations) {
+    // calculate an iteration of delta phi
+
+    #define S(point) texture2D(intermediateTextureSampler, varyingTextureCoordinate + point * sourceTexelSize).r;
+
+    float sP0 = S(vec2(1., 0.));
+    float s0P = S(vec2(0., 1.));
+    float sN0 = S(vec2(-1., 0.));
+    float s0N = S(vec2(0., -1.));
+ 
+    #undef S
+ 
+    vec2 gradient;
+    // TODO upwind gradient: gradient = vec2( max(max(sP0-phi,phi-sN0),0.), max(max(s0P-phi,phi-s0N),0.) ) / sourceTexelSize;
+    gradient = vec2( sP0-sN0, s0P-s0N );
+ 
+    float phiGradientMagnitude = length(gradient);
+
+    #define S(point) texture2D(sourceTextureSampler, varyingTextureCoordinate + point * sourceTexelSize).r;
+
+    sP0 = S(vec2(1., 0.));
+    s0P = S(vec2(0., 1.));
+    sN0 = S(vec2(-1., 0.));
+    s0N = S(vec2(0., -1.));
+ 
+    #undef S
+ 
+    // TODO: rescale gradient: gradient = vec2( sP0-sN0, s0P-s0N ) / (2. * sourceTexelSize);
+    gradient = vec2( sP0-sN0, s0P-s0N );
+ 
+    float sourceGradientMagnitude = length(gradient);
+
+    float deltaT = 0.01;
+    float phiValue = phi - deltaT * phiGradientMagnitude * (1. / (1. + 10. * sourceGradientMagnitude));
+    phiValue = clamp(phiValue, 0., .9999);
+    outputColor = pack_float(phiValue);
+  }
+
+  if (iteration == numberOfIterations) {
+    if (phi < .01) {
+      outputColor = vec4(1., 1., 0., 1.0);
+    } else {
+      outputColor = vec4(0., 0., 0., 1.0);
+    }
+  }
+
+  gl_FragColor = outputColor;
+}
+
+</script>
+
+<script>
+'use strict'
+
+var focusPoint = [0.99, 0.5]; // holds a value to be passed as a uniform to the shader
+var sourceTextureSize = [0,0];
+
+//
+// set up webgl
+//
+var renderCanvas = document.querySelector('#renderCanvas');
+var gl = renderCanvas.getContext('webgl');
+gl.clearColor(0.0, 0.0, 0.0, 1.0); // black, fully opaque
+gl.enable(gl.DEPTH_TEST);
+gl.depthFunc(gl.LEQUAL); // Near things obscure far things
+
+// buffers for the textured plane in normalized space
+var renderImageCoordinatesBuffer = gl.createBuffer();
+var renderImageTexureCoordinatesBuffer = gl.createBuffer();
+var renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1.,  1., 0., 1.,  1., 0., ];
+gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
+
+var renderImageTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
+gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
+
+// the source texture
+var sourceTextureImage; // = new Image();
+var sourceTexture = gl.createTexture();
+var setupSourceTexture = function() {
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceTextureImage);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  //gl.bindTexture(gl.TEXTURE_2D, null); // is this call needed? jvm
+
+  sourceTextureSize[0] = sourceTextureImage.width;
+  sourceTextureSize[1] = sourceTextureImage.height;
+};
+
+// extra textures and framebuffers for intermediate results of iterative filters and pipelines
+var textures = [];
+var framebuffers = [];
+var setupFrameBuffers = function() {
+  for (var ii = 0; ii < 2; ++ii) {
+      // create a texture for the framebuffer
+      var texture = gl.createTexture();
+      //gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // do this now at end? or not needed for intermediates? jvm
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, sourceTextureImage.width, sourceTextureImage.height, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); // jvm - do we want nearest or linear?
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      textures.push(texture);
+
+      // create a framebuffer
+      var fbo = gl.createFramebuffer();
+      framebuffers.push(fbo);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+      // attach texture to frame buffer
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+   }
+}
+
+// the program and shaders
+var glProgram = gl.createProgram();
+var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
+gl.compileShader(vertexShader);
+if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile vertexShader');
+  console.log(gl.getShaderInfoLog(vertexShader));
+}
+var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
+gl.compileShader(fragmentShader);
+if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile fragmentShader');
+  console.log(gl.getShaderInfoLog(fragmentShader));
+}
+gl.attachShader(glProgram, vertexShader);
+gl.deleteShader(vertexShader);
+gl.attachShader(glProgram, fragmentShader);
+gl.deleteShader(fragmentShader);
+gl.linkProgram(glProgram);
+
+// render a frame
+function render() {
+  gl.viewport(0, 0, renderCanvas.width, renderCanvas.height);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  gl.useProgram(glProgram);
+
+  // set up the focus point (pointer position)
+  gl.uniform2f(gl.getUniformLocation(glProgram, "focusPoint"), focusPoint[0], focusPoint[1]);
+
+  // set up the sourceTextureSize
+  gl.uniform2f(gl.getUniformLocation(glProgram, "sourceTextureSize"), sourceTextureSize[0], sourceTextureSize[1]);
+
+  // set up the sourceTexelSize
+  gl.uniform2f(gl.getUniformLocation(glProgram, "sourceTexelSize"), 1.0/sourceTextureSize[0], 1.0/sourceTextureSize[1]);
+
+  // the sourceTexture
+  gl.activeTexture(gl.TEXTURE0);  // bind sourceTexture to texture unit 0
+  gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "sourceTextureSampler"), 0); // then, assign sourceTextureSampler to this texture unit
+
+
+  // the strengthAndLabelTexture
+  gl.activeTexture(gl.TEXTURE2);  // bind strengthAndLabelTexture to texture unit 2
+  gl.bindTexture(gl.TEXTURE_2D, textures[1]); // use the first or second intermediate texture initially?
+  gl.uniform1i(gl.getUniformLocation(glProgram, "intermediateTextureSampler"), 2); // then, assign intermediateTextureSampler to this texture unit
+
+  // the coordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
+  var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
+  gl.enableVertexAttribArray( coordinateLocation );
+  gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
+
+  // the textureCoordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
+  var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
+  gl.enableVertexAttribArray( textureCoordinateLocation );
+  gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
+
+  // (debug - run once. uncomment these lines and set "last" to -1)
+  //gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+
+  var last = 20;
+  gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), last);
+
+  var i;
+  for (i=0;i<=last;++i)
+  {
+    gl.uniform1i(gl.getUniformLocation(glProgram, "iteration"), i);
+
+    // set the frame buffer to render into
+    if (i < last) {
+      // render into one of the texture framebuffers
+      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[i%2]);
+    } else {
+      // use the canvas frame buffer for last render
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+    //gl.viewport(0, 0, renderCanvas.width, renderCanvas.height); is this needed for the intermediate results?
+
+    // the primitive, triggers the fragment shader
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // switch the intermediate texture
+    gl.activeTexture(gl.TEXTURE2); // Use TEXTURE2 as the intermediate image for  Grow Cut
+    gl.bindTexture(gl.TEXTURE_2D, textures[i % 2]);
+  }
+}
+
+function setupInterface() {
+
+  // run growcut as you paint
+  var continuousMode = true;
+
+  //
+  // set up the drawCanvas and the compositeCanvas
+  // - draw (hidden) contains just the input gestures to send to growcut
+  // - composite is background plus gestures to show user
+  //
+  var sourceImage = $('#sourceImage')[0];
+  //sourceImage.hidden = true;
+  var drawCanvas = $('#drawCanvas')[0];
+  drawCanvas.width = sourceImage.width;
+  drawCanvas.height = sourceImage.height;
+  var drawContext = drawCanvas.getContext("2d");
+  drawContext.fillStyle = 'rgba(0,0,0,0)';
+  drawContext.fillRect(0,0,drawCanvas.width,drawCanvas.height);
+  //drawCanvas.hidden = true;
+
+  var compositeCanvas = $('#compositeCanvas')[0];
+  compositeCanvas.width = sourceImage.width;
+  compositeCanvas.height = sourceImage.height;
+  var compositeContext = compositeCanvas.getContext("2d");
+
+  function redrawCompositeImage() {
+    compositeContext.drawImage(sourceImage, 0, 0);
+    var overlayImage = new Image();
+    overlayImage.src = drawCanvas.toDataURL("image/png");
+    compositeContext.drawImage(overlayImage, 0, 0);
+  }
+  redrawCompositeImage();
+
+  function initializePDE() {
+    sourceTextureImage = $('#sourceImage')[0];
+    setupSourceTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
+    setupFrameBuffers();
+    renderCanvas.height = sourceTextureImage.height;
+    renderCanvas.width = sourceTextureImage.width;
+    render();
+  };
+  initializePDE();
+
+  // pass the mouse location as a uniform variable to the fragment shader
+  var updateFocus = function(event) {
+    var sourceImage = $('#sourceImage')[0];
+    focusPoint = [event.offsetX / sourceImage.width, 1. - (event.offsetY / sourceImage.height)];
+    render();
+  };
+  $('#renderCanvas').mousedown(updateFocus);
+  $('#renderCanvas').mousemove(updateFocus);
+  $('#renderCanvas').mouseout(updateFocus);
+}
+
+// once document is loaded, then load images, set up textures and framebuffers, and render
+$(function () {
+  $('#sourceImage').load(setupInterface);
+});
+
+</script>
+
+<p>
+<br>
+Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
+</p>
+
+<p>
+This demo uses WebGL.  Not all devices and browsers are supported.
+</p>
+
+</body>
+</html>

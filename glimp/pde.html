@@ -102,25 +102,29 @@ void main(void) {
   vec4 outputColor;
 
   if (iteration == 0) {
-    outputColor = pack_float( clamp( length(varyingTextureCoordinate - focusPoint), 0., 0.9999 ) );
+    if ( length(varyingTextureCoordinate - focusPoint) < .03 ) {
+      outputColor = pack_float( .999 );
+    } else {
+      outputColor = pack_float( 0. );
+    }
   }
 
   if (iteration > 0 && iteration < numberOfIterations) {
     // calculate an iteration of delta phi
 
-    #define S(point) texture2D(intermediateTextureSampler, varyingTextureCoordinate + point * sourceTexelSize).r;
+    #define S(point) unpack_float(texture2D(intermediateTextureSampler, varyingTextureCoordinate + point * sourceTexelSize));
 
     float sP0 = S(vec2(1., 0.));
     float s0P = S(vec2(0., 1.));
     float sN0 = S(vec2(-1., 0.));
     float s0N = S(vec2(0., -1.));
- 
+
     #undef S
- 
+
     vec2 gradient;
     // TODO upwind gradient: gradient = vec2( max(max(sP0-phi,phi-sN0),0.), max(max(s0P-phi,phi-s0N),0.) ) / sourceTexelSize;
-    gradient = vec2( sP0-sN0, s0P-s0N );
- 
+    gradient = vec2( sP0-sN0, s0P-s0N ) / sourceTexelSize;
+
     float phiGradientMagnitude = length(gradient);
 
     #define S(point) texture2D(sourceTextureSampler, varyingTextureCoordinate + point * sourceTexelSize).r;
@@ -129,23 +133,27 @@ void main(void) {
     s0P = S(vec2(0., 1.));
     sN0 = S(vec2(-1., 0.));
     s0N = S(vec2(0., -1.));
- 
+
     #undef S
- 
-    // TODO: rescale gradient: gradient = vec2( sP0-sN0, s0P-s0N ) / (2. * sourceTexelSize);
-    gradient = vec2( sP0-sN0, s0P-s0N );
- 
+
+    // TODO: rescale gradient:
+    gradient = vec2( sP0-sN0, s0P-s0N ) / (2. * sourceTexelSize);
+    //gradient = vec2( sP0-sN0, s0P-s0N );
+
     float sourceGradientMagnitude = length(gradient);
 
-    float deltaT = 0.01;
-    float phiValue = phi - deltaT * phiGradientMagnitude * (1. / (1. + 10. * sourceGradientMagnitude));
+    float deltaT = .001;
+
+    float phiValue;
+    phiValue = phi + deltaT * phiGradientMagnitude * (1. / (1. + sourceGradientMagnitude));
+
     phiValue = clamp(phiValue, 0., .9999);
     outputColor = pack_float(phiValue);
   }
 
   if (iteration == numberOfIterations) {
-    if (phi < .01) {
-      outputColor = vec4(1., 1., 0., 1.0);
+    if (phi > .001) {
+      outputColor = vec4(1., phi, 0., 1.0);
     } else {
       outputColor = vec4(0., 0., 0., 1.0);
     }
@@ -296,7 +304,7 @@ function render() {
   //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
 
-  var last = 20;
+  var last = 300;
   gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), last);
 
   var i;

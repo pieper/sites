@@ -395,14 +395,12 @@ function setupInterface() {
   // - composite is background plus gestures to show user
   //
   var sourceImage = $('#sourceImage')[0];
-  //sourceImage.hidden = true;
   var drawCanvas = $('#drawCanvas')[0];
   drawCanvas.width = sourceImage.width;
   drawCanvas.height = sourceImage.height;
   var drawContext = drawCanvas.getContext("2d");
   drawContext.fillStyle = 'rgba(0,0,0,0)';
   drawContext.fillRect(0,0,drawCanvas.width,drawCanvas.height);
-  //drawCanvas.hidden = true;
 
   var compositeCanvas = $('#compositeCanvas')[0];
   compositeCanvas.width = sourceImage.width;

@@ -13,35 +13,33 @@
 <a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
 
 <p>
-Various PDEs have proven interesting for medical imaging.  Here we show a simple PDE implemented in a shader.
+Various partial differential equations (PDEs) have proven interesting for medical imaging.  Here we show a simple PDE implemented in a shader.
 </p>
+
+<h2>Source Image</h2>
 
 <p>
-The managment of multiple input textures is based on <a href="http://webglfundamentals.org/webgl/lessons/webgl-2-textures.html">this work</a>.
+Click in lower image to move seed point.
+
+Dragging left/right adjusts number of iterations (segmentation size).
 </p>
-
-<h2>Source Image and Input Seeds</h2>
-
-<p>
-Drag mouse in lower image.
-</p>
-
-
-<canvas id='compositeCanvas' class='drawable'></canvas>
-
+<img id="sourceImage" class='drawable' src="./coronal-mr-tumor.png" ></img>
 
 
 <h2>Processed Image</h2>
-<canvas id=renderCanvas></canvas>
+<canvas id="renderCanvas"></canvas>
+<table>
+  <tr>
+    <th style="text-align:left">Number of Iterations</th>
+  </tr><tr>
+    <td><input type="range" min="1" max="3000" value="300" step="2" id="numberOfIterations"></td>
+  </tr><tr>
+    <th style="text-align:left">Edge Weight</th>
+  </tr><tr>
+    <td><input type="range" min="0" max="200" value="10" step="1" id="edgeWeight"></td>
+  </tr>
+</table>
 
-<h2>Working buffers</h2>
-<canvas id='drawCanvas' class='drawable'></canvas>
-<!--
-<img id="sourceImage" class='drawable' src="./MRBrainTumor1_76.png" ></img>
-<img id="sourceImage" class='drawable' src="./lion.jpg" ></img>
-<img id="sourceImage" class='drawable' src='checker.png'> </img>
--->
-<img id="sourceImage" class='drawable' src="./coronal-mr-tumor.png" ></img>
 
 <script id="vertexShader" type="x-shader/x-vertex">
 precision highp float;
@@ -72,6 +70,7 @@ uniform vec2 sourceTexelSize;
 uniform vec2 focusPoint;
 uniform int iteration;
 uniform int numberOfIterations;
+uniform float edgeWeight;
 
 varying vec2 varyingTextureCoordinate;
 
@@ -145,17 +144,20 @@ void main(void) {
     float deltaT = .001;
 
     float phiValue;
-    phiValue = phi + deltaT * phiGradientMagnitude * (1. / (1. + sourceGradientMagnitude));
+    phiValue = phi + deltaT * phiGradientMagnitude * (1. / (1. + edgeWeight * sourceGradientMagnitude));
 
     phiValue = clamp(phiValue, 0., .9999);
     outputColor = pack_float(phiValue);
   }
 
   if (iteration == numberOfIterations) {
-    if (phi > .001) {
-      outputColor = vec4(1., phi, 0., 1.0);
+    if (phi > .001 && phi < 0.1) {
+      outputColor = sourceColor + vec4(.4, .4, -.2, 1.0);
     } else {
-      outputColor = vec4(0., 0., 0., 1.0);
+      outputColor = sourceColor;
+    }
+    if ( length(varyingTextureCoordinate - focusPoint) < .01 ) {
+      outputColor += vec4(-.4, -.4, .6, 1.);
     }
   }
 
@@ -167,7 +169,9 @@ void main(void) {
 <script>
 'use strict'
 
-var focusPoint = [0.99, 0.5]; // holds a value to be passed as a uniform to the shader
+var focusPoint = [0.5, 0.5]; // holds a value to be passed as a uniform to the shader
+var numberOfIterations = 300;
+var edgeWeight = 10.;
 var sourceTextureSize = [0,0];
 
 //
@@ -299,28 +303,27 @@ function render() {
   gl.enableVertexAttribArray( textureCoordinateLocation );
   gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
 
-  // (debug - run once. uncomment these lines and set "last" to -1)
+  // (debug - run once. uncomment these lines and set "numberOfIterations" to -1)
   //gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
 
-  var last = 300;
-  gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), last);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), numberOfIterations);
+  gl.uniform1f(gl.getUniformLocation(glProgram, "edgeWeight"), edgeWeight);
 
   var i;
-  for (i=0;i<=last;++i)
+  for (i=0;i<=numberOfIterations;++i)
   {
     gl.uniform1i(gl.getUniformLocation(glProgram, "iteration"), i);
 
     // set the frame buffer to render into
-    if (i < last) {
+    if (i < numberOfIterations) {
       // render into one of the texture framebuffers
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[i%2]);
     } else {
       // use the canvas frame buffer for last render
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
-    //gl.viewport(0, 0, renderCanvas.width, renderCanvas.height); is this needed for the intermediate results?
 
     // the primitive, triggers the fragment shader
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -333,36 +336,10 @@ function render() {
 
 function setupInterface() {
 
-  // run growcut as you paint
-  var continuousMode = true;
-
   //
-  // set up the drawCanvas and the compositeCanvas
-  // - draw (hidden) contains just the input gestures to send to growcut
-  // - composite is background plus gestures to show user
+  // set up the drawCanvas
   //
   var sourceImage = $('#sourceImage')[0];
-  //sourceImage.hidden = true;
-  var drawCanvas = $('#drawCanvas')[0];
-  drawCanvas.width = sourceImage.width;
-  drawCanvas.height = sourceImage.height;
-  var drawContext = drawCanvas.getContext("2d");
-  drawContext.fillStyle = 'rgba(0,0,0,0)';
-  drawContext.fillRect(0,0,drawCanvas.width,drawCanvas.height);
-  //drawCanvas.hidden = true;
-
-  var compositeCanvas = $('#compositeCanvas')[0];
-  compositeCanvas.width = sourceImage.width;
-  compositeCanvas.height = sourceImage.height;
-  var compositeContext = compositeCanvas.getContext("2d");
-
-  function redrawCompositeImage() {
-    compositeContext.drawImage(sourceImage, 0, 0);
-    var overlayImage = new Image();
-    overlayImage.src = drawCanvas.toDataURL("image/png");
-    compositeContext.drawImage(overlayImage, 0, 0);
-  }
-  redrawCompositeImage();
 
   function initializePDE() {
     sourceTextureImage = $('#sourceImage')[0];
@@ -370,25 +347,76 @@ function setupInterface() {
     setupFrameBuffers();
     renderCanvas.height = sourceTextureImage.height;
     renderCanvas.width = sourceTextureImage.width;
-    render();
+    updateParameters();
   };
   initializePDE();
 
-  // pass the mouse location as a uniform variable to the fragment shader
-  var updateFocus = function(event) {
-    var sourceImage = $('#sourceImage')[0];
-    focusPoint = [event.offsetX / sourceImage.width, 1. - (event.offsetY / sourceImage.height)];
+  //
+  // user interface elements
+  //
+  function updateParameters() {
+    numberOfIterations = Number(document.getElementById('numberOfIterations').value);
+    edgeWeight = Number(document.getElementById('edgeWeight').value);
     render();
+  }
+
+  // listen to continuous and release events
+  // http://stackoverflow.com/questions/18544890/onchange-event-on-input-type-range-is-not-triggering-in-firefox-while-dragging
+  document.getElementById('numberOfIterations').onchange = updateParameters;
+  document.getElementById('edgeWeight').onchange = updateParameters;
+  document.getElementById('numberOfIterations').oninput = updateParameters;
+  document.getElementById('edgeWeight').oninput = updateParameters;
+
+  //
+  // drawing functions
+  //
+
+  var drawing = false;
+  var drawStartNumberOfIterations;
+  var seedPoint = [.5,.5];
+  var currentPoint = [0., 0.];
+
+  function normalizeCoordinate(x, y) {
+    return [x / sourceImage.width, 1. - (y / sourceImage.height)];
+  }
+  function startDraw(event) {
+    drawing = true;
+    drawStartNumberOfIterations = numberOfIterations;
+    seedPoint = normalizeCoordinate(event.offsetX, event.offsetY);
+    focusPoint = normalizeCoordinate(event.offsetX, event.offsetY);
+    updateDraw(event);
   };
-  $('#renderCanvas').mousedown(updateFocus);
-  $('#renderCanvas').mousemove(updateFocus);
-  $('#renderCanvas').mouseout(updateFocus);
+  function endDraw(event) {
+    drawing = false;
+    updateDraw(event);
+  };
+  function updateDraw (event) {
+    currentPoint = normalizeCoordinate(event.offsetX, event.offsetY);
+    if (drawing) {
+      focusPoint = seedPoint;
+      var iterationDelta = Math.round(2000. * (currentPoint[0]-seedPoint[0]));
+      var newIterations = drawStartNumberOfIterations + iterationDelta;
+      document.getElementById('numberOfIterations').value = newIterations;
+
+      // // disabled for now
+      // edgeWeight = 1. + 50. * Math.abs(seedPoint[1]-currentPoint[1]);
+      // document.getElementById('edgeWeight').value = edgeWeight;
+    }
+    updateParameters();
+  };
+
+  $('#renderCanvas').mousedown(startDraw);
+  $('#renderCanvas').mousemove(updateDraw);
+  $('#renderCanvas').mouseup(endDraw);
+  $('#renderCanvas').mouseout(endDraw);
+
 }
 
 // once document is loaded, then load images, set up textures and framebuffers, and render
 $(function () {
   $('#sourceImage').load(setupInterface);
 });
+
 
 </script>
 
@@ -400,6 +428,10 @@ Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the sour
 <p>
 This demo uses WebGL.  Not all devices and browsers are supported.
 </p>
+<p>
+The managment of multiple input textures is based on <a href="http://webglfundamentals.org/webgl/lessons/webgl-2-textures.html">this work</a>.
+</p>
+
 
 </body>
 </html>

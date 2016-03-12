@@ -16,19 +16,14 @@
 Various partial differential equations (PDEs) have proven interesting for medical imaging.  Here we show a simple PDE implemented in a shader.
 </p>
 
-<h2>Source Image</h2>
-
+<h2>Processed Image</h2>
 <p>
 Click in lower image to move seed point.
 
 Dragging left/right adjusts number of iterations (segmentation size).
 </p>
-<img id="sourceImage" class='drawable' src="./coronal-mr-tumor.png" ></img>
-
-
-<h2>Processed Image</h2>
 <canvas id="renderCanvas"></canvas>
-<table>
+<table id='parameters'>
   <tr>
     <th style="text-align:left">Number of Iterations</th>
   </tr><tr>
@@ -39,6 +34,11 @@ Dragging left/right adjusts number of iterations (segmentation size).
     <td><input type="range" min="0" max="200" value="10" step="1" id="edgeWeight"></td>
   </tr>
 </table>
+
+<h2>Source Image</h2>
+
+<img id="sourceImage" class='drawable' src="./coronal-mr-tumor.png" ></img>
+
 
 
 <script id="vertexShader" type="x-shader/x-vertex">
@@ -347,6 +347,8 @@ function setupInterface() {
     setupFrameBuffers();
     renderCanvas.height = sourceTextureImage.height;
     renderCanvas.width = sourceTextureImage.width;
+    $('#numberOfIterations').width(sourceTextureImage.width);
+    $('#edgeWeight').width(sourceTextureImage.width);
     updateParameters();
   };
   initializePDE();

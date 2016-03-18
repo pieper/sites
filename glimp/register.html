@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Experimental GLSL Image Processing</title>
+  <link rel="stylesheet" href="glimp.css" />
+  <script src='jquery-1.11.0.min.js'></script>
+</head>
+
+<body>
+
+<h1>GLSL Registration Demo</h1>
+
+<a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
+
+<p>
+Experimental nonlinear registration
+</p>
+
+<h2>Source Images and Input Strokes</h2>
+<img id="preOpT2" class='drawable' src="./preOpT2.png" ></img>
+<img id="intraOpT2" class='drawable' src="./intraOpT2.png" ></img>
+
+<p>
+</p>
+
+
+<h2>Deformation and Composite buffers</h2>
+<canvas id='deformationCanvas' class='drawable'></canvas>
+<canvas id='compositeCanvas' class='drawable'></canvas>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+precision highp float;
+
+attribute vec3 coordinate;
+attribute vec2 textureCoordinate;
+
+varying vec2 varyingTextureCoordinate;
+
+void main(void) {
+  gl_Position = vec4(coordinate,1.);
+  varyingTextureCoordinate = textureCoordinate;
+}
+</script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">
+precision highp float;
+
+// GrowCut filter.
+//
+// GrowCut needs the color input, a strength image (float) and label/mask image (unsigned char).
+// On each iteration, there are 3 inputs and 2 outputs.
+// Inputs can be handled as separate texture units.
+// To handle multiple outputs, we pack the two images into a single image. The strength is stored in rgb and the initial
+// label in the alpha.
+
+
+uniform sampler2D preOpT2TextureSampler;
+uniform sampler2D intraOpT2TextureSampler;
+uniform sampler2D transformTextureSampler;
+uniform vec2 preOpT2TextureSize;
+uniform vec2 preOpT2TexelSize;
+uniform vec2 focusPoint;
+uniform int iteration;
+uniform int numberOfIterations;
+
+varying vec2 varyingTextureCoordinate;
+
+void main(void) {
+  // First time called, pack a texture using r for strength and g for the label.
+  // Last time called, move the label into RGB
+  // Rest of the iterations, run the grow cut
+
+  vec4 preOpT2Color = texture2D(preOpT2TextureSampler, varyingTextureCoordinate);
+  vec4 inputLabel = texture2D(intraOpT2TextureSampler, varyingTextureCoordinate);
+  vec4 strengthLabel = texture2D(transformTextureSampler, varyingTextureCoordinate);
+
+  /*
+  Two shader programs:
+
+  -- first has pre, intra, deformation and renders into deformation
+  ---- looks at t(pre) + delta offset and calculates guess of next offset
+  ---- normalizes across neighbors
+
+  -- second has pre, intra, deformation and renders into composite
+  ---- renders t(pre)
+  */
+
+
+
+  gl_FragColor = outputColor;
+}
+
+</script>
+
+<script>
+'use strict'
+
+var focusPoint = [0.99, 0.5]; // holds a value to be passed as a uniform to the shader
+var preOpT2TextureSize = [0,0];
+
+//
+// set up webgl
+//
+var compositeCanvas = document.querySelector('#compositeCanvas');
+var gl = compositeCanvas.getContext('webgl');
+gl.clearColor(0.0, 0.0, 0.0, 1.0); // black, fully opaque
+gl.enable(gl.DEPTH_TEST);
+gl.depthFunc(gl.LEQUAL); // Near things obscure far things
+
+// buffers for the textured plane in normalized space
+var renderImageCoordinatesBuffer = gl.createBuffer();
+var renderImageTexureCoordinatesBuffer = gl.createBuffer();
+var renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1.,  1., 0., 1.,  1., 0., ];
+gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
+
+var renderImageTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
+gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
+
+// the preOpT2 texture
+var preOpT2TextureImage; // = new Image();
+var preOpT2Texture = gl.createTexture();
+var setupSourceTexture = function() {
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, preOpT2Texture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, preOpT2TextureImage);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  //gl.bindTexture(gl.TEXTURE_2D, null); // is this call needed? jvm
+
+  preOpT2TextureSize[0] = preOpT2TextureImage.width;
+  preOpT2TextureSize[1] = preOpT2TextureImage.height;
+};
+
+  // the initial label texture
+var deformationTextureImage; // = new Image();
+var initialLabelTexture = gl.createTexture();
+var setupInitialLabelTexture = function() {
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, initialLabelTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, deformationTextureImage);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);  // jvm - do we want nearest of linear?
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  //gl.bindTexture(gl.TEXTURE_2D, null); // is this call needed? jvm
+};
+
+// extra textures and framebuffers for intermediate results of iterative filters and pipelines
+var textures = [];
+var framebuffers = [];
+var setupFrameBuffers = function() {
+  for (var ii = 0; ii < 2; ++ii) {
+      // create a texture for the framebuffer
+      var texture = gl.createTexture();
+      //gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // do this now at end? or not needed for intermediates? jvm
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, preOpT2TextureImage.width, preOpT2TextureImage.height, 0,
+        gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); // jvm - do we want nearest or linear?
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      textures.push(texture);
+
+      // create a framebuffer
+      var fbo = gl.createFramebuffer();
+      framebuffers.push(fbo);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+      // attach texture to frame buffer
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+   }
+}
+
+// the program and shaders
+var glProgram = gl.createProgram();
+var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
+gl.compileShader(vertexShader);
+if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile vertexShader');
+  console.log(gl.getShaderInfoLog(vertexShader));
+}
+var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
+gl.compileShader(fragmentShader);
+if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile fragmentShader');
+  console.log(gl.getShaderInfoLog(fragmentShader));
+}
+gl.attachShader(glProgram, vertexShader);
+gl.deleteShader(vertexShader);
+gl.attachShader(glProgram, fragmentShader);
+gl.deleteShader(fragmentShader);
+gl.linkProgram(glProgram);
+
+// render a frame
+function render() {
+  gl.viewport(0, 0, compositeCanvas.width, compositeCanvas.height);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  gl.useProgram(glProgram);
+
+  // set up the focus point (pointer position)
+  gl.uniform2f(gl.getUniformLocation(glProgram, "focusPoint"), focusPoint[0], focusPoint[1]);
+
+  // set up the preOpT2TextureSize
+  gl.uniform2f(gl.getUniformLocation(glProgram, "preOpT2TextureSize"), preOpT2TextureSize[0], preOpT2TextureSize[1]);
+
+  // set up the preOpT2TexelSize
+  gl.uniform2f(gl.getUniformLocation(glProgram, "preOpT2TexelSize"), 1.0/preOpT2TextureSize[0], 1.0/preOpT2TextureSize[1]);
+
+  // the preOpT2Texture
+  gl.activeTexture(gl.TEXTURE0);  // bind preOpT2Texture to texture unit 0
+  gl.bindTexture(gl.TEXTURE_2D, preOpT2Texture);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "preOpT2TextureSampler"), 0); // then, assign preOpT2TextureSampler to this texture unit
+
+  // the initialLabelTexture
+  gl.activeTexture(gl.TEXTURE1);  // bind initialLabelTexture to texture unit 1
+  gl.bindTexture(gl.TEXTURE_2D, initialLabelTexture);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "intraOpT2TextureSampler"), 1); // then, assign intraOpT2TextureSampler to this texture unit
+
+  // the strengthAndLabelTexture
+  gl.activeTexture(gl.TEXTURE2);  // bind strengthAndLabelTexture to texture unit 2
+  gl.bindTexture(gl.TEXTURE_2D, textures[1]); // use the first or second intermediate texture initially?
+  gl.uniform1i(gl.getUniformLocation(glProgram, "transformTextureSampler"), 2); // then, assign transformTextureSampler to this texture unit
+
+  // the coordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
+  var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
+  gl.enableVertexAttribArray( coordinateLocation );
+  gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
+
+  // the textureCoordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
+  var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
+  gl.enableVertexAttribArray( textureCoordinateLocation );
+  gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
+
+  // (debug - run once. uncomment these lines and set "last" to -1)
+  //gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+
+  var last = 200;
+  gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), last);
+
+  var i;
+  for (i=0;i<=last;++i)
+  {
+    gl.uniform1i(gl.getUniformLocation(glProgram, "iteration"), i);
+
+    // set the frame buffer to render into
+    if (i < last) {
+      // render into one of the texture framebuffers
+      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[i%2]);
+    } else {
+      // use the canvas frame buffer for last render
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+    //gl.viewport(0, 0, compositeCanvas.width, compositeCanvas.height); is this needed for the intermediate results?
+
+    // the primitive, triggers the fragment shader
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // switch the intermediate texture
+    gl.activeTexture(gl.TEXTURE2); // Use TEXTURE2 as the intermediate image for  Grow Cut
+    gl.bindTexture(gl.TEXTURE_2D, textures[i % 2]);
+  }
+}
+
+function setupInterface() {
+
+  //
+  // set up the compositeCanvas
+  //
+  var preOpT2 = $('#preOpT2')[0];
+  var intraOpT2 = $('#intraOpT2')[0];
+  var compositeCanvas = $('#compositeCanvas')[0];
+  compositeCanvas.width = intraOpT2.width;
+  compositeCanvas.height = intraOpT2.height;
+  var deformationCanvas = $('#deformationCanvas')[0];
+  deformationCanvas.width = intraOpT2.width;
+  deformationCanvas.height = intraOpT2.height;
+  var deformationContext = deformationCanvas.getContext("2d");
+  deformationContext.fillStyle = "#888";
+  deformationContext.fillRect(0,0,deformationCanvas.width,deformationCanvas.height);
+  console.log('filled');
+
+  function deformationStep() {
+    preOpT2TextureImage = $('#preOpT2Image')[0];
+    deformationTextureImage = new Image();
+    deformationTextureImage.src = drawCanvas.toDataURL("image/png");
+    setupSourceTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
+    setupInitialLabelTexture(); // jvm - changes these to take image as parameter? change these to keep things as fields in image[i]?
+    setupFrameBuffers();
+    compositeCanvas.height = preOpT2TextureImage.height;
+    compositeCanvas.width = preOpT2TextureImage.width;
+    render();
+  };
+  deformationStep();
+
+  // pass the mouse location as a uniform variable to the fragment shader
+  var updateFocus = function(event) {
+    var preOpT2Image = $('#preOpT2Image')[0];
+    focusPoint = [event.offsetX / preOpT2Image.width, 1. - (event.offsetY / preOpT2Image.height)];
+    render();
+  };
+  $('#compositeCanvas').mousedown(updateFocus);
+  $('#compositeCanvas').mousemove(updateFocus);
+  $('#compositeCanvas').mouseout(updateFocus);
+
+  var drawStyle = "#F00";
+  var drawing=false;
+  function drawPoint (event) {
+    if (drawing) {
+      drawContext.strokeStyle = drawStyle;
+      drawContext.fillStyle = drawStyle;
+      drawContext.beginPath();
+      drawContext.arc(event.offsetX, event.offsetY, 3, 0,2*Math.PI);
+      drawContext.stroke();
+      drawContext.fill();
+      redrawCompositeImage();
+    }
+  }
+  $('.drawable').mousedown(function(event) {
+    drawing=true;
+    drawPoint(event);
+  });
+  $('.drawable').mousemove(function(event) {
+    event.preventDefault();
+    drawPoint(event);
+    if (continuousMode == true) {
+      redrawCompositeImage();
+      recalculateGrowCut();
+    }
+  });
+  $('.drawable').mouseup(function(event) {
+    drawing=false;
+    recalculateGrowCut();
+  });
+  $('.drawable').mouseout(function(event) {
+    drawing=false;
+    recalculateGrowCut();
+  });
+}
+
+// once document is loaded, then load images, set up textures and framebuffers, and render
+$(function () {
+  var imagesLoaded = 0;
+  function imageLoaded() {
+    imagesLoaded++;
+    console.log('loaded', imagesLoaded);
+    if (imagesLoaded == 2) {
+      setupInterface();
+    }
+  }
+  $('#preOpT2').load(imageLoaded);
+  $('#intraOpT2').load(imageLoaded);
+});
+
+</script>
+
+<p>
+Move pointer over the lower image. To the left of the mouse, the original intensity image is displayed with the pixels recolored to show the segmentation. 
+<br>
+To the right of the mouse, the segmentation is shown above the mouse, while the strength image is shown below.
+<br><br>
+Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
+</p>
+
+<p>
+This demo uses WebGL.  Not all devices and browsers are supported.
+</p>
+
+</body>
+</html>

@@ -51,7 +51,7 @@ precision highp float;
 
 uniform sampler2D movingTextureSampler;
 uniform sampler2D fixedTextureSampler;
-uniform sampler2D currentDeformationTextureSampler;
+uniform sampler2D deformationTextureSampler;
 uniform vec2 movingTextureSize;
 uniform vec2 movingTexelSize;
 uniform vec2 fixedTextureSize;
@@ -65,10 +65,10 @@ varying vec2 varyingTextureCoordinate;
 void main(void) {
 
   vec4 fixedColor = texture2D(fixedTextureSampler, varyingTextureCoordinate);
-  vec4 deformation = texture2D(currentDeformationTextureSampler, varyingTextureCoordinate);
+  vec4 deformation = texture2D(deformationTextureSampler, varyingTextureCoordinate);
  
   //r = dx, b = dy, g = theta, a = bias
-  float translationGain = 10.;
+  float translationGain = .1;
   vec2 translation = deformation.rb * translationGain;
 
   vec4 movingColor = texture2D(movingTextureSampler, varyingTextureCoordinate + translation);
@@ -139,10 +139,10 @@ var setupSourceTextures = function() {
 
 // the initial deformation texture
 var deformationTextureImage;
-var fixedTexture = gl.createTexture();
+var deformationTexture = gl.createTexture();
 var setupInitialDeformationTexture = function() {
   gl.activeTexture(gl.TEXTURE2);
-  gl.bindTexture(gl.TEXTURE_2D, fixedTexture);
+  gl.bindTexture(gl.TEXTURE_2D, deformationTexture);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, deformationTextureImage);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);  // jvm - do we want nearest of linear?
@@ -208,6 +208,25 @@ function render() {
 
   gl.useProgram(glProgram);
 
+  // Buffers
+
+  // the coordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
+  var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
+  gl.enableVertexAttribArray( coordinateLocation );
+  gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
+
+  // the textureCoordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
+  var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
+  gl.enableVertexAttribArray( textureCoordinateLocation );
+  gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
+
+  // Uniforms
+
+  var numberOfIterations = 0;
+  gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), numberOfIterations);
+
   // set up the focus point (pointer position)
   gl.uniform2f(gl.getUniformLocation(glProgram, "focusPoint"), focusPoint[0], focusPoint[1]);
 
@@ -223,6 +242,8 @@ function render() {
   // set up the fixedTexelSize
   gl.uniform2f(gl.getUniformLocation(glProgram, "fixedTexelSize"), 1.0/fixedTextureSize[0], 1.0/fixedTextureSize[1]);
 
+  // Textures
+
   // the movingTexture
   gl.activeTexture(gl.TEXTURE0);  // bind movingTexture to texture unit 0
   gl.bindTexture(gl.TEXTURE_2D, movingTexture);
@@ -235,33 +256,18 @@ function render() {
 
   // the deformationTexture
   gl.activeTexture(gl.TEXTURE2);  // bind deformationTexture to texture unit 2
-  gl.bindTexture(gl.TEXTURE_2D, textures[1]); 
-  gl.uniform1i(gl.getUniformLocation(glProgram, "currentDeformationTextureSampler"), 2);
+  gl.bindTexture(gl.TEXTURE_2D, deformationTexture); 
+  gl.uniform1i(gl.getUniformLocation(glProgram, "deformationTextureSampler"), 2);
 
-  // the coordinate attribute
-  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
-  var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
-  gl.enableVertexAttribArray( coordinateLocation );
-  gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
-
-  // the textureCoordinate attribute
-  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
-  var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
-  gl.enableVertexAttribArray( textureCoordinateLocation );
-  gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
-
-  var numberOfIterations = 200;
-  gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), numberOfIterations);
-
-  var i;
-  for (i=0;i<=numberOfIterations;++i)
+  var iteration;
+  for (iteration=0;iteration<=numberOfIterations;++iteration)
   {
-    gl.uniform1i(gl.getUniformLocation(glProgram, "iteration"), i);
+    gl.uniform1i(gl.getUniformLocation(glProgram, "iteration"), iteration);
 
     // set the frame buffer to render into
-    if (i < numberOfIterations) {
+    if (iteration < numberOfIterations) {
       // render into one of the texture framebuffers
-      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[i%2]);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[iteration%2]);
     } else {
       // use the canvas frame buffer for numberOfIterations render
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -272,7 +278,7 @@ function render() {
 
     // switch the intermediate texture
     gl.activeTexture(gl.TEXTURE2); // Use TEXTURE2 as the intermediate image for deforming
-    gl.bindTexture(gl.TEXTURE_2D, textures[i % 2]);
+    gl.bindTexture(gl.TEXTURE_2D, textures[iteration%2]);
   }
 }
 
@@ -292,7 +298,12 @@ function setupInterface() {
   var deformationContext = deformationCanvas.getContext("2d");
   deformationContext.fillStyle = "rgba(0,0,0,1)";
   deformationContext.fillRect(0,0,deformationCanvas.width,deformationCanvas.height);
+  var gradient = deformationContext.createRadialGradient(100, 100, 200, 100, 100, 0);
+  gradient.addColorStop(0, 'purple');
+  gradient.addColorStop(.5, 'white');
+  gradient.addColorStop(1, 'black');
   deformationContext.fillStyle = "#808";
+  deformationContext.fillStyle = gradient;
   deformationContext.fillRect(30,50,deformationCanvas.width/2.,deformationCanvas.height-100);
   console.log('filled');
 

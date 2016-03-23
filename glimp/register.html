@@ -20,7 +20,19 @@ Experimental nonlinear registration
 <canvas id='compositeCanvas' class='drawable'></canvas>
 <canvas id='deformationCanvas' class='drawable'></canvas>
 
-<h2>Source Images and Input Strokes</h2>
+<table id='parameters'>
+  <tr>
+    <th style="text-align:left">Number of Iterations</th>
+  </tr><tr>
+    <td><input type="range" min="1" max="3000" value="300" step="2" id="numberOfIterations"></td>
+  </tr><tr>
+    <th style="text-align:left">Weight</th>
+  </tr><tr>
+    <td><input type="range" min="0" max="200" value="10" step="1" id="weight"></td>
+  </tr>
+</table>
+
+<h2>Moving and Fixed Images</h2>
 <img id="moving" class='drawable' src="./preOpT2.png" ></img>
 <img id="fixed" class='drawable' src="./intraOpT2.png" ></img>
 
@@ -66,15 +78,37 @@ void main(void) {
 
   vec4 fixedColor = texture2D(fixedTextureSampler, varyingTextureCoordinate);
   vec4 deformation = texture2D(deformationTextureSampler, varyingTextureCoordinate);
- 
+
   //r = dx, b = dy, g = theta, a = bias
   float translationGain = .1;
   vec2 translation = deformation.rb * translationGain;
 
   vec4 movingColor = texture2D(movingTextureSampler, varyingTextureCoordinate + translation);
 
-  gl_FragColor = 0.5 * (movingColor + fixedColor);
-  gl_FragColor = movingColor;
+
+
+  if ( iteration == numberOfIterations-1 ) {
+    // final render
+    // show checkerboard of fixed and deformed moving
+    if ( varyingTextureCoordinate.x < focusPoint.x ) {
+      if ( varyingTextureCoordinate.y < focusPoint.y ) {
+        gl_FragColor = fixedColor;
+      } else {
+        gl_FragColor = movingColor;
+      }
+    } else {
+      if ( varyingTextureCoordinate.y > focusPoint.y ) {
+        gl_FragColor = fixedColor;
+      } else {
+        gl_FragColor = movingColor;
+      }
+    }
+  } else {
+    // output new deformation
+    gl_FragColor = deformation = deformation * 1.01;
+
+  }
+
 }
 
 </script>
@@ -82,9 +116,12 @@ void main(void) {
 <script>
 'use strict'
 
-var focusPoint = [0.99, 0.5]; // holds a value to be passed as a uniform to the shader
+var focusPoint = [0., 0.99]; // holds a value to be passed as a uniform to the shader
 var movingTextureSize = [0,0];
 var fixedTextureSize = [0,0];
+var numberOfIterations = 10;
+var weight = 1;
+
 
 //
 // set up webgl
@@ -224,7 +261,6 @@ function render() {
 
   // Uniforms
 
-  var numberOfIterations = 0;
   gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), numberOfIterations);
 
   // set up the focus point (pointer position)
@@ -256,27 +292,27 @@ function render() {
 
   // the deformationTexture
   gl.activeTexture(gl.TEXTURE2);  // bind deformationTexture to texture unit 2
-  gl.bindTexture(gl.TEXTURE_2D, deformationTexture); 
+  gl.bindTexture(gl.TEXTURE_2D, deformationTexture);
   gl.uniform1i(gl.getUniformLocation(glProgram, "deformationTextureSampler"), 2);
 
   var iteration;
-  for (iteration=0;iteration<=numberOfIterations;++iteration)
+  for (iteration = 0; iteration < numberOfIterations; ++iteration)
   {
     gl.uniform1i(gl.getUniformLocation(glProgram, "iteration"), iteration);
 
     // set the frame buffer to render into
-    if (iteration < numberOfIterations) {
+    if (iteration == numberOfIterations-1) {
+      // use the canvas frame buffer for final render
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    } else {
       // render into one of the texture framebuffers
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[iteration%2]);
-    } else {
-      // use the canvas frame buffer for numberOfIterations render
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
     // the primitive, triggers the fragment shader
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    // switch the intermediate texture
+    // switch the intermediate texture for next render
     gl.activeTexture(gl.TEXTURE2); // Use TEXTURE2 as the intermediate image for deforming
     gl.bindTexture(gl.TEXTURE_2D, textures[iteration%2]);
   }
@@ -298,13 +334,13 @@ function setupInterface() {
   var deformationContext = deformationCanvas.getContext("2d");
   deformationContext.fillStyle = "rgba(0,0,0,1)";
   deformationContext.fillRect(0,0,deformationCanvas.width,deformationCanvas.height);
-  var gradient = deformationContext.createRadialGradient(100, 100, 200, 100, 100, 0);
+  var gradient = deformationContext.createRadialGradient(100, 100, 0, 100, 100, 400);
   gradient.addColorStop(0, 'purple');
   gradient.addColorStop(.5, 'white');
   gradient.addColorStop(1, 'black');
   deformationContext.fillStyle = "#808";
   deformationContext.fillStyle = gradient;
-  deformationContext.fillRect(30,50,deformationCanvas.width/2.,deformationCanvas.height-100);
+  deformationContext.fillRect(3,5,deformationCanvas.width/1.2,deformationCanvas.height-100);
   console.log('filled');
 
   function recalculateDeformation() {
@@ -365,6 +401,22 @@ function setupInterface() {
     drawing=false;
     recalculateDeformation();
   });
+
+  //
+  // user interface elements
+  //
+  function updateParameters() {
+    numberOfIterations = Number(document.getElementById('numberOfIterations').value);
+    weight = Number(document.getElementById('weight').value);
+    render();
+  }
+
+  // listen to continuous and release events
+  // http://stackoverflow.com/questions/18544890/onchange-event-on-input-type-range-is-not-triggering-in-firefox-while-dragging
+  document.getElementById('numberOfIterations').onchange = updateParameters;
+  document.getElementById('weight').onchange = updateParameters;
+  document.getElementById('numberOfIterations').oninput = updateParameters;
+  document.getElementById('weight').oninput = updateParameters;
 }
 
 // once document is loaded, then load images, set up textures and framebuffers, and render
@@ -384,7 +436,7 @@ $(function () {
 </script>
 
 <p>
-Move pointer over the lower image. To the left of the mouse, the original intensity image is displayed with the pixels recolored to show the segmentation. 
+Move pointer over the lower image. To the left of the mouse, the original intensity image is displayed with the pixels recolored to show the segmentation.
 <br>
 To the right of the mouse, the segmentation is shown above the mouse, while the strength image is shown below.
 <br><br>

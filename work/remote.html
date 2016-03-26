@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="./css/StudyBrowser.css" media="screen" />
+
+    <script src="./jslib/jquery-2.1.4.min.js"></script>
+    <script src="./jslib/pouchdb-5.1.0.js"></script>
+    <script src="./jslib/pouchdb.memory.js"></script>
+
+    <script src="dicomMetadictionary.js"></script>
+
+    <script>
+    var seriesUID = "1.3.6.1.4.1.32722.99.99.225570660272964280948169301188944152335";
+    var instanceURLs = [
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.108672759849012927435803873004639983118/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.109347150881874090296207073287958595973/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.109995011054663237613506606865559453760/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.110330908385729178252104235044896196521/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.110566727614041322916092211437964626748/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.110870224102980769114493156875930995210/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.113657445585153936860060821829452206769/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.117530364958767026407369083189678748557/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.121491032450422967824164775294188092442/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.126592455773138583104933868526024000847/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.127051047560051155994375693282016274958/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.127433983387242881117444291586231844583/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.127465368956697353395786151122462710335/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.135742022604673697899214158830239195372/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.144176386383671526044046303908740743030/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.14624092098516703558532190572320400087/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.151951368676584996682516633796572493262/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.152246430811229841969138856183659182149/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.154623919984428646398354288498561753821/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.155517842246142668932726653528172718735/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.156456019621853756104615564159124747027/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.156650607326591706002183178911675937770/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.158066074764357254573045792056229018551/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.16685811145457901364752411479997447755/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.181939792272879226172795480821876266503/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.183920020613079822827545172027358441769/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.184289576791285150633722379197524130935/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.190015152718576601826618859624725130763/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.19554022182783407970066401632765035167/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.196849944161112610853947170407829550486/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.197540107238565688769693907709858595287/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.200040050887053838058883863499252995404/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.207492099556484992592105015108029671278/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.209882156098795481362192431268256274597/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.211371543628913879040583849397792469180/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.211824300113987415816511007185896499816/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.217127399879049787198280148885580728904/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.224730681538499284312520047822474012718/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.226192272205069367557075690721309437321/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.227007019570038623253062338560265946632/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.228430853452306475111477861759214073208/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.229723288163196360313959267051989352743/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.245658955341869929707318644704000990766/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.245975306497623942814224555008194138421/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.248518085883085259742299202918626193481/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.249172676031387527531333038349188822920/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.252195850281695180979144073129477947362/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.258227526342136083167734162895861422992/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.263877805520846180721681208356939945315/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.267143140824284582760185651535851323805/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.269733789130261078181811803441032256980/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.272794740820771317172474215684505226033/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.279437310651767076564415454989652335143/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.292375370001541079264712317177089637354/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.296199328838599013709919626731581873042/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.298999751497238110015279187872419682704/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.304441746758151866575899844617651522049/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.308976898259370123013802116713514737475/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.310105120580056544814571721298691441921/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.317268197355504955985288162964280267188/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.324695135471555328559073375093702473333/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.325509742533176804390841018372743695969/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.326709820599896645177398326828017168408/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.327955190767336923276767803202459959887/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.328484510504386934787055703203868138910/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.330705664833816805476413421923098153575/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.333478441096692577977921383993736047130/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.36524101340581553714973402799796485283/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.36746821403802440074656103139953246137/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.396774244716583199559709991841764606/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.43895297342831931676086319729594466860/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.47420498021416103713051158157972254493/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.4744553466531232858828139792072950598/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.5802433516136048006961212633115899524/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.65406228862346945528199037331961699200/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.72922790436732985313712611976565520268/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.75928024795287703086020578392574074565/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.79868027095716757889462205516640410069/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.90929163938512654403984274749767339698/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.91604392368773684390663376005652861475/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.9198636911987716298674853333536996890/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.9320995918494175767174257829345299650/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.94364747034155828520611834076691496338/object.dcm",
+"http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.94749776633686944394770117774760713197/object.dcm",
+];
+
+
+      $(document).ready(function() {
+
+        var db = new PouchDB('http://quantome.org:5984/segmentation-server');
+        document.db = db;
+
+        var requestInstance = instanceURLs[30].slice(0,-1*"/object.dcm".length);
+
+        var progressFeed = db.changes({
+          since: 'now',
+          live: true,
+          include_docs: true
+        }).on('change', function(change) {
+          if (change.doc.type == 'ch.step') {
+            var requestString = change.doc._id;
+            $('#requestTable').append('<li>' + requestString + '</li>');
+          }
+          if (change.doc.type == 'progress') {
+            var changeString = change.doc._id + ': ' + String(change.doc.progress);
+            $('#progressTable > p').html(changeString);
+          }
+          if (change.doc.type == 'result') {
+            var changeString = change.doc._id + ': ' + String(change.doc.progress);
+            $('#resultTable > p').html(changeString);
+          }
+        }).on('complete', function(info) {
+          // changes() was canceled
+        }).on('error', function (err) {
+          console.log(err);
+        });
+
+        var makeRequest = function(event) {
+          var image = $('#sourceImage')[0];
+          var request = {
+            type : 'ch.step',
+            name : 'Lesion Segmentation',
+            desiredProvenance : {
+              application : '3D Slicer',
+              version : '4.*',
+              operation : 'LesionSegmenter',
+              inputSeriesUID : seriesUID,
+              inputInstanceURLs : instanceURLs,
+              seedInstance : requestInstance,
+              seed : [event.offsetX / image.width, 1. - (event.offsetY / image.height)],
+            },
+            status: 'open',
+          };
+          db.post(request).then(function(doc) {
+            // success!!
+          }).catch(function (err) {
+            console.log(err);
+          });
+        };
+
+        var requestImage = requestInstance+"/image256.png";
+        $('#sourceImage')[0].src = requestImage;
+        $('#sourceImage').mousedown(makeRequest);
+
+      });
+
+
+    </script>
+
+    <title>Example Request Processing</title>
+
+  </head>
+
+<body>
+
+<img id="sourceImage"></img>
+
+<h1>Requests</h1>
+<ul id="requestTable">
+</ul>
+
+<h1>Progress</h1>
+<div id="progressTable">
+  <p></p>
+</div>
+
+<h1>Result</h1>
+<div id="resultTable">
+  <p></p>
+</div>
+
+</body>
+</html>

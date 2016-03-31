@@ -15,13 +15,14 @@
     <script>
       $(document).ready(function() {
 
-        var db = new PouchDB('http://quantome.org:5984/segmentation-server');
-        document.db = db;
+        var segmentationDB = new PouchDB('http://quantome.org:5984/segmentation-server');
+        var chronicleDB = new PouchDB('http://quantome.org:5984/chronicle');
+        document.segmentationDB = segmentationDB;
 
         var requests = [];
 
         var simulateSegmentation = function(id) {
-          db.get(id).then(function(doc) {
+          segmentationDB.get(id).then(function(doc) {
             var times = [.1, .3, .6, .9];
             for (var index = 0; index < times.length; index++) {
               var progressDocument = {
@@ -30,11 +31,11 @@
                 progress : 'working'
               };
               setTimeout( function() {
-                db.post( progressDocument );
+                segmentationDB.post( progressDocument );
               }, 1000 * times[index]);
             }
             setTimeout( function() {
-              db.post({
+              segmentationDB.post({
                 type : 'result',
                 requestID : id,
                 answer : 42
@@ -45,7 +46,7 @@
           });
         }
 
-        var requestFeed = db.changes({
+        var requestFeed = segmentationDB.changes({
           since: 'now',
           live: true,
           include_docs: true
@@ -62,7 +63,7 @@
         });
 
 
-        var progressFeed = db.changes({
+        var progressFeed = segmentationDB.changes({
           since: 'now',
           live: true,
           include_docs: true
@@ -88,13 +89,67 @@
             image : $('#sourceImage')[0].src,
             seed : [event.offsetX, event.offsetY],
           };
-          db.post(request).then(function(doc) {
+          segmentationDB.post(request).then(function(doc) {
             requests.push(doc.id);
           })
         };
 
         $('#sourceImage').mousedown(makeRequest);
 
+
+        function datasetZPosition(dataset) {
+          var imagePositionPatientTag = "00200032";
+          var imagePositionPatient = dataset[imagePositionPatientTag];
+          if (imagePositionPatient) {
+            return JSON.parse(imagePositionPatient.Value.replace(/'/g, ""))[2];
+          } else {
+            return (0);
+          }
+        }
+
+        var chURLPrefix = "http://quantome.org:5984";
+        var key = [["UnspecifiedInstitution", "TCGA-50-8460"],
+                   ["CT", "CT CHEST WITHOUT CONTR", "1.2.826.0.1.3680043.2.1125.1.58047104466126071866880070167552720"],
+                   "1.2.826.0.1.3680043.2.1125.1.3504916618561857663178193880208876"];
+        var endKey = [key.slice(0), {}];
+        var sortedInstances = [];
+        chronicleDB.query('instances/context', {
+          start_key : key,
+          end_key : endKey,
+          reduce : true,
+          group_level : 4,
+          stale : 'update_after',
+        }).then(function (result) {
+          $.each(result.rows, function(index,row) {
+            var instanceUID = row.key[3];
+            var instanceURL = chURLPrefix + '/' + 'chronicle' + '/' + instanceUID;
+            chronicleDB.get(instanceUID).then(function(doc) {
+                sortedInstances.push(doc);
+                sortedInstances.sort(function(a,b){return datasetZPosition(a.dataset)-datasetZPosition(b.dataset)});
+                $('#instanceOffset')[0].max = sortedInstances.length;
+                setSourceImage(sortedInstances.length-1);
+            }).catch(function (err) {
+              console.log('getInstance' + err);
+            });
+          });
+        }).catch(function (err) {
+          console.log(err);
+        });
+
+        function setSourceImage(offset) {
+          var instance = sortedInstances[offset];
+          var instanceUID = instance._id;
+          var imageURL = chURLPrefix + '/' + 'chronicle' + '/' + instanceUID + '/image256.png';
+          $('#sourceImage')[0].src = imageURL;
+        }
+        function updateImage() {
+          offset = Number(document.getElementById('instanceOffset').value);
+          setSourceImage(offset);
+        }
+        document.getElementById('instanceOffset').onchange = updateImage;
+        document.getElementById('instanceOffset').oninput = updateImage;
+
+        $('#instanceOffset').width(256);
       });
 
 
@@ -106,7 +161,9 @@
 
 <body>
 
-<img id="sourceImage" src="../glimp/MRBrainTumor1_76.png"></img>
+<input type="range" min="0" max="3000" value="0" step="1" id="instanceOffset">
+<br>
+<img id="sourceImage"></img>
 
 <h1>Requests</h1>
 <ul id="requestTable">

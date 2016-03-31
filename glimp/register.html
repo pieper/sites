@@ -142,12 +142,12 @@ void main(void) {
         vec3 neighborRGB = texture2D(fixedTextureSampler, neighbor).rgb;
         float neighborDifference = abs(neighborRGB.r-originalMovingRGB.r);
         float neighborWeight = (1. - abs(neighborDifference - currentDifference));
-        imagePull = imagePull + .1 * neighborWeight * neighborDirection;
+        imagePull = imagePull + .05 * neighborWeight * neighborDirection;
       }
     }
 
     vec2 newTranslation = (1.-imageWeight) * regularizedTranslation + imageWeight * imagePull;
-    gl_FragColor = vec4(clamp((newTranslation / movingTexelSize) +vec2(0.5), 0., .9999), currentGuessRGB.r, 1.);
+    gl_FragColor = vec4(clamp((newTranslation / movingTexelSize) + vec2(0.5), 0., .9999), currentGuessRGB.r, 1.);
 
     //gl_FragColor = vec4(clamp((regularizedTranslation / movingTexelSize) + vec2(0.5), 0., .9999), currentDifference, 1.);
     //gl_FragColor = vec4(clamp((imagePull + vec2(0.5)) / translationGain, 0., .9999), currentDifference, 1.);
@@ -477,16 +477,19 @@ function setupInterface() {
 
 // once document is loaded, then load images, set up textures and framebuffers, and render
 $(function () {
+  /*
   var imagesLoaded = 0;
   function imageLoaded() {
     imagesLoaded++;
     console.log('loaded', imagesLoaded);
     if (imagesLoaded == 2) {
-      setupInterface();
     }
   }
   $('#moving').load(imageLoaded);
   $('#fixed').load(imageLoaded);
+  */
+
+  setupInterface();
 });
 
 </script>

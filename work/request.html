@@ -56,27 +56,25 @@
         seriesUID = "1.2.826.0.1.3680043.2.1125.1.39536284052378151402688454465622864"
 
         var sortedInstances = [];
-        var instanceURLs = [];
+        var instanceUIDURLPairs = [];
         chronicleDB.query('instances/seriesInstances', {
           start_key : seriesUID,
           end_key : seriesUID + "\u9999",
           reduce : false,
           stale : 'update_after',
         }).then(function (result) {
-          console.log(result);
           function processRow(offset) {
             if (offset >= result.rows.length) { return; }
             var value = result.rows[offset].value;
             if (value[0] != ctSOPUID) { return; }
             var instanceUID = value[1];
             var instanceURL = chURLPrefix + '/' + 'chronicle' + '/' + instanceUID + '/object.dcm';
-            instanceURLs.push(instanceURL);
+            instanceUIDURLPairs.push([instanceUID, instanceURL]);
             chronicleDB.get(instanceUID).then(function(doc) {
               sortedInstances.push(doc);
               sortedInstances.sort(function(a,b){return datasetZPosition(a.dataset)-datasetZPosition(b.dataset)});
               $('#instanceOffset')[0].max = sortedInstances.length-1;
               var middle = Math.floor((sortedInstances.length-1)/2);
-              console.log(middle);
               $('#instanceOffset')[0].value = middle;
               setSourceImage(middle);
             }).then(function() {
@@ -90,14 +88,26 @@
           console.log(err);
         });
 
+        function updateCaption(event) {
+          var caption = ""
+          if (event && event.offsetX) {
+            caption = caption + String(event.offsetX) + " " + String(event.offsetY);
+          }
+          offset = Number(document.getElementById('instanceOffset').value);
+          caption = caption + " " + sortedInstances[offset]._id;
+          $('#caption').html("<p>"+caption+"</p>");
+        }
+
         function setSourceImage(offset) {
           var instance = sortedInstances[offset];
           var instanceUID = instance._id;
           var imageURL = chURLPrefix + '/' + 'chronicle' + '/' + instanceUID + '/image256.png';
           $('#sourceImage')[0].src = imageURL;
         }
+
         function updateImage() {
           offset = Number(document.getElementById('instanceOffset').value);
+          updateCaption();
           setSourceImage(offset);
         }
         document.getElementById('instanceOffset').onchange = updateImage;
@@ -114,7 +124,7 @@
               application : '3D Slicer',
               version : '4.5*',
               operation : 'LesionSegmenter',
-              inputInstanceURLs : instanceURLs,
+              inputInstanceUIDURLPairs : instanceUIDURLPairs,
               inputSeriesUID : seriesUID,
               seedInstanceUID : seedInstanceUID,
               seed : [event.offsetX, event.offsetY],
@@ -126,7 +136,7 @@
         };
 
         $('#sourceImage').mousedown(makeRequest);
-
+        $('#sourceImage').mousemove(updateCaption);
       });
 
 
@@ -141,6 +151,9 @@
 <input type="range" min="0" max="0" value="0" step="1" id="instanceOffset">
 <br>
 <img id="sourceImage"></img>
+<div id="caption">
+<p>Select tumor seed point</p>
+</div>
 
 <h1>Requests</h1>
 <ul id="requestTable">

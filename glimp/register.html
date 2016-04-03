@@ -34,15 +34,15 @@ Experimental nonlinear registration
     <th style="text-align:left">Regularizer Weight</th>
   </tr><tr>
   </tr><tr>
-    <td><input type="range" min="0" max="100" value="0" step="1" id="regularizerWeight"></td>
+    <td><input type="range" min="0" max="100" value="50" step="1" id="regularizerWeight"></td>
   </tr>
 </table>
 
 <h2>Moving and Fixed Images</h2>
 <img id="moving" class='drawable' src="./preOpT2.png" ></img>
-<img id="fixed" class='drawable' src="./intraOpT2.png" ></img>
-<!--
 <img id="fixed" class='drawable' src="./preOpT2.png" ></img>
+<!--
+<img id="fixed" class='drawable' src="./intraOpT2.png" ></img>
 -->
 
 <p>
@@ -91,16 +91,23 @@ void main(void) {
   vec4 deformation = texture2D(deformationTextureSampler, varyingTextureCoordinate);
 
   //r = dx, b = dy, g = theta, a = bias
-  float translationGain = 1.;
-  vec2 translation = (deformation.rg - vec2(0.5)) * movingTexelSize;
+  // storage texture samples are in range 0 to 1, sampled as floats
+  // vector translations are in range -translationGain/2 to +translationGain/2
+  // vector translations are in units of texture coordinates
+  float translationGain = .1; // total allowed translation, as stored in the texture
+
+  #define storageToVector(t) ((t - vec2(0.5)) * translationGain)
+  #define vectorToStorage(v) clamp((v / translationGain) + vec2(0.5), 0., .9999)
+
+  vec2 translation = storageToVector(deformation.rg);
 
   if ( iteration == numberOfIterations  -   1 ) {
 
-    vec4 movingColor = texture2D(movingTextureSampler, varyingTextureCoordinate + translation/movingTexelSize);
+    vec4 movingColor = texture2D(movingTextureSampler, varyingTextureCoordinate + translation);
 
     // final render
     // show checkerboard of fixed and deformed moving
-    bool checkerboard = false;
+    bool checkerboard = true;
     if (checkerboard) {
       if ( varyingTextureCoordinate.x < focusPoint.x ) {
         if ( varyingTextureCoordinate.y < focusPoint.y ) {
@@ -120,14 +127,14 @@ void main(void) {
     }
   } else {
 
-    //
-    vec2 regularizedTranslation = 0.5 * translation;
+    vec2 regularizedTranslation = (1. - regularizerWeight) * translation;
+    float neighborContribution = regularizerWeight / 4.;
     for (int i=-1; i <= 1; i += 2) {
       for (int j=-1; j <= 1; j += 2) {
-        vec2 neighborDirection = vec2(i,j) * movingTexelSize;
+        vec2 neighborDirection = vec2(i,j) * movingTexelSize;  // pixel sized vector
         vec4 neighborDeformation = texture2D(deformationTextureSampler, varyingTextureCoordinate + neighborDirection);
-        vec2 neighborTranslation = (neighborDeformation.rg - vec2(0.5)) * movingTexelSize;
-        regularizedTranslation = regularizedTranslation + .125 * neighborTranslation;
+        vec2 neighborTranslation = storageToVector(neighborDeformation.rg);
+        regularizedTranslation = regularizedTranslation + neighborContribution * neighborTranslation;
       }
     }
 
@@ -138,19 +145,18 @@ void main(void) {
     for (int i=-1; i <= 1; i += 2) {
       for (int j=-1; j <= 1; j += 2) {
         vec2 neighborDirection = vec2(i,j) * movingTexelSize;
-        vec2 neighbor = varyingTextureCoordinate + translation + neighborDirection;
+        vec2 neighbor = varyingTextureCoordinate + regularizedTranslation + neighborDirection;
         vec3 neighborRGB = texture2D(fixedTextureSampler, neighbor).rgb;
         float neighborDifference = abs(neighborRGB.r-originalMovingRGB.r);
         float neighborWeight = (1. - abs(neighborDifference - currentDifference));
-        imagePull = imagePull + .05 * neighborWeight * neighborDirection;
+        imagePull = imagePull + 10. * neighborWeight * neighborDirection;
       }
     }
 
-    vec2 newTranslation = (1.-imageWeight) * regularizedTranslation + imageWeight * imagePull;
-    gl_FragColor = vec4(clamp((newTranslation / movingTexelSize) + vec2(0.5), 0., .9999), currentGuessRGB.r, 1.);
+    vec2 newTranslation = regularizedTranslation + imageWeight * imagePull;
+    vec2 textureTranslation = vectorToStorage(newTranslation);
+    gl_FragColor = vec4(textureTranslation, currentGuessRGB.r, 1.);
 
-    //gl_FragColor = vec4(clamp((regularizedTranslation / movingTexelSize) + vec2(0.5), 0., .9999), currentDifference, 1.);
-    //gl_FragColor = vec4(clamp((imagePull + vec2(0.5)) / translationGain, 0., .9999), currentDifference, 1.);
   }
 }
 
@@ -164,7 +170,7 @@ var movingTextureSize = [0,0];
 var fixedTextureSize = [0,0];
 var numberOfIterations = 1;
 var imageWeight = 0.;
-var regularizerWeight = 0.;
+var regularizerWeight = .5;
 
 
 //
@@ -388,8 +394,12 @@ function setupInterface() {
   gradient.addColorStop(.2, 'white');
   gradient.addColorStop(1, 'purple');
   deformationContext.fillStyle = gradient;
+  deformationContext.fillStyle = "#888";
+  deformationContext.fillStyle = "#bbb";
   deformationContext.fillStyle = "#777777";
+  deformationContext.fillStyle = "#666";
   deformationContext.fillRect(3,5,deformationCanvas.width/1.2,deformationCanvas.height-100);
+  deformationContext.fillRect(0,0,deformationCanvas.width,deformationCanvas.height);
   console.log('filled');
 
   $('#numberOfIterations').width(deformationCanvas.width);

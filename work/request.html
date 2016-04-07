@@ -116,6 +116,7 @@
 
         var makeRequest = function(event) {
           offset = Number(document.getElementById('instanceOffset').value);
+          var sourceImage = $('#sourceImage')[0];
           var seedInstanceUID = sortedInstances[offset]._id;
           var request = {
             type : 'ch.step',
@@ -127,7 +128,7 @@
               inputInstanceUIDURLPairs : instanceUIDURLPairs,
               inputSeriesUID : seriesUID,
               seedInstanceUID : seedInstanceUID,
-              seed : [event.offsetX, event.offsetY],
+              seed : [event.offsetX / sourceImage.width, event.offsetY / sourceImage.height],
             },
           };
           segmentationDB.post(request).then(function(doc) {

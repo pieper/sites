@@ -132,7 +132,7 @@
             },
           };
           segmentationDB.post(request).then(function(doc) {
-            $('#requestTable').append(JSON.stringify(request));
+            $('#requestTable').append(JSON.stringify(doc));
           });
         };
 

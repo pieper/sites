@@ -15,65 +15,23 @@
     <script>
       $(document).ready(function() {
 
-        var db = new PouchDB('http://quantome.org:5984/segmentation-server');
-        document.db = db;
+        var segmentationDB = new PouchDB('http://quantome.org:5984/segmentation-server');
+        var chronicleDB = new PouchDB('http://quantome.org:5984/chronicle');
+        document.segmentationDB = segmentationDB;
 
-        var requests = [];
-
-        var simulateSegmentation = function(id) {
-          db.get(id).then(function(doc) {
-            var times = [.1, .3, .6, .9];
-            for (var index = 0; index < times.length; index++) {
-              var progressDocument = {
-                type : 'progress',
-                requestID : id,
-                progress : 'working'
-              };
-              setTimeout( function() {
-                db.post( progressDocument );
-              }, 1000 * times[index]);
-            }
-            setTimeout( function() {
-              db.post({
-                type : 'result',
-                requestID : id,
-                answer : 42
-              });
-            }, 1000);
-          }).catch(function (err) {
-            console.log(err);
-          });
-        }
-
-        var requestFeed = db.changes({
-          since: 'now',
-          live: true,
-          include_docs: true
-        }).on('change', function(change) {
-          if (change.doc.algorithm == 'segment') {
-            var changeString = change.id + ': ' + String(change.doc.seed);
-            $('#requestTable').append('<li>' + changeString + '</li>');
-            simulateSegmentation(change.id);
-          }
-        }).on('complete', function(info) {
-          // changes() was canceled
-        }).on('error', function (err) {
-          console.log(err);
-        });
-
-
-        var progressFeed = db.changes({
+        var progressFeed = segmentationDB.changes({
           since: 'now',
           live: true,
           include_docs: true
         }).on('change', function(change) {
           if (change.doc.type == 'progress') {
-            var changeString = change.doc.requestID + ': ' + String(change.doc.progress);
-            $('#progressTable').append('<li>' + changeString + '</li>');
+            var changeString = change.doc._id + ': ' + String(change.doc.progress);
+            $('#progressTable').html('<p>' + changeString + '</p>');
           }
           if (change.doc.type == 'result') {
-            var changeString = change.doc.requestID + ': Finished';
+            var changeString = change.doc._id + ': Finished';
             $('#resultTable').append('<li>' + changeString + '</li>');
+            $('#resultTable').append(change.doc.progress);
           }
         }).on('complete', function(info) {
           // changes() was canceled
@@ -82,19 +40,104 @@
         });
 
 
-        var makeRequest = function(event) {
-          var request = {
-            algorithm : 'segment',
-            image : $('#sourceImage')[0].src,
-            seed : [event.offsetX, event.offsetY],
+        function datasetZPosition(dataset) {
+          var imagePositionPatientTag = "00200032";
+          var imagePositionPatient = dataset[imagePositionPatientTag];
+          if (imagePositionPatient) {
+            return JSON.parse(imagePositionPatient.Value.replace(/'/g, ""))[2];
+          } else {
+            return (0);
+          }
+        }
+
+        var chURLPrefix = "http://quantome.org:5984";
+
+        var ctSOPUID = "1.2.840.10008.5.1.4.1.1.2";
+        seriesUID = "1.2.826.0.1.3680043.2.1125.1.39536284052378151402688454465622864"
+
+        var sortedInstances = [];
+        var instanceUIDURLPairs = [];
+        chronicleDB.query('instances/seriesInstances', {
+          start_key : seriesUID,
+          end_key : seriesUID + "\u9999",
+          reduce : false,
+          stale : 'update_after',
+        }).then(function (result) {
+          function processRow(offset) {
+            if (offset >= result.rows.length) { return; }
+            var value = result.rows[offset].value;
+            if (value[0] != ctSOPUID) { return; }
+            var instanceUID = value[1];
+            var instanceURL = chURLPrefix + '/' + 'chronicle' + '/' + instanceUID + '/object.dcm';
+            instanceUIDURLPairs.push([instanceUID, instanceURL]);
+            chronicleDB.get(instanceUID).then(function(doc) {
+              sortedInstances.push(doc);
+              sortedInstances.sort(function(a,b){return datasetZPosition(a.dataset)-datasetZPosition(b.dataset)});
+              $('#instanceOffset')[0].max = sortedInstances.length-1;
+              var middle = Math.floor((sortedInstances.length-1)/2);
+              $('#instanceOffset')[0].value = middle;
+              setSourceImage(middle);
+            }).then(function() {
+              processRow(offset+1);
+            }).catch(function (err) {
+              console.log('getInstance' + err);
+            });
           };
-          db.post(request).then(function(doc) {
-            requests.push(doc.id);
-          })
+          processRow(0);
+        }).catch(function (err) {
+          console.log(err);
+        });
+
+        function updateCaption(event) {
+          var caption = ""
+          if (event && event.offsetX) {
+            caption = caption + String(event.offsetX) + " " + String(event.offsetY);
+          }
+          offset = Number(document.getElementById('instanceOffset').value);
+          caption = caption + " " + sortedInstances[offset]._id;
+          $('#caption').html("<p>"+caption+"</p>");
+        }
+
+        function setSourceImage(offset) {
+          var instance = sortedInstances[offset];
+          var instanceUID = instance._id;
+          var imageURL = chURLPrefix + '/' + 'chronicle' + '/' + instanceUID + '/image256.png';
+          $('#sourceImage')[0].src = imageURL;
+        }
+
+        function updateImage() {
+          offset = Number(document.getElementById('instanceOffset').value);
+          updateCaption();
+          setSourceImage(offset);
+        }
+        document.getElementById('instanceOffset').onchange = updateImage;
+        document.getElementById('instanceOffset').oninput = updateImage;
+        $('#instanceOffset').width(256);
+
+        var makeRequest = function(event) {
+          offset = Number(document.getElementById('instanceOffset').value);
+          var sourceImage = $('#sourceImage')[0];
+          var seedInstanceUID = sortedInstances[offset]._id;
+          var request = {
+            type : 'ch.step',
+            status : 'open',
+            desiredProvenance : {
+              application : '3D Slicer',
+              version : '4.5*',
+              operation : 'LesionSegmenter',
+              inputInstanceUIDURLPairs : instanceUIDURLPairs,
+              inputSeriesUID : seriesUID,
+              seedInstanceUID : seedInstanceUID,
+              seed : [event.offsetX / sourceImage.width, event.offsetY / sourceImage.height],
+            },
+          };
+          segmentationDB.post(request).then(function(doc) {
+            $('#requestTable').append(JSON.stringify(doc));
+          });
         };
 
         $('#sourceImage').mousedown(makeRequest);
-
+        $('#sourceImage').mousemove(updateCaption);
       });
 
 
@@ -106,7 +149,12 @@
 
 <body>
 
-<img id="sourceImage" src="../glimp/MRBrainTumor1_76.png"></img>
+<input type="range" min="0" max="0" value="0" step="1" id="instanceOffset">
+<br>
+<img id="sourceImage"></img>
+<div id="caption">
+<p>Select tumor seed point</p>
+</div>
 
 <h1>Requests</h1>
 <ul id="requestTable">

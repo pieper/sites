@@ -54,7 +54,7 @@
 
         var ctSOPUID = "1.2.840.10008.5.1.4.1.1.2";
         seriesUID = "1.2.826.0.1.3680043.2.1125.1.39536284052378151402688454465622864"
-
+        $('#instanceOffset').hide();
         var sortedInstances = [];
         var instanceUIDURLPairs = [];
         chronicleDB.query('instances/seriesInstances', {
@@ -64,13 +64,20 @@
           stale : 'update_after',
         }).then(function (result) {
           function processRow(offset) {
-            if (offset >= result.rows.length) { return; }
+            if (offset >= result.rows.length) {
+              $('#instanceOffset').show(400);
+              return;
+            }
             var value = result.rows[offset].value;
-            if (value[0] != ctSOPUID) { return; }
+            if (value[0] != ctSOPUID) {
+              console.log('skipping non-CT instance');
+              return;
+            }
             var instanceUID = value[1];
             var instanceURL = chURLPrefix + '/' + 'chronicle' + '/' + instanceUID + '/object.dcm';
             instanceUIDURLPairs.push([instanceUID, instanceURL]);
             chronicleDB.get(instanceUID).then(function(doc) {
+              // sort the instances by slice Z position - valid for axial CT, but otherwise a hack
               sortedInstances.push(doc);
               sortedInstances.sort(function(a,b){return datasetZPosition(a.dataset)-datasetZPosition(b.dataset)});
               $('#instanceOffset')[0].max = sortedInstances.length-1;

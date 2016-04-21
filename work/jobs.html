@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+  <head>
+
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.3.4.min.js"></script>
+
+    <script src="./jslib/jquery-2.1.4.min.js"></script>
+    <script src="./jslib/pouchdb-5.1.0.js"></script>
+    <script src="./jslib/pouchdb.memory.js"></script>
+
+    <script>
+      $(document).ready(function() {
+
+        var jobsDB = new PouchDB('http://quantome.org:5984/jobs');
+        document.jobsDB = jobsDB;
+
+        var ec2;
+
+        //
+        // listen for and display database changes
+        //
+        var progressFeed = jobsDB.changes({
+          since: 'now',
+          live: true,
+          include_docs: true
+        }).on('change', function(change) {
+          console.log(change);
+          var changeString = JSON.stringify(change.doc);
+          console.log("Got notification %s", Date());
+          $('#resultTable').html('<p>' + changeString + '</p>');
+        }).on('error', function (err) {
+          console.log(err);
+        });
+
+
+
+        function configureAWS () {
+          var AccessKeyID = $('#AccessKeyID').val();
+          var Secret = $('#Secret').val();
+
+          AWS.config.update({
+            accessKeyId: AccessKeyID, 
+            secretAccessKey: Secret,
+            region: "us-east-1",
+          });
+
+          ec2 = new AWS.EC2();
+          document.ec2 = ec2;
+        };
+
+        //
+        // launch a job when the user clicks
+        //
+        $('#launch').click(function() {
+
+          configureAWS();
+
+          var launchScript = window.btoa($('#launchScript').text());
+          var params = {
+            ImageId : 'ami-08111162', // Amazon Linux AMI x86_64 EBS
+            InstanceType : 't2.micro',
+            MinCount : 1, MaxCount : 1,
+            UserData : launchScript,
+            NetworkInterfaces: [{
+              DeviceIndex: 0,
+              SubnetId : 'subnet-28debc41', // TODO: copy from describeInstances
+              Groups : ['sg-fb658582',],
+              AssociatePublicIpAddress: true,
+              DeleteOnTermination: true,
+            },],
+            InstanceInitiatedShutdownBehavior: 'terminate',
+            KeyName : 'condatest',
+          };
+
+          ec2.runInstances(params, function(err, data) {
+            if (err) { 
+              console.log("Could not create instance", err); return; 
+              $('#resultTable').html('<p>' + err + '</p>');
+            }
+
+            console.log(data);
+            var instanceId = data.Instances[0].InstanceId;
+            console.log("Created instance %s at %s", instanceId, Date());
+          });
+        });
+
+        $('#describe').click(function() {
+          configureAWS();
+          ec2.describeInstances({}, function(err, data) {
+            if (err) { console.log("Could not describe instance", err); return; }
+            console.log(data);
+          });
+        });
+
+      });
+
+
+    </script>
+
+    <title>Example Job Launcher</title>
+
+  </head>
+
+<body>
+
+<h1>AWS Credentials</h1>
+Access Key ID:
+<input id="AccessKeyID"></input>
+<br>
+Secret:
+<input id="Secret" type='password'></input>
+
+<h1>Launch Script</h1>
+<textarea id='launchScript' rows='30' cols='80'>#!/bin/bash
+
+yum update -y
+
+yum install -y docker
+
+service docker start
+
+docker run -ti cellprofiler/cellprofiler --help
+
+/usr/bin/curl -H 'Content-Type: application/json' -X POST http://quantome.org:5984/jobs -d '{"job": "CellExpress!"}' 
+
+
+shutdown -h now
+
+
+</textarea>
+<br>
+<button id='launch'>Launch</button>
+<button id='describe'>Describe</button>
+
+<h1>Results</h1>
+<ul id="resultTable">
+</ul>
+
+</body>
+</html>

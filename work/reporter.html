@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="./css/jquery.dataTables.min.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="./css/StudyBrowser.css" media="screen" />
+
+    <script src="./jslib/jquery-2.1.4.min.js"></script>
+    <script src="./jslib/jquery.dataTables.min.js"></script>
+    <script src="./jslib/pouchdb-5.1.0.js"></script>
+    <script src="./jslib/pouchdb.memory.js"></script>
+    <script src="./jslib/jspath.min.js"></script>
+
+    <script src="dicomMetadictionary.js"></script>
+
+    <script>
+      var sr;
+      $(document).ready(function() {
+
+        PouchDB.debug.enable('*');
+
+        //var db = new PouchDB('http://quantome.org:5984/chronicle');
+        var db = new PouchDB('http://localhost:5984/chronicle');
+        document.db = db;
+
+        //
+        // get and display the reports
+        //
+        var modalityTag = '00080060';
+        db.query("tags/byTagAndValue", {
+          reduce : false,
+          stale : 'update_after',
+          startkey: [modalityTag, "SR"],
+          endkey: [modalityTag, "SR"+"\u9999"],
+        }).then(function(data) {
+          console.log(data);
+          var reportList = [];
+          for (var rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
+            var row = data.rows[rowIndex];
+            var reportEntry = [];
+            reportEntry.push(row.id);
+            reportEntry.push(row.id);
+            reportList.push(reportEntry);
+          };
+
+          var reportTable = $('#reportTable').DataTable({
+            data : reportList,
+            columns : [
+              { title: "reportKey" }, // hidden, used for drill down
+              { title: "UID" },
+            ],
+            scrollY : "350px",
+            scrollCollapse : true,
+            paging : true,
+            rowID : "UID",
+            initComplete : function () {
+              var api = this.api();
+              api.column(0).visible( false );
+              api.$('tr').click( function () {
+                var row = api.row(this)[0][0];
+                var reportKey = reportTable.data()[row][0];
+                showReport(reportKey);
+              });
+            },
+          });
+        }).catch(function (err) {
+          alert(err);
+          console.error(err);
+        });
+
+        function showReport(reportKey) {
+          db.get(reportKey, {
+            /* default options */
+          }).then(function(doc) {
+            var srInstance = dicomMetadictionary.namifyDataset(doc.dataset);
+            $('#sr').html('<pre>'+JSON.stringify(srInstance,null,2)+'</pre>');
+            console.log(doc.dataset);
+            sr = doc.dataset;
+          }).catch(function (err) {
+            alert(err);
+            console.error(err);
+          });
+        }
+
+      });
+    </script>
+
+    <title>Chronicle Report List</title>
+
+  </head>
+
+<body>
+
+<div class="container">
+  <h1>Reports</h1>
+</div>
+
+<table id="reportTable" class="display" cellspacing="0" width="100%">
+  <tr><td>Report data loading...</td>/<tr>
+</table>
+
+<div id='sr'>
+</div>
+
+</body>
+</html>

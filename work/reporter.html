@@ -75,9 +75,14 @@
             /* default options */
           }).then(function(doc) {
             var srInstance = dicomMetadictionary.namifyDataset(doc.dataset);
-            $('#sr').html('<pre>'+JSON.stringify(srInstance,null,2)+'</pre>');
+            sr = srInstance;
+            var observerPath = '.ContentSequence.Value{..CodeMeaning.Value == "Person Observer Name"}'
+            var name = JSPath.apply(observerPath, sr)[0].PersonName.Value;
+            $('#sr').html('<h3>Observer Name: '+ name +'</h3>');
+
+            //$('#sr').html('<pre>'+JSON.stringify(srInstance,null,2)+'</pre>');
+
             console.log(doc.dataset);
-            sr = doc.dataset;
           }).catch(function (err) {
             alert(err);
             console.error(err);

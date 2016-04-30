@@ -6,14 +6,14 @@ dicomMetadictionary.punctuateTag = function (rawTag) {
 
 dicomMetadictionary.namifyDataset = function(dataset) {
   var namedDataset = {};
-  for (tag in dataset) {
+  for (var tag in dataset) {
     var data = dataset[tag];
     if (typeof(data) != "object") {
       return (data);
     }
     if (data.vr == "SQ") {
       var namedValues = [];
-      for (index in data.Value) {
+      for (var index in data.Value) {
         namedValues.push(dicomMetadictionary.namifyDataset(data.Value[index]))
       }
       data.Value = namedValues;

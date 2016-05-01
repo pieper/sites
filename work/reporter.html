@@ -35,7 +35,6 @@
           startkey: [modalityTag, "SR"],
           endkey: [modalityTag, "SR"+"\u9999"],
         }).then(function(data) {
-          console.log(data);
           var reportList = [];
           for (var rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
             var row = data.rows[rowIndex];
@@ -70,23 +69,208 @@
           console.error(err);
         });
 
+        function contentToHTML(content) {
+          var html = "<li>";
+          html += content.ConceptNameCodeSequence.Value[0].CodeMeaning.Value;
+          html += "</li>";
+          return (html);
+        }
+
+        function tid1500ToHTML(sr) {
+          var html = "";
+
+          var davidsSchemeUID = "1.3.6.1.4.1.5962.98.1";
+          if (!sr.CodingSchemeIdentificationSequence
+              || sr.CodingSchemeIdentificationSequence.Value[0].CodingSchemeUID.Value != davidsSchemeUID) {
+            return ("<p>Not one of David's SR documents</p>");
+          }
+
+          if (sr.ConceptNameCodeSequence) {
+            html += "<h1>" + sr.ConceptNameCodeSequence.Value[0].CodeMeaning.Value + "</h1>";
+          }
+
+          var cts = sr.ContentTemplateSequence;
+          if (cts) {
+            html += "<h2>Template: " + cts.Value[0].TemplateIdentifier.Value;
+            html += " ("+ cts.Value[0].MappingResource.Value + ")</h2>";
+          }
+
+          html += "<h3>Contents</h3>";
+          html += "<ul>";
+          for (var index in sr.ContentSequence.Value) {
+            var content = sr.ContentSequence.Value[index];
+            html += contentToHTML(content);
+          }
+          html += "</ul>";
+
+          var observerPath = '.ContentSequence.Value';
+          observerPath += '{..CodeValue.Value == "121008" && ..CodingSchemeDesignator.Value == "DCM"}';
+          var personObserverName = JSPath.apply(observerPath, sr)[0].PersonName.Value;
+          html += personObserverName;
+
+          var measurementsPath = '.ContentSequence.Value';
+          measurementsPath += '{..CodeValue.Value == "126010" && ..CodingSchemeDesignator.Value == "DCM"}';
+          var measurements = JSPath.apply(measurementsPath, sr);
+
+          var measurementGroupPath = '.ContentSequence.Value';
+          measurementGroupPath += '{..CodeValue.Value == "125007" && ..CodingSchemeDesignator.Value == "DCM"}';
+          var measurementGroup = JSPath.apply(measurementGroupPath, measurements);
+
+          var rows = [];
+          for (var groupIndex in measurementGroup) {
+            var measurementContent = measurementGroup[groupIndex].ContentSequence.Value;
+
+            // first, collect all the concepts that are common to all measured values
+            var concepts = {};
+            for (var contentIndex in measurementContent) {
+              var content = measurementContent[contentIndex];
+              if (content.ConceptNameCodeSequence) {
+                var concept = content.ConceptNameCodeSequence.Value[0];
+                if (concept.CodeValue.Value == "C67447" && concept.CodingSchemeDesignator.Value == "NCIt") {
+                  concepts.activitySession = content.TextValue.Value;
+                }
+                if (concept.CodeValue.Value == "112039" && concept.CodingSchemeDesignator.Value == "DCM") {
+                  concepts.trackingID = content.TextValue.Value;
+                }
+                if (concept.CodeValue.Value == "121071" && concept.CodingSchemeDesignator.Value == "DCM") {
+                  concepts.finding = content.ConceptCodeSequence.Value[0].CodeMeaning.Value;
+                }
+                if (concept.CodeValue.Value == "C2348792" && concept.CodingSchemeDesignator.Value == "UMLS") {
+                  concepts.timepoint = content.TextValue.Value;
+                }
+                if (concept.CodeValue.Value == "121191" && concept.CodingSchemeDesignator.Value == "DCM") {
+                  var reference = content.ReferencedSOPSequence.Value[0];
+                  concepts.referencedSegmentSOPInstanceUID = reference.ReferencedSOPInstanceUID.Value;
+                  // TODO: segment number should be list of segment numbers
+                  concepts.referencedSegmentNumbers = reference.ReferencedSegmentNumber.Value;
+                }
+                if (concept.CodeValue.Value == "121232" && concept.CodingSchemeDesignator.Value == "DCM") {
+                  concepts.sourceImageSeriesInstanceUID = content.UID.Value;
+                }
+                if (concept.CodeValue.Value == "126100" && concept.CodingSchemeDesignator.Value == "DCM") {
+                  var reference = content.ReferencedSOPSequence.Value[0];
+                  concepts.rwvmSOPInstanceUID = reference.ReferencedSOPInstanceUID.Value;
+                }
+                if (concept.CodeValue.Value == "G-C036" && concept.CodingSchemeDesignator.Value == "SRT") {
+                  concepts.commonMeasurementMethod = content.ConceptCodeSequence.Value[0].CodeMeaning.Value;
+                }
+                if (concept.CodeValue.Value == "G-C0E3" && concept.CodingSchemeDesignator.Value == "SRT") {
+                  concepts.commonFindingSite = content.ConceptCodeSequence.Value[0].CodeMeaning.Value;
+                }
+                if (concept.CodeValue.Value == "G-C171" && concept.CodingSchemeDesignator.Value == "SRT") {
+                  concepts.commonLaterality = content.TextValue.Value;
+                }
+              }
+            }
+            console.log('concepts');
+            console.log(concepts);
+
+            // second, go back through and collect the measured values into rows
+            for (var contentIndex in measurementContent) {
+              var content = measurementContent[contentIndex];
+              if (content.MeasuredValueSequence) {
+                var row = Object.assign(concepts);
+                var concept = content.ConceptNameCodeSequence.Value[0];
+                row.measurementConcept = concept.CodeMeaning.Value;
+                var measuredValue = content.MeasuredValueSequence.Value[0];
+                row.measurementValue = measuredValue.NumericValue.Value;
+                row.measurementUnits = measuredValue.MeasurementUnitsCodeSequence.Value[0].CodeValue.Value;
+                row.derivation = "";
+                if (content.ContentSequence) {
+                  contents = content.ContentSequence.Value;
+                  for (var contentIndex in contents) {
+                    var content = contents[contentIndex];
+                    if (content.ConceptNameCodeSequence) {
+                      var concept = content.ConceptNameCodeSequence.Value[0];
+                      if (concept.CodeValue.Value == "121401" && concept.CodingSchemeDesignator == "DCM") {
+                        row.derivation = content.ConceptCodeSequence.Value[0].CodeMeaning;
+                      }
+                    }
+                  }
+                }
+
+                rows.push(row);
+              }
+            }
+            console.log('rows');
+            console.log(rows);
+
+            /*
+            var rowTemplate = {
+              patientID : "",
+              personObserverName : personObserverName,
+              timepoint : "",
+              activitySession : activitySession,
+              trackingID : "",
+              finding : "",
+              findingSite : "",
+              laterality : "",
+              measurementConcept : "",
+              measurementMethod : "",
+              derivation : "",
+              measurementValue : "",
+              measurementUnits : "",
+              referencedSegmentSOPInstanceUID : "",
+              referencedSegmentNumbers : "",
+              sourceImageSeriesInstanceUID : "",
+              rwvmSOPInstanceUID : "",
+            };
+            var measuredValuesPath = measurement
+            for (var contentIndex in measurement) {
+
+              var content = measurement[contentIndex];
+
+            }
+
+
+            html += 'activitySession: ' + activitySession;
+
+            */
+        }
+
+        var columns = [
+          { title : "patientID" },
+          { title : "personObserverName" },
+          { title : "timepoint" },
+          { title : "activitySession" },
+          { title : "trackingID" },
+          { title : "finding" },
+          { title : "findingSite" },
+          { title : "laterality" },
+          { title : "measurementConcept" },
+          { title : "measurementMethod" },
+          { title : "derivation" },
+          { title : "measurementValue" },
+          { title : "measurementUnits" },
+          { title : "referencedSegmentSOPInstanceUID" },
+          { title : "referencedSegmentNumbers" },
+          { title : "sourceImageSeriesInstanceUID" },
+          { title : "rwvmSOPInstanceUID" },
+        ];
+
+        var measurementTable = $('#measurementTable').DataTable({
+          data : rows,
+          columns : columns,
+          scrollY : "350px",
+          scrollCollapse : true,
+          paging : true,
+        });
+
+          return (html);
+        }
+
         function showReport(reportKey) {
           db.get(reportKey, {
             /* default options */
           }).then(function(doc) {
             var srInstance = dicomMetadictionary.namifyDataset(doc.dataset);
             sr = srInstance;
-            var observerPath = '.ContentSequence.Value{..CodeMeaning.Value == "Person Observer Name"}'
-            var name = JSPath.apply(observerPath, sr)[0].PersonName.Value;
-            $('#sr').html('<h3>Observer Name: '+ name +'</h3>');
-
-            //$('#sr').html('<pre>'+JSON.stringify(srInstance,null,2)+'</pre>');
-
-            console.log(doc.dataset);
-          }).catch(function (err) {
+            $('#sr').html(tid1500ToHTML(sr));
+          })
+          /*.catch(function (err) {
             alert(err);
             console.error(err);
-          });
+          })*/;
         }
 
       });
@@ -104,6 +288,10 @@
 
 <table id="reportTable" class="display" cellspacing="0" width="100%">
   <tr><td>Report data loading...</td>/<tr>
+</table>
+
+<table id="measurementTable" class="display" cellspacing="0" width="100%">
+  <tr><td>Measurement Table waiting...</td>/<tr>
 </table>
 
 <div id='sr'>

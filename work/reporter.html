@@ -11,7 +11,7 @@
     <script src="./jslib/jquery.dataTables.min.js"></script>
     <script src="./jslib/pouchdb-5.1.0.js"></script>
     <script src="./jslib/pouchdb.memory.js"></script>
-    <script src="./jslib/jspath.min.js"></script>
+    <script src="./jslib/FileSaver.min.js"></script>
 
     <script src="dicomMetadictionary.js"></script>
 
@@ -19,21 +19,30 @@
       var sr;
       $(document).ready(function() {
 
-        PouchDB.debug.enable('*');
+        //PouchDB.debug.enable('*');
+        PouchDB.debug.disable();
 
-        //var db = new PouchDB('http://quantome.org:5984/chronicle');
-        var db = new PouchDB('http://localhost:5984/chronicle');
+        var db = new PouchDB('http://quantome.org:5984/chronicle');
+        //var db = new PouchDB('http://localhost:5984/chronicle');
         document.db = db;
 
         //
         // get and display the reports
         //
+        var manufacturerTag = "00081090";
         var modalityTag = '00080060';
+        var iowa2Git = "https://github.com/QIICR/Iowa2DICOM.git";
+
+        var uids = [];
         db.query("tags/byTagAndValue", {
           reduce : false,
           stale : 'update_after',
           startkey: [modalityTag, "SR"],
           endkey: [modalityTag, "SR"+"\u9999"],
+          /*
+          startkey: [manufacturerTag, iowa2Git],
+          endkey: [manufacturerTag, iowa2Git+"\u9999"],
+          */
         }).then(function(data) {
           var reportList = [];
           for (var rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
@@ -42,7 +51,10 @@
             reportEntry.push(row.id);
             reportEntry.push(row.id);
             reportList.push(reportEntry);
+            uids.push(row.id);
           };
+          $('#downloadCSV').css("color", "#000");
+          $('#downloadCSV').on("click", downloadCSV);
 
           var reportTable = $('#reportTable').DataTable({
             data : reportList,
@@ -76,13 +88,15 @@
           return (html);
         }
 
-        function tid1500ToHTML(sr) {
+        function tid1500ToTable(sr) {
           var html = "";
 
           var davidsSchemeUID = "1.3.6.1.4.1.5962.98.1";
           if (!sr.CodingSchemeIdentificationSequence
               || sr.CodingSchemeIdentificationSequence.Value[0].CodingSchemeUID.Value != davidsSchemeUID) {
-            return ("<p>Not one of David's SR documents</p>");
+            var html = "<p>Not one of David's SR documents</p>";
+            html += "<pre>" + JSON.stringify(sr, null, 2) + "</pre>";
+            return ({html : html});
           }
 
           if (sr.ConceptNameCodeSequence) {
@@ -95,19 +109,21 @@
             html += " ("+ cts.Value[0].MappingResource.Value + ")</h2>";
           }
 
+          var personObserverName;
+
           html += "<h3>Contents</h3>";
           html += "<ul>";
           for (var index in sr.ContentSequence.Value) {
             var content = sr.ContentSequence.Value[index];
             html += contentToHTML(content);
+            var cncs = content.ConceptNameCodeSequence.Value[0];
+            if (cncs.CodeValue.Value == "121008" && cncs.CodingSchemeDesignator.Value == "DCM") {
+              personObserverName = content.PersonName.Value;
+            }
           }
           html += "</ul>";
 
-          var observerPath = '.ContentSequence.Value';
-          observerPath += '{..CodeValue.Value == "121008" && ..CodingSchemeDesignator.Value == "DCM"}';
-          var personObserverName = JSPath.apply(observerPath, sr)[0].PersonName.Value;
-          html += personObserverName;
-
+          /*
           var measurementsPath = '.ContentSequence.Value';
           measurementsPath += '{..CodeValue.Value == "126010" && ..CodingSchemeDesignator.Value == "DCM"}';
           var measurements = JSPath.apply(measurementsPath, sr);
@@ -115,10 +131,31 @@
           var measurementGroupPath = '.ContentSequence.Value';
           measurementGroupPath += '{..CodeValue.Value == "125007" && ..CodingSchemeDesignator.Value == "DCM"}';
           var measurementGroup = JSPath.apply(measurementGroupPath, measurements);
+          */
 
-          var rows = [];
-          for (var groupIndex in measurementGroup) {
-            var measurementContent = measurementGroup[groupIndex].ContentSequence.Value;
+          var imagingMeasurements;
+          var contents = sr.ContentSequence.Value;
+          for (contentIndex in contents) {
+            var item = contents[contentIndex];
+            if (item.ConceptNameCodeSequence) {
+              var conceptCode = item.ConceptNameCodeSequence.Value[0].CodeValue.Value;
+              var scheme = item.ConceptNameCodeSequence.Value[0].CodingSchemeDesignator.Value;
+              if (conceptCode == "126010" && scheme == "DCM") {
+                imagingMeasurements = item.ContentSequence.Value;
+              }
+            }
+          }
+
+          var values = [];
+          for (var measurementIndex in imagingMeasurements) {
+            var imagingMeasurement = imagingMeasurements[measurementIndex];
+            var conceptCode = imagingMeasurement.ConceptNameCodeSequence.Value[0].CodeValue.Value;
+            var scheme = imagingMeasurement.ConceptNameCodeSequence.Value[0].CodingSchemeDesignator.Value;
+            if (conceptCode != "125007" || scheme != "DCM") {
+              continue;
+            }
+
+            var measurementContent = imagingMeasurement.ContentSequence.Value;
 
             // first, collect all the concepts that are common to all measured values
             var concepts = {};
@@ -152,30 +189,28 @@
                   concepts.rwvmSOPInstanceUID = reference.ReferencedSOPInstanceUID.Value;
                 }
                 if (concept.CodeValue.Value == "G-C036" && concept.CodingSchemeDesignator.Value == "SRT") {
-                  concepts.commonMeasurementMethod = content.ConceptCodeSequence.Value[0].CodeMeaning.Value;
+                  concepts.measurementMethod = content.ConceptCodeSequence.Value[0].CodeMeaning.Value;
                 }
                 if (concept.CodeValue.Value == "G-C0E3" && concept.CodingSchemeDesignator.Value == "SRT") {
-                  concepts.commonFindingSite = content.ConceptCodeSequence.Value[0].CodeMeaning.Value;
+                  concepts.findingSite = content.ConceptCodeSequence.Value[0].CodeMeaning.Value;
                 }
                 if (concept.CodeValue.Value == "G-C171" && concept.CodingSchemeDesignator.Value == "SRT") {
-                  concepts.commonLaterality = content.TextValue.Value;
+                  concepts.laterality = content.TextValue.Value;
                 }
               }
             }
-            console.log('concepts');
-            console.log(concepts);
 
-            // second, go back through and collect the measured values into rows
+            // second, go back through and collect the measured values into values
             for (var contentIndex in measurementContent) {
               var content = measurementContent[contentIndex];
               if (content.MeasuredValueSequence) {
-                var row = Object.assign(concepts);
+                var value = JSON.parse(JSON.stringify(concepts));
                 var concept = content.ConceptNameCodeSequence.Value[0];
-                row.measurementConcept = concept.CodeMeaning.Value;
+                value.measurementConcept = concept.CodeMeaning.Value;
                 var measuredValue = content.MeasuredValueSequence.Value[0];
-                row.measurementValue = measuredValue.NumericValue.Value;
-                row.measurementUnits = measuredValue.MeasurementUnitsCodeSequence.Value[0].CodeValue.Value;
-                row.derivation = "";
+                value.measurementValue = measuredValue.NumericValue.Value;
+                value.measurementUnits = measuredValue.MeasurementUnitsCodeSequence.Value[0].CodeValue.Value;
+                value.derivation = "";
                 if (content.ContentSequence) {
                   contents = content.ContentSequence.Value;
                   for (var contentIndex in contents) {
@@ -183,94 +218,137 @@
                     if (content.ConceptNameCodeSequence) {
                       var concept = content.ConceptNameCodeSequence.Value[0];
                       if (concept.CodeValue.Value == "121401" && concept.CodingSchemeDesignator == "DCM") {
-                        row.derivation = content.ConceptCodeSequence.Value[0].CodeMeaning;
+                        value.derivation = content.ConceptCodeSequence.Value[0].CodeMeaning;
                       }
                     }
                   }
                 }
 
-                rows.push(row);
+                value.patientID = sr.PatientID.Value;
+                value.personObserverName = personObserverName;
+
+                values.push(value);
               }
             }
-            console.log('rows');
-            console.log(rows);
+        }
 
-            /*
-            var rowTemplate = {
-              patientID : "",
-              personObserverName : personObserverName,
-              timepoint : "",
-              activitySession : activitySession,
-              trackingID : "",
-              finding : "",
-              findingSite : "",
-              laterality : "",
-              measurementConcept : "",
-              measurementMethod : "",
-              derivation : "",
-              measurementValue : "",
-              measurementUnits : "",
-              referencedSegmentSOPInstanceUID : "",
-              referencedSegmentNumbers : "",
-              sourceImageSeriesInstanceUID : "",
-              rwvmSOPInstanceUID : "",
-            };
-            var measuredValuesPath = measurement
-            for (var contentIndex in measurement) {
+          var columns = [
+            { title : "patientID" },
+            { title : "personObserverName" },
+            { title : "timepoint" },
+            { title : "activitySession" },
+            { title : "trackingID" },
+            { title : "finding" },
+            { title : "findingSite" },
+            { title : "laterality" },
+            { title : "measurementConcept" },
+            { title : "measurementMethod" },
+            { title : "derivation" },
+            { title : "measurementValue" },
+            { title : "measurementUnits" },
+            { title : "referencedSegmentSOPInstanceUID" },
+            { title : "referencedSegmentNumbers" },
+            { title : "sourceImageSeriesInstanceUID" },
+            { title : "rwvmSOPInstanceUID" },
+          ];
 
-              var content = measurement[contentIndex];
-
+          var rows = [];
+          for (var valueIndex in values) {
+            var value = values[valueIndex];
+            var row = [];
+            for (columnIndex in columns) {
+              var title = columns[columnIndex].title;
+              if (value[title]) {
+                row.push(value[title]);
+              } else {
+                row.push('not specified');
+              }
             }
+            rows.push(row);
+          }
 
-
-            html += 'activitySession: ' + activitySession;
-
-            */
+          return ({
+            html : html,
+            columns : columns,
+            rows : rows,
+          });
         }
 
-        var columns = [
-          { title : "patientID" },
-          { title : "personObserverName" },
-          { title : "timepoint" },
-          { title : "activitySession" },
-          { title : "trackingID" },
-          { title : "finding" },
-          { title : "findingSite" },
-          { title : "laterality" },
-          { title : "measurementConcept" },
-          { title : "measurementMethod" },
-          { title : "derivation" },
-          { title : "measurementValue" },
-          { title : "measurementUnits" },
-          { title : "referencedSegmentSOPInstanceUID" },
-          { title : "referencedSegmentNumbers" },
-          { title : "sourceImageSeriesInstanceUID" },
-          { title : "rwvmSOPInstanceUID" },
-        ];
-
-        var measurementTable = $('#measurementTable').DataTable({
-          data : rows,
-          columns : columns,
-          scrollY : "350px",
-          scrollCollapse : true,
-          paging : true,
-        });
-
-          return (html);
-        }
-
+        var measurementTable;
         function showReport(reportKey) {
           db.get(reportKey, {
             /* default options */
           }).then(function(doc) {
             var srInstance = dicomMetadictionary.namifyDataset(doc.dataset);
             sr = srInstance;
-            $('#sr').html(tid1500ToHTML(sr));
+            var table = tid1500ToTable(sr);
+            $('#sr').html(table.html);
+            if (measurementTable) {
+              measurementTable.destroy();
+            }
+            measurementTable = $('#measurementTable').DataTable({
+              data : table.rows,
+              columns : table.columns,
+              scrollY : "350px",
+              scrollCollapse : true,
+              paging : true,
+            });
           })
           /*.catch(function (err) {
             alert(err);
             console.error(err);
           })*/;
+        }
+
+        var seriesUIDTag = '0020000E';
+        var seriesUID = "1.3.6.1.4.1.14519.5.2.1.2744.7002.230632517650841920024749548421";
+        db.query("tags/byTagAndValue", {
+          reduce : false,
+          stale : 'update_after',
+          startkey: [seriesUIDTag, seriesUID],
+          endkey: [seriesUIDTag, seriesUID+"\u9999"],
+        }).then(function(data) {
+          for (var rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
+            var row = data.rows[rowIndex];
+            //console.log(row);
+          }
+        });
+
+        var downloadCSV = function() {
+          var uidIndex = 0;
+          var columns;
+          var rows = [];
+          function getARow(uid) {
+            if (!uid) {
+              console.log('done, offer download');
+              // see FileSaver.js
+              saveAs(content, fileName + ".zip");
+              console.log(columns);
+              console.log(rows);
+            } else {
+              db.get(uid, {
+                /* default options */
+              }).then(function(doc) {
+                var instance = dicomMetadictionary.namifyDataset(doc.dataset);
+                if (instance.Modality.Value == "SR") {
+                  var table = tid1500ToTable(instance);
+                  if (table.columns && table.rows) {
+                    if (!columns) {
+                      columns = table.columns;
+                    }
+                    rows = rows.concat(table.rows);
+                  }
+                }
+                uidIndex += 1;
+                getARow(uids[uidIndex]);
+              })
+              /*.catch(function (err) {
+                alert(err);
+                console.error(err);
+              })*/;
+            }
+          }
+          getARow(uids[uidIndex]);
         }
 
       });
@@ -284,6 +362,7 @@
 
 <div class="container">
   <h1>Reports</h1>
+  <p id='downloadCSV' style="color:#888">Download csv</p>
 </div>
 
 <table id="reportTable" class="display" cellspacing="0" width="100%">

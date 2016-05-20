@@ -16,15 +16,14 @@
     <script src="dicomMetadictionary.js"></script>
 
     <script>
-      var sr;
+      var sr, db;
       $(document).ready(function() {
 
         //PouchDB.debug.enable('*');
         PouchDB.debug.disable();
 
-        var db = new PouchDB('http://quantome.org:5984/chronicle');
-        //var db = new PouchDB('http://localhost:5984/chronicle');
-        document.db = db;
+        db = new PouchDB('http://quantome.org:5984/chronicle');
+        //db = new PouchDB('http://localhost:5984/chronicle');
 
         //
         // get and display the reports
@@ -53,8 +52,8 @@
             reportList.push(reportEntry);
             uids.push(row.id);
           };
-          $('#downloadCSV').css("color", "#000");
-          $('#downloadCSV').on("click", downloadCSV);
+          $('#downloadSRDocuments').css("color", "#000");
+          $('#downloadSRDocuments').on("click", downloadSRDocuments);
 
           var reportTable = $('#reportTable').DataTable({
             data : reportList,
@@ -122,16 +121,6 @@
             }
           }
           html += "</ul>";
-
-          /*
-          var measurementsPath = '.ContentSequence.Value';
-          measurementsPath += '{..CodeValue.Value == "126010" && ..CodingSchemeDesignator.Value == "DCM"}';
-          var measurements = JSPath.apply(measurementsPath, sr);
-
-          var measurementGroupPath = '.ContentSequence.Value';
-          measurementGroupPath += '{..CodeValue.Value == "125007" && ..CodingSchemeDesignator.Value == "DCM"}';
-          var measurementGroup = JSPath.apply(measurementGroupPath, measurements);
-          */
 
           var imagingMeasurements;
           var contents = sr.ContentSequence.Value;
@@ -232,25 +221,25 @@
             }
         }
 
-          var columns = [
-            { title : "patientID" },
-            { title : "personObserverName" },
-            { title : "timepoint" },
-            { title : "activitySession" },
-            { title : "trackingID" },
-            { title : "finding" },
-            { title : "findingSite" },
-            { title : "laterality" },
-            { title : "measurementConcept" },
-            { title : "measurementMethod" },
-            { title : "derivation" },
-            { title : "measurementValue" },
-            { title : "measurementUnits" },
-            { title : "referencedSegmentSOPInstanceUID" },
-            { title : "referencedSegmentNumbers" },
-            { title : "sourceImageSeriesInstanceUID" },
-            { title : "rwvmSOPInstanceUID" },
-          ];
+        var columns = [
+          { title : "patientID" },
+          { title : "personObserverName" },
+          { title : "timepoint" },
+          { title : "activitySession" },
+          { title : "trackingID" },
+          { title : "finding" },
+          { title : "findingSite" },
+          { title : "laterality" },
+          { title : "measurementConcept" },
+          { title : "measurementMethod" },
+          { title : "derivation" },
+          { title : "measurementValue" },
+          { title : "measurementUnits" },
+          { title : "referencedSegmentSOPInstanceUID" },
+          { title : "referencedSegmentNumbers" },
+          { title : "sourceImageSeriesInstanceUID" },
+          { title : "rwvmSOPInstanceUID" },
+        ];
 
           var rows = [];
           for (var valueIndex in values) {
@@ -314,44 +303,49 @@
           }
         });
 
-        var downloadCSV = function() {
+        var downloadSRDocuments = function() {
           var uidIndex = 0;
           var columns;
-          var rows = [];
-          function getARow(uid) {
-            if (!uid) {
-              console.log('done, offer download');
-              // see FileSaver.js
-              saveAs(content, fileName + ".zip");
-              console.log(columns);
-              console.log(rows);
-            } else {
-              db.get(uid, {
-                /* default options */
+          var documents = [];
+          function getAUID(uid) {
+            $('#tableProgress').html(String(uidIndex+1) + " of " + String(uids.length));
+            if (uid) {
+              db.get(uid, { /* default options */
               }).then(function(doc) {
                 var instance = dicomMetadictionary.namifyDataset(doc.dataset);
                 if (instance.Modality.Value == "SR") {
                   var table = tid1500ToTable(instance);
                   if (table.columns && table.rows) {
-                    if (!columns) {
-                      columns = table.columns;
+                    for (var rowIndex in table.rows) {
+                      var row = table.rows[rowIndex];
+                      var document = {};
+                      for (var index in table.columns) {
+                        var property = table.columns[index].title;
+                        var value = row[index];
+                        document[property] = value;
+                      }
+                      documents.push(new Object(document));
                     }
-                    rows = rows.concat(table.rows);
                   }
                 }
                 uidIndex += 1;
-                getARow(uids[uidIndex]);
+                getAUID(uids[uidIndex]);
               })
               /*.catch(function (err) {
                 alert(err);
                 console.error(err);
               })*/;
+            } else {
+              console.log('done, offer download');
+              var result = JSON.stringify( documents, null, 2 );
+              // see FileSaver.js
+              saveAs(new Blob([result]), 'result.json');
             }
           }
-          getARow(uids[uidIndex]);
+          getAUID(uids[uidIndex]);
         }
-
       });
+
     </script>
 
     <title>Chronicle Report List</title>
@@ -362,7 +356,8 @@
 
 <div class="container">
   <h1>Reports</h1>
-  <p id='downloadCSV' style="color:#888">Download csv</p>
+  <p id='downloadSRDocuments' style="color:#888">Download SR Documents</p>
+  <p id='tableProgress'></p>
 </div>
 
 <table id="reportTable" class="display" cellspacing="0" width="100%">

@@ -32,6 +32,7 @@
           db.get(instanceUID, {
             /* default options */
           }).then(function(doc) {
+            $('#DJM').html(JSON.stringify(doc.dataset, null, 2));
             dataset = dicomMetadictionary.namifyDataset(doc.dataset);
             dataset = dicomMetadictionary.naturalizeDataset(doc.dataset);
             $('#ndd').html(JSON.stringify(dataset, null, 2));
@@ -115,7 +116,18 @@
   <p>Dataset Tree</p>
 </div>
 
-<pre id='ndd'></pre>
+<table>
+  <td style="vertical-align:top">
+    <h2>Before naturalization</h2>
+    <pre id='DJM'>Loading...</pre>
+  </td>
+
+  <td style="vertical-align:top">
+    <h2>After naturalization</h2>
+    <pre id='ndd'>Loading...</pre>
+  </td>
+</tr>
+</table>
 
 </body>
 </html>

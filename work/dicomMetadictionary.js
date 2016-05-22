@@ -1,16 +1,19 @@
 var dicomMetadictionary = {};
 
 dicomMetadictionary.punctuateTag = function (rawTag) {
-  return ("("+rawTag.substring(0,4)+","+rawTag.substring(4,8)+")");
+  if (rawTag.indexOf(',') != -1) {
+    return (rawTag);
+  }
+  if (rawTag.length == 8 && rawTag == rawTag.match(/[0-9a-fA-F]*/)[0]) {
+    tag = rawTag.toUpperCase();
+    return ("("+tag.substring(0,4)+","+tag.substring(4,8)+")");
+  }
 }
 
 dicomMetadictionary.namifyDataset = function(dataset) {
   var namedDataset = {};
   for (var tag in dataset) {
     var data = dataset[tag];
-    if (typeof(data) != "object") {
-      return (data);
-    }
     if (data.vr == "SQ") {
       var namedValues = [];
       for (var index in data.Value) {
@@ -27,6 +30,31 @@ dicomMetadictionary.namifyDataset = function(dataset) {
     namedDataset[name] = data;
   }
   return(namedDataset);
+}
+
+dicomMetadictionary.naturalizeDataset = function(dataset) {
+  var naturalDataset = {};
+  for (var tag in dataset) {
+    var data = dataset[tag];
+    if (data.vr == "SQ") {
+      var naturalValues = [];
+      for (var index in data.Value) {
+        naturalValues.push(dicomMetadictionary.naturalizeDataset(data.Value[index]))
+      }
+      data.Value = naturalValues;
+    }
+    var punctuatedTag = dicomMetadictionary.punctuateTag(tag);
+    var entry = dicomMetadictionary.byTag[punctuatedTag];
+    var name = tag;
+    if (entry) {
+      name = entry.name;
+    }
+    if (/.*Sequence/.test(name)) {
+      name = name.substring(0, name.length - 'Sequence'.length);
+    }
+    naturalDataset[name] = data.Value;
+  }
+  return(naturalDataset);
 }
 
 dicomMetadictionary.byTag = {

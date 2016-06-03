@@ -42,3 +42,38 @@ a:link { color:purple; }
 	/* You can also tweak any other styles in a breakpoint */
 	H1 { color: blue; font-size:1.2em }
 }
+
+#log {
+    background-color: lightgrey;
+    border-radius: 5px;
+    padding-top: 0.4em;
+    padding-bottom: 0.4em;
+    font-family: "Courier New";
+}
+
+#parameters {
+    width: 100%;
+}
+
+#parameters input {
+    margin: 0.1em;
+    padding: 0.1em;
+    width: 95%;
+}
+
+.overlayWrapper {
+    position: relative;
+}
+
+.coveredImage {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+}
+
+.overlayCanvas {
+    opacity: 0.4;
+    position: absolute;
+    top: 0px;
+    left: 0px;
+}

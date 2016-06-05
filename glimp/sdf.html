@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title> Experimental GLSL Signed Distance Function Demo </title>
+    <script src="jquery-1.11.0.min.js"></script>
+    <link rel="stylesheet" href="glimp.css"/>
+</head>
+
+<body>
+<h1>GLSL Signed Distance Function Demo</h1>
+<a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
+
+<p>
+    This demo is based on the work of <a href="http://www.cs.utah.edu/~jmk/papers/lefohn_tvcg03.pdf">Lefohn et al.</a>
+    (TVCG' 03) on level sets. The distance field is inititialized with a circular region and iteratively approximates
+    the target region by applying a simple speed function moving the distance field towards the target intensity.
+</p>
+<h2>
+    Processed image
+</h2>
+<p>
+    Click and drag in image to center seed point (selecting target intensity value) and adjust seed radius.
+</p>
+<div id="outputContainer">
+    <canvas id="renderCanvas"></canvas>
+    <p id="log">
+        Log output...
+    <p>
+    <table id="parameters">
+        <!--tr>
+            <td><input type = "button" onclick="nextIteration()" value="Next iteration"></td>
+        </tr-->
+        <tr>
+            <th style="text-align: left">Iterations</th>
+            <!--th style="text-align: left; color: grey">Alpha</th-->
+            <th style="text-align: left">Epsilon</th>
+        </tr>
+        <tr>
+            <td><input type="number" min="1" max="10000" value="500" step="1" id="numberOfIterations"
+                       title="Adjust the number of iterations of the distance field."></td>
+            <!--input type="number" min="0.0" max="1.0" value="0.5" step="0.01" id="alpha" disabled="true"
+                       title="Control the influence of the speed and curvature functions."></td-->
+            <td><input type="number" min="0.0" max="1.0" value="0.2" step="0.01" id="epsilon"
+                       title="Adjust the epsilon of the speed function."></td>
+        </tr>
+    </table>
+</div>
+<h2>
+    Source image and seed region
+</h2>
+<div class="overlayWrapper">
+    <!--<img id="sourceImage" class="coveredImage" class="drawable" src="coronal-mr-tumor.png"/>-->
+    <img id="sourceImage" class="coveredImage" class="drawable" src="lung-lesion512.png"/>
+    <canvas class="overlayCanvas"></canvas>
+</div>
+<p>
+    Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp'>the source code</a>.
+</p>
+<p>
+    This demo uses WebGL. Not all devices and browsers are supported.
+</p>
+<script id="vertexShader" type="x-shader/x-vertex">
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 texCoord;
+
+varying vec2 textureCoordinate;
+
+void main( void ) {
+  gl_Position = vec4( position, 1. );
+  textureCoordinate = texCoord;
+}
+
+</script>
+<script id="fragmentShader" type="x-shader/x-vertex">
+precision highp float;
+
+// segmentation using signed distance transform
+// implementation based on Aaron Lefohn et al. "A Streaming Narrow-Band Algorithm: Interactive Computation and Visualization of Level Sets" (TVCG '03)
+
+uniform sampler2D sourceTextureSampler;
+uniform sampler2D distanceFieldSampler;
+uniform vec2 sourceTextureSize;
+uniform vec2 sourceTexelSize;
+uniform vec2 seedOrigin;
+uniform float seedRadius;
+uniform int iteration;
+uniform float epsilon;
+uniform int numberOfIterations;
+//defines whether render target is distance field (= 1) or image buffer (= 0)
+uniform int renderDistanceField;
+uniform float edgeWeight;
+uniform float alpha;
+
+varying vec2 textureCoordinate;
+
+vec4 initialize_distance_field( void ) {
+    float distanceToSeed = length( textureCoordinate - seedOrigin );
+    //distance in distance function is negative outside of seed and positive inside of seed
+    float currentDistance = clamp( seedRadius - distanceToSeed, -1., 1. ); 
+    //normalize distance value to [0, 1] range
+    float normalizedDistance = ( currentDistance + 1. ) / 2.;
+    return vec4( normalizedDistance, 0., 0., 0. );
+}
+
+float get_offset_texture_value( float offset_x, float offset_y ) {
+    vec4 encoded_value = texture2D( distanceFieldSampler, textureCoordinate + vec2( offset_x, offset_y ) * sourceTexelSize );
+    return encoded_value.r * 2. - 1.;
+}
+
+void main( void ) {
+  vec4 encodedDistance = texture2D( distanceFieldSampler, textureCoordinate );
+  float currentDistance = encodedDistance.r * 2. - 1.;
+
+  //target value is selected from color value at center of seed circle
+  vec4 targetColor = texture2D( sourceTextureSampler, seedOrigin );
+  vec4 sourceColor = texture2D( sourceTextureSampler, textureCoordinate );
+
+  /* First time called, fill in currentDistance transform */
+  if ( renderDistanceField == 1 && iteration == 0 ) {
+    gl_FragColor = initialize_distance_field();
+    return;
+  /* for all following iterations, update distance field */
+  } else if ( renderDistanceField == 1 && iteration > 0 && iteration <= numberOfIterations ) {
+    /* calculate all the values
+    | TL | TC | TR |
+    | CL | CC | CR |
+    | BL | BC | BR |
+    */
+
+    //evaluate neighboring values from texture
+    float BL = get_offset_texture_value( -1., -1. );
+    float BC = get_offset_texture_value(  0., -1. );
+    float BR = get_offset_texture_value(  1., -1. );
+    float CL = get_offset_texture_value( -1.,  0. );
+    float CC = currentDistance; // equals: get_offset_texture_value(  0.,  0. );
+    float CR = get_offset_texture_value(  1.,  0. );
+    float TL = get_offset_texture_value( -1.,  1. );
+    float TC = get_offset_texture_value(  0.,  1. );
+    float TR = get_offset_texture_value(  1.,  1. );
+
+    //calculate derivatives of level set
+    float Dx   = ( CR - CL ) / 2.;
+    float Dy   = ( TC - BC ) / 2.;
+    float Dxp  = ( CR - CC );
+    float Dyp  = ( TC - CC );
+    float Dxm  = ( CC - CL );
+    float Dym  = ( CC - BC );
+    float Dxpy = ( TR - TL ) / 2.;
+    float Dxmy = ( BR - BL ) / 2.;
+    float Dypx = ( TR - BR ) / 2.;
+    float Dymx = ( TL - BL ) / 2.;
+
+    if( Dx == 0. || Dy == 0. ) {
+        gl_FragColor = encodedDistance;
+        return;
+    }
+
+    float nxp_dif = ( Dypx + Dy ) / 2.;
+    float nyp_dif = ( Dxpy + Dx ) / 2.;
+
+    float nxp_denom = sqrt( Dxp * Dxp + nxp_dif * nxp_dif );
+    float nyp_denom = sqrt( Dyp * Dyp + nyp_dif * nyp_dif );
+
+    float nxp = Dxp / ( ( nxp_denom > 0. ) ? nxp_denom : 1. );
+    float nyp = Dyp / ( ( nyp_denom > 0. ) ? nyp_denom : 1. );
+
+    float nmx_dif = ( Dymx + Dy ) / 2.;
+    float nmy_dif = ( Dxmy + Dx ) / 2.;
+
+    float nxm_denom = sqrt( Dxm * Dxm + nmx_dif * nmx_dif );
+    float nym_denom = sqrt( Dym * Dym + nmy_dif * nmy_dif );
+
+    float nxm = Dxm / ( ( nxm_denom > 0. ) ? nxm_denom : 1. );
+    float nym = Dym / ( ( nym_denom > 0. ) ? nym_denom : 1. );
+
+    //calculate mean curvature
+    float H = ( nxp - nxm + nyp - nym ) / 2.;
+
+    if( abs( BC ) == 1. ||
+        abs( CL ) == 1. ||
+        abs( CC ) == 1. ||
+        abs( CR ) == 1. ||
+        abs( TC ) == 1. ) {
+            // region with (potentially) clamped values
+        H = 0.;
+    }
+
+    float max_Dxp  = max(  Dxp, 0. );
+    float max_mDxm = max( -Dxm, 0. );
+    float max_Dyp  = max(  Dyp, 0. );
+    float max_mDym = max( -Dym, 0. );
+    //upwind approximation of gradient
+    vec2 grad_phi_max = vec2( sqrt( max_Dxp * max_Dxp + max_mDxm * max_mDxm ), sqrt( max_Dyp * max_Dyp + max_mDym * max_mDym ) );
+
+    float min_Dxp  = min(  Dxp, 0. );
+    float min_mDxm = min( -Dxm, 0. );
+    float min_Dyp  = min(  Dyp, 0. );
+    float min_mDym = min( -Dym, 0. );
+    vec2 grad_phi_min = vec2( sqrt( min_Dxp * min_Dxp + min_mDxm * min_mDxm ), sqrt( min_Dyp * min_Dyp + min_mDym * min_mDym ) );
+
+    float targetValue = targetColor.x;
+    //speed function pulling distance function towards areas with target intensity
+    float D = epsilon - abs( sourceColor.x - targetValue );
+
+    //speed function is composed from speed function D and curvature function H, controlled by alpha value
+    //TODO curvature H is currently broken
+    float speedFunction = D;//alpha * D + ( 1. - alpha ) * H;
+    //choose gradient magnitude according to speed function
+    float gradientMagnitude = (speedFunction > 0.) ? length( grad_phi_max ) : length( grad_phi_min );
+    float updateDistance = gradientMagnitude * speedFunction;
+
+    float finalDistance = currentDistance + updateDistance;
+
+    //update values in distance field
+    float normalizedFinalDistance = ( finalDistance + 1. ) / 2.;
+    gl_FragColor = vec4( normalizedFinalDistance, gradientMagnitude, 0., 0. );
+
+
+    return;
+  /* when rendering to image buffer, overlay source image with segmentation region */
+  } else if ( renderDistanceField == 0 ) {
+    //float absDistance = abs( currentDistance );
+    //float current_gradient = encodedDistance.g * 2. - 1.;
+    //vec4 outputColor = vec4( (currentDistance > 0.) ? absDistance : 0., 0., (currentDistance < 0.) ? absDistance : 0., 1. );
+
+    vec4 outputColor = sourceColor;
+
+    //overlay region with positive distance values in distance function with color value
+    if( currentDistance > 0. ) {
+        outputColor += vec4( .0, .4, .6, .1 );
+    }
+
+    if( length( textureCoordinate - seedOrigin ) < 0.01  ) {
+        outputColor = vec4( 0., .5, 1., 1. );
+        if( length( textureCoordinate - seedOrigin ) > 0.008  ) {
+                    outputColor = vec4( 0., 0., 0., 1. );
+        }
+    }
+    gl_FragColor = outputColor;
+    return;
+  }
+}
+
+</script>
+<script>
+    'use strict';
+
+    var seedOrigin = [ 0.3, 0.45 ], // holds a value to be passed as a uniform to the shader
+            seedRadius = 0.1,
+            numberOfIterations = 30,
+            iteration = 0,
+            alpha = 1.0,
+            epsilon = 1.0,
+            sourceTextureSize = [ 0, 0 ],
+            autoIterate = true;
+
+    //
+    // set up webGL
+    //
+    var renderCanvas = document.querySelector( '#renderCanvas' );
+    var overlayCanvas = document.querySelector( '.overlayCanvas' );
+    var gl = renderCanvas.getContext( 'webgl' );
+
+    if ( !gl ) {
+        alert( "Your browser does not support WebGL. " +
+                "Please use a WebGL-enabled explorer such as Chrome." );
+    }
+
+    gl.clearColor( 0.0, 0.0, 0.0, 1.0 ); // black, fully opaque
+    gl.enable( gl.DEPTH_TEST );
+    gl.depthFunc( gl.LEQUAL ); // Near things obscure far things
+
+    // buffers for the textured plane in normalized space
+    var renderImageCoordinatesBuffer = gl.createBuffer();
+    var renderImageTextureCoordinatesBuffer = gl.createBuffer();
+    var renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1., 1., 0., 1., 1., 0. ];
+    gl.bindBuffer( gl.ARRAY_BUFFER, renderImageCoordinatesBuffer );
+    gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( renderImageVertices ), gl.STATIC_DRAW );
+
+    var renderImageTextureCoordinates = [ 0, 0, 1, 0, 0, 1, 1, 1 ];
+    gl.bindBuffer( gl.ARRAY_BUFFER, renderImageTextureCoordinatesBuffer );
+    gl.bufferData( gl.ARRAY_BUFFER, new Float32Array( renderImageTextureCoordinates ), gl.STATIC_DRAW );
+
+    // the source texture
+    var sourceTextureImage; // = new Image();
+    var sourceTexture = gl.createTexture();
+    var setupSourceTexture = function () {
+        gl.activeTexture( gl.TEXTURE0 );
+        gl.bindTexture( gl.TEXTURE_2D, sourceTexture );
+        gl.pixelStorei( gl.UNPACK_FLIP_Y_WEBGL, true );
+        gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceTextureImage );
+        gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR );
+        gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR );
+        gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE );
+        gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE );
+        //gl.bindTexture(gl.TEXTURE_2D, null); // is this call needed? jvm
+
+        sourceTextureSize[ 0 ] = sourceTextureImage.width;
+        sourceTextureSize[ 1 ] = sourceTextureImage.height;
+    };
+
+    // textures and framebuffers for iteratively calculating distance field
+    var textures = [];
+    var framebuffers = [];
+
+    var setupFrameBuffers = function () {
+        gl.getExtension( "OES_texture_float" );
+        gl.getExtension( "OES_texture_float_linear" );
+
+        for ( var idx = 0; idx < 2; ++idx ) {
+            // create a texture for the frame buffer
+            var texture = gl.createTexture();
+            gl.bindTexture( gl.TEXTURE_2D, texture );
+            gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, sourceTextureImage.width, sourceTextureImage.height, 0,
+                    gl.RGBA, gl.FLOAT, null );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE );
+            gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE );
+            textures.push( texture );
+
+            // create a framebuffer
+            var fbo = gl.createFramebuffer();
+            framebuffers.push( fbo );
+            gl.bindFramebuffer( gl.FRAMEBUFFER, fbo );
+            gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+
+            // attach texture to frame buffer
+            gl.framebufferTexture2D( gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0 );
+            gl.clear( gl.COLOR_BUFFER_BIT );
+        }
+    };
+
+    // the program and shaders
+    var glProgram = gl.createProgram();
+    var deferred = $.Deferred();
+
+    /* attrib locations */
+    var loc_position,
+            loc_texCoord;
+
+    /* uniform locations */
+    var loc_seedOrigin,
+            loc_seedRadius,
+            loc_sourceTextureSize,
+            loc_sourceTexelSize,
+            loc_sourceTextureSampler,
+            loc_distanceFieldSampler,
+            loc_numIteration,
+            loc_renderDistanceField,
+            loc_alpha,
+            loc_epsilon,
+            loc_iteration;
+
+    var nextIteration = function () {
+        if ( iteration < numberOfIterations ) {
+            $( '#log' ).html( 'Iteration ' + ( iteration + 1 ) + '/' + numberOfIterations );
+            iteration++;
+            renderIteration();
+        }
+    }
+    var getLocations = function () {
+        loc_position = gl.getAttribLocation( glProgram, 'position' );
+        loc_texCoord = gl.getAttribLocation( glProgram, 'texCoord' );
+        loc_seedOrigin = gl.getUniformLocation( glProgram, 'seedOrigin' );
+        loc_seedRadius = gl.getUniformLocation( glProgram, 'seedRadius' );
+        loc_sourceTextureSize = gl.getUniformLocation( glProgram, 'sourceTextureSize' );
+        loc_sourceTexelSize = gl.getUniformLocation( glProgram, 'sourceTexelSize' );
+        loc_sourceTextureSampler = gl.getUniformLocation( glProgram, 'sourceTextureSampler' );
+        loc_distanceFieldSampler = gl.getUniformLocation( glProgram, 'distanceFieldSampler' );
+        loc_numIteration = gl.getUniformLocation( glProgram, 'numberOfIterations' );
+        loc_renderDistanceField = gl.getUniformLocation( glProgram, 'renderDistanceField' );
+        loc_alpha = gl.getUniformLocation( glProgram, 'alpha' );
+        loc_epsilon = gl.getUniformLocation( glProgram, 'epsilon' );
+        loc_iteration = gl.getUniformLocation( glProgram, 'iteration' );
+    }
+
+    // render a frame
+    function render() {
+        gl.viewport( 0, 0, renderCanvas.width, renderCanvas.height );
+        gl.clear( gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT );
+
+        gl.useProgram( glProgram );
+
+        // set up the focus point (pointer position)
+        gl.uniform2f( loc_seedOrigin, seedOrigin[ 0 ], seedOrigin[ 1 ] );
+
+        // set up the focus point (pointer position)
+        gl.uniform1f( loc_seedRadius, seedRadius );
+
+        // set up the sourceTextureSize
+        gl.uniform2f( loc_sourceTextureSize, sourceTextureSize[ 0 ], sourceTextureSize[ 1 ] );
+
+        // set up the sourceTexelSize
+        gl.uniform2f( loc_sourceTexelSize, 1.0 / sourceTextureSize[ 0 ], 1.0 / sourceTextureSize[ 1 ] );
+
+        // the sourceTexture
+        gl.activeTexture( gl.TEXTURE0 );  // bind sourceTexture to texture unit 0
+        gl.bindTexture( gl.TEXTURE_2D, sourceTexture );
+        gl.uniform1i( loc_sourceTextureSampler, 0 ); // then, assign sourceTextureSampler to this texture unit
+
+        // the strengthAndLabelTexture
+        gl.activeTexture( gl.TEXTURE2 );  // bind strengthAndLabelTexture to texture unit 2
+        gl.bindTexture( gl.TEXTURE_2D, textures[ 1 ] ); // use the second intermediate texture initially
+        gl.uniform1i( loc_distanceFieldSampler, 2 ); // then, assign intermediateTextureSampler to this texture unit
+
+        // the coordinate attribute
+        gl.bindBuffer( gl.ARRAY_BUFFER, renderImageCoordinatesBuffer );
+        gl.enableVertexAttribArray( loc_position );
+        gl.vertexAttribPointer( loc_position, 3, gl.FLOAT, false, 0, 0 );
+
+        // the textureCoordinate attribute
+        gl.bindBuffer( gl.ARRAY_BUFFER, renderImageTextureCoordinatesBuffer );
+        gl.enableVertexAttribArray( loc_texCoord );
+        gl.vertexAttribPointer( loc_texCoord, 2, gl.FLOAT, false, 0, 0 );
+
+        gl.uniform1i( loc_numIteration, numberOfIterations );
+        gl.uniform1f( loc_alpha, alpha );
+        gl.uniform1f( loc_epsilon, epsilon );
+    }
+
+    function renderIteration() {
+        gl.uniform1i( loc_iteration, iteration );
+
+        // render into one of the texture framebuffers
+        gl.uniform1i( loc_renderDistanceField, 1 );
+        gl.bindFramebuffer( gl.FRAMEBUFFER, framebuffers[ iteration % 2 ] );
+        gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
+
+        // switch the intermediate texture
+        gl.activeTexture( gl.TEXTURE2 ); // Use TEXTURE2 as the intermediate texture for the distance field
+        gl.bindTexture( gl.TEXTURE_2D, textures[ iteration % 2 ] );
+
+        //render to output buffer
+        gl.uniform1i( loc_renderDistanceField, 0 );
+        gl.bindFramebuffer( gl.FRAMEBUFFER, null );
+        gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
+    }
+
+    function setupInterface() {
+        // set up the drawCanvas
+        sourceTextureImage = $( '#sourceImage' )[ 0 ];
+
+        setupSourceTexture();
+
+        setupFrameBuffers();
+        renderCanvas.height = sourceTextureImage.height;
+        renderCanvas.width = sourceTextureImage.width;
+
+        overlayCanvas.height = sourceTextureImage.height;
+        overlayCanvas.width = sourceTextureImage.width;
+        $( '#outputContainer' ).css( 'width', sourceTextureImage.width );
+        $( '.overlayWrapper' ).css( { 'width': sourceTextureImage.width, 'height': sourceTextureImage.height } );
+
+        var vertexShader = gl.createShader( gl.VERTEX_SHADER );
+        gl.shaderSource( vertexShader, document.getElementById( "vertexShader" ).innerHTML );
+        gl.compileShader( vertexShader );
+        if ( !gl.getShaderParameter( vertexShader, gl.COMPILE_STATUS ) ) {
+            alert( 'Could not compile vertexShader' );
+            console.log( gl.getShaderInfoLog( vertexShader ) );
+        }
+
+        var fragmentShader = gl.createShader( gl.FRAGMENT_SHADER );
+        gl.shaderSource( fragmentShader, document.getElementById( "fragmentShader" ).innerHTML );
+        gl.compileShader( fragmentShader );
+        if ( !gl.getShaderParameter( fragmentShader, gl.COMPILE_STATUS ) ) {
+            alert( 'Could not compile fragmentShader' );
+            console.log( gl.getShaderInfoLog( fragmentShader ) );
+        }
+
+        gl.attachShader( glProgram, vertexShader );
+        gl.deleteShader( vertexShader );
+
+        gl.attachShader( glProgram, fragmentShader );
+        gl.deleteShader( fragmentShader );
+
+        gl.linkProgram( glProgram );
+
+        getLocations();
+        updateParameters();
+
+        function drawSourceRegionToCanvas() {
+            var context = overlayCanvas.getContext( '2d' );
+
+            context.save();
+            context.clearRect( 0, 0, sourceTextureImage.width, sourceTextureImage.height );
+            context.fillStyle = '#007dff';
+            context.beginPath();
+            var circle_coord = denormalizeCoordinate( seedOrigin[ 0 ], seedOrigin [ 1 ] );
+            var circle_radius = seedRadius * sourceTextureImage.width;
+            context.arc( circle_coord[ 0 ], circle_coord[ 1 ], circle_radius, 0, 2 * Math.PI, false );
+            context.fill();
+
+            //draw cut out circle to canvas
+            context.beginPath();
+            var small_radius = 5;
+            context.arc( circle_coord[ 0 ], circle_coord[ 1 ], small_radius, 0, 2 * Math.PI, false );
+            context.clip();
+            context.clearRect( circle_coord[ 0 ] - small_radius - 1, circle_coord[ 1 ] - small_radius - 1, small_radius * 2 + 2, small_radius * 2 + 2 );
+            context.restore();
+        }
+
+        //
+        // user interface elements
+        //
+        function updateParameters() {
+            drawSourceRegionToCanvas();
+            numberOfIterations = Number( document.getElementById( 'numberOfIterations' ).value );
+            //alpha = Number( document.getElementById( 'alpha' ).value );
+            epsilon = Number( document.getElementById( 'epsilon' ).value );
+            iteration = 0;
+            render();
+            renderIteration();
+
+            if ( autoIterate ) {
+                (function iterate( i ) {
+                    setTimeout( function () {
+                        nextIteration();
+                        if ( --i ) {          // If i > 0, keep going
+                            iterate( i );// Call the loop again, and pass it the current value of i
+                        }
+                    }, 0 );
+                })( numberOfIterations );
+            }
+        }
+
+        // listen to continuous and release events
+        // http://stackoverflow.com/questions/18544890/onchange-event-on-input-type-range-is-not-triggering-in-firefox-while-dragging
+        document.getElementById( 'numberOfIterations' ).onchange = updateParameters;
+        document.getElementById( 'numberOfIterations' ).oninput = updateParameters;
+        //document.getElementById( 'alpha' ).onchange = updateParameters;
+        //document.getElementById( 'alpha' ).oninput = updateParameters;
+        document.getElementById( 'epsilon' ).oninput = updateParameters;
+        document.getElementById( 'epsilon' ).onchange = updateParameters;
+
+        //
+        // drawing functions
+        //
+
+        var drawRadius = false;
+        var currentPoint = [ 0., 0. ];
+
+        function normalizeCoordinate( x, y ) {
+            return [ x / sourceTextureImage.width, 1. - ( y / sourceTextureImage.height ) ];
+        }
+
+        function denormalizeCoordinate( x, y ) {
+            return [ x * sourceTextureImage.width, ( 1. - y ) * sourceTextureImage.height ];
+        }
+
+        function startDraw( event ) {
+            event.preventDefault();
+            drawRadius = true;
+            seedOrigin = normalizeCoordinate( event.offsetX, event.offsetY );
+        }
+
+        function endDraw( event ) {
+            if ( !drawRadius ) {
+                return;
+            }
+            event.preventDefault();
+            drawRadius = false;
+            currentPoint = normalizeCoordinate( event.offsetX, event.offsetY );
+            var dist_x = seedOrigin[ 0 ] - currentPoint[ 0 ];
+            var dist_y = seedOrigin[ 1 ] - currentPoint[ 1 ];
+            seedRadius = Math.sqrt( dist_x * dist_x + dist_y * dist_y );
+
+            updateParameters();
+        }
+
+        $( '#renderCanvas' ).mousedown( startDraw );
+        $( '#renderCanvas' ).mouseup( endDraw );
+        $( '#renderCanvas' ).mouseout( endDraw );
+
+    }
+
+    // once document is loaded, then load images, set up textures and framebuffers, and render
+    $( function () {
+        $( '#sourceImage' ).load( setupInterface );
+    } );
+</script>
+</body>
+</html>

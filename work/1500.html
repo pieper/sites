@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="./css/jquery.dataTables.min.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="./css/StudyBrowser.css" media="screen" />
+    <link rel="stylesheet" href="./css/jstree-themes/default/style.min.css" />
+
+    <script src="./jslib/jquery-2.1.4.min.js"></script>
+    <script src="./jslib/jquery.dataTables.min.js"></script>
+    <script src="./jslib/pouchdb-5.1.0.js"></script>
+    <script src="./jslib/pouchdb.memory.js"></script>
+    <script src="./jslib/jstree.min.js"></script>
+    <script src="./jslib/FileSaver.min.js"></script>
+
+    <script src="dicomMetadictionary.js"></script>
+
+    <script>
+      var dataset, db;
+      $(document).ready(function() {
+
+        //PouchDB.debug.enable('*');
+        PouchDB.debug.disable();
+
+        db = new PouchDB('http://quantome.org:5984/chronicle');
+        //db = new PouchDB('http://localhost:5984/chronicle');
+
+        function naturalDICOMDump(instanceUID) {
+
+          db.get(instanceUID, {
+            /* default options */
+          }).then(function(doc) {
+            $('#DJM').html(JSON.stringify(doc.dataset, null, 2));
+            dataset = dicomMetadictionary.namifyDataset(doc.dataset);
+            dataset = dicomMetadictionary.naturalizeDataset(doc.dataset);
+            $('#ndd').html(JSON.stringify(dataset, null, 2));
+
+            var tree = $('#datasetTree').jstree();
+            tree.close_all();
+
+            // populate the tree
+            var populateTree = function(parentID, sequence, tag) {
+              var id = parentID + "_" + tag;
+              var value = sequence[tag];
+              if (typeof value === "object" /*Array.isArray(value)*/) {
+                tree.create_node(parentID, {
+                    'id' : id, 'text' : tag
+                  }, 'last', function() {});
+                var nestedSequence = value;
+                for (var tag in nestedSequence) {
+                  populateTree(id, nestedSequence, tag);
+                }
+              } else {
+                var text = tag + ": " + value;
+                tree.create_node(parentID, {
+                    'id' : id, 'text' : text
+                  },'last', function() {});
+                }
+            }
+
+            for (var tag in dataset) {
+              populateTree(instanceUID, dataset, tag);
+            }
+
+            $('#datasetTree').jstree().set_text(instanceUID, "Dataset");
+            $('#datasetTree').jstree().open_node(instanceUID);
+            $('#datasetTree').bind('ready.jstree', function(evt, data) {
+              console.log('ready');
+              $('#datasetTree').jstree().open_node(instanceUID);
+            });
+            $('#datasetTree').bind('loaded.jstree', function(evt, data) {
+              console.log('opening');
+              $('#datasetTree').jstree().open_node(instanceUID);
+            });
+          })
+          /*.catch(function (err) {
+            alert(err);
+            console.error(err);
+          })*/;
+        }
+
+        var instanceUID = '1.2.276.0.7230010.3.1.4.8323329.9826.1440004040.200328';
+        instanceUID = '1.2.276.0.7230010.3.1.4.0.36254.1464183327.472792';
+        instanceUID = '4276015677.84977662.6.74.6217627.81381.667482524.159327.4255.136';
+        var datasetTree = $('#datasetTree').jstree({
+          core:{
+            check_callback : true,
+            data : [],
+            /*
+            themes : {
+              name : 'proton',
+              responsive : 'true'
+            }
+            */
+          }, 
+          plugins : [ "wholerow", "sort" ],
+        });
+        $('#datasetTree').jstree().create_node('#', {
+            'id' : instanceUID, 'text' : 'Loading Dataset...'
+          }, 'last', function() {}
+        );
+
+        naturalDICOMDump(instanceUID);
+
+      });
+
+    </script>
+
+  </head>
+
+<body>
+
+<h1>Natural DICOM Document</h1>
+
+<div id="datasetTree" width="100%">
+  <p>Dataset Tree</p>
+</div>
+
+<table>
+  <td style="vertical-align:top">
+    <h2>Before naturalization</h2>
+    <pre id='DJM'>Loading...</pre>
+  </td>
+
+  <td style="vertical-align:top">
+    <h2>After naturalization</h2>
+    <pre id='ndd'>Loading...</pre>
+  </td>
+</tr>
+</table>
+
+</body>
+</html>

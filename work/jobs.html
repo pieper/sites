@@ -16,6 +16,9 @@
 
         var ec2;
 
+        $('#AccessKeyID').val('Enter access key...');
+        $('#Secret').val('');
+
         //
         // listen for and display database changes
         //
@@ -32,7 +35,17 @@
           console.log(err);
         });
 
+        function fillScript(scriptID) {
+          $('#launchScript').val($('#'+scriptID).text());
+        };
 
+
+        $('#scriptPreset').change(function() {
+          fillScript($('#scriptPreset').val());
+        });
+
+        $('#scriptPreset').val('ipfsScript');
+        fillScript('ipfsScript');
 
         function configureAWS () {
           var AccessKeyID = $('#AccessKeyID').val();
@@ -111,8 +124,24 @@ Secret:
 <input id="Secret" type='password'></input>
 
 <h1>Launch Script</h1>
-<textarea id='launchScript' rows='30' cols='80'>#!/bin/bash
+<select id='scriptPreset'>
+  <option value="cellProfilerScript">CellProfiler</option>
+  <option value="ipfsScript">ipfs</option>
+  <option value="devMachine">ipfs</option>
+</select>
+<br>
+<textarea id='launchScript' rows='30' cols='80'>
 
+</textarea>
+<br>
+<button id='launch'>Launch</button>
+<button id='describe'>Describe</button>
+
+<h1>Results</h1>
+<ul id="resultTable">
+</ul>
+
+<script id="cellProfilerScript" type="text/plain">#!/bin/bash
 yum update -y
 
 yum install -y docker
@@ -123,18 +152,46 @@ docker run -ti cellprofiler/cellprofiler --help
 
 /usr/bin/curl -H 'Content-Type: application/json' -X POST http://quantome.org:5984/jobs -d '{"job": "CellExpress!"}' 
 
-
 shutdown -h now
 
+</script>
 
-</textarea>
-<br>
-<button id='launch'>Launch</button>
-<button id='describe'>Describe</button>
+<script id="devMachine" type="text/plain">#!/bin/bash
+yum update -y
 
-<h1>Results</h1>
-<ul id="resultTable">
-</ul>
+yum install -y git
+yum install -y fuse
+
+useradd pieper
+mkdir ~pieper/.ssh
+echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDcOg64SE4CPRuh22y1H599HvBIe306IW41C6BLxw+OUi3HJQTbzelNCmVWu0JjwEdmcSnBoFYF7/i27yFP/vazqRIUoiVeY9axCErydLh8VB8dmcLTITJz9WCYlPWB8rnooquK4crDkSQ3GIXPwiZrERJ2MReXVboC5oBcMxLSg40q1xfAIgg8Ry6H7Bt6LSHiCw9FsvwG6GDnn/vAJf9f0+Rr7v43tdlpYgQDvhBqxTdwP8gvvDeEiZYAUiUO+W2Rryo1QATx4D/QCh0ovjsuSSyHFAU1uB5ufRlz5bCAjIOqApfoctezEZ73xUhXREZXJH+SHQgKLNrpXyQNnrf3 pieper@isomics.com" >> ~pieper/.ssh/authorized_keys
+
+chmod 700 ~pieper/.ssh
+chmod 600 ~pieper/.ssh/authorized_keys
+chown -R pieper:pieper ~pieper/.ssh
+
+</script>
+
+<script id="ipfsScript" type="text/plain">#!/bin/bash
+yum update -y
+
+yum install -y git
+
+useradd pieper
+mkdir ~pieper/.ssh
+echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDcOg64SE4CPRuh22y1H599HvBIe306IW41C6BLxw+OUi3HJQTbzelNCmVWu0JjwEdmcSnBoFYF7/i27yFP/vazqRIUoiVeY9axCErydLh8VB8dmcLTITJz9WCYlPWB8rnooquK4crDkSQ3GIXPwiZrERJ2MReXVboC5oBcMxLSg40q1xfAIgg8Ry6H7Bt6LSHiCw9FsvwG6GDnn/vAJf9f0+Rr7v43tdlpYgQDvhBqxTdwP8gvvDeEiZYAUiUO+W2Rryo1QATx4D/QCh0ovjsuSSyHFAU1uB5ufRlz5bCAjIOqApfoctezEZ73xUhXREZXJH+SHQgKLNrpXyQNnrf3 pieper@isomics.com" >> ~pieper/.ssh/authorized_keys
+
+chmod 700 ~pieper/.ssh
+chmod 600 ~pieper/.ssh/authorized_keys
+chown -R pieper:pieper ~pieper/.ssh
+
+
+(cd /tmp; wget https://dist.ipfs.io/go-ipfs/v0.4.2/go-ipfs_v0.4.2_linux-amd64.tar.gz; tar xvfz go-ipfs_v0.4.2_linux-amd64.tar.gz; mv ./go-ipfs/ipfs /usr/local/bin/ipfs)
+
+
+echo "run ipfs!"
+
+</script>
 
 </body>
 </html>

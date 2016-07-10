@@ -69,10 +69,11 @@
           configureAWS();
 
           var launchScript = window.btoa($('#launchScript').text());
+
           var params = {
             ImageId : 'ami-08111162', // Amazon Linux AMI x86_64 EBS
             InstanceType : 't2.micro',
-            MinCount : 1, MaxCount : 1,
+            MinCount : 1, MaxCount : 3,
             UserData : launchScript,
             NetworkInterfaces: [{
               DeviceIndex: 0,
@@ -142,6 +143,9 @@ Secret:
 </ul>
 
 <script id="cellProfilerScript" type="text/plain">#!/bin/bash
+
+(sleep 1h; shutdown -h now) &
+
 yum update -y
 
 yum install -y docker

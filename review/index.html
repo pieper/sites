@@ -214,8 +214,10 @@
           if (!images.renderObjects[photoIndex]) {
             addPhoto( {index: photoIndex, offsetZ: z} );
           } else {
-            images.renderObjects[photoIndex].mesh.position.z = z;
-            images.renderObjects[photoIndex].meshFrame.position.z = z;
+            if (images.renderObjects[photoIndex].mesh) {
+              images.renderObjects[photoIndex].mesh.position.z = z;
+              images.renderObjects[photoIndex].meshFrame.position.z = z;
+            }
           }
         }
 
@@ -283,7 +285,7 @@
         };
 
         function callbackPhotoError(err) {
-          console.log(error);
+          console.log(err);
           objects.loaded = true;
         };
 
@@ -326,7 +328,6 @@
       };
 
       function incrPhoto(delta) {
-        console.log('incr', delta);
         if (photosLoaded()) {
           images.cursor += delta;
           if (images.cursor < 0) { images.cursor = 0; }

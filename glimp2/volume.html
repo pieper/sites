@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Experimental GLSL Image Processing - WebGL2 </title>
+  <link rel="stylesheet" href="glimp.css" />
+  <script src='jquery-1.11.0.min.js'></script>
+</head>
+
+<body>
+
+<h1>GLSL WebGL2 PDE Demo</h1>
+
+<a href="./index.html"><- Return to Experimental GLSL Image Processing</a>
+
+<p>
+Various partial differential equations (PDEs) have proven interesting for medical imaging.  Here we show a simple PDE implemented in a shader.
+</p>
+
+<h2>Processed Image</h2>
+<p>
+Click in lower image to move seed point.
+
+Dragging left/right adjusts number of iterations (segmentation size).
+</p>
+<canvas id="renderCanvas"></canvas>
+<table id='parameters'>
+  <tr>
+    <th style="text-align:left">Number of Iterations</th>
+  </tr><tr>
+    <td><input type="range" min="0" max="300" value="30" step="2" id="numberOfIterations"></td>
+  </tr><tr>
+    <th style="text-align:left">Edge Weight</th>
+  </tr><tr>
+    <td><input type="range" min="0" max="200" value="10" step="1" id="edgeWeight"></td>
+  </tr>
+</table>
+
+<script id="vertexShader" type="x-shader/x-vertex">#version 300 es
+precision highp float;
+
+in vec3 coordinate;
+in vec2 textureCoordinate;
+
+smooth out vec2 varyingTextureCoordinate;
+
+void main(void) {
+  gl_Position = vec4(coordinate,1.);
+  varyingTextureCoordinate = textureCoordinate;
+}
+</script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">#version 300 es
+precision mediump float;
+
+uniform sampler3D sourceTextureSampler;
+uniform vec3 textureDimensions;
+uniform vec3 sourceTexelSize;
+uniform vec3 focusPoint;
+uniform float slice;
+uniform int iteration;
+uniform int numberOfIterations;
+uniform float edgeWeight;
+
+in vec2 varyingTextureCoordinate;
+
+out vec4 fragmentColor;
+
+void main(void) {
+  // First time called, fill in initial volume data
+  // Last time called, render volume
+  // Rest of the iterations, run the pde from source to target volume at the point
+
+  vec3 point = vec3(varyingTextureCoordinate,slice);
+  vec4 sourceColor = texture(sourceTextureSampler, point);
+  vec4 outputColor = vec4(0,0,0,1);
+
+  if (iteration == 0) {
+    // initialize
+    if ( length(point - focusPoint) < .03 ) {
+      outputColor.r = 1.;
+    } else {
+      outputColor.r = 0.5;
+    }
+  }
+
+  if (iteration > 0 && iteration < numberOfIterations) {
+    // do an iteration
+
+    outputColor.g = 1.;
+  }
+
+  if (iteration == numberOfIterations) {
+    // output the result
+    if ( length(point.xy - focusPoint.xy) < .03 ) {
+      outputColor.b = 1.;
+    } else {
+      outputColor.b = 0.5;
+    }
+  }
+
+  fragmentColor = outputColor;
+}
+
+</script>
+
+<script>
+'use strict'
+
+var focusPoint = [0.5, 0.5, 0.5]; // holds a value to be passed as a uniform to the shader
+var numberOfIterations = 300;
+var edgeWeight = 10.;
+var textureDimensions = [256,256,256];
+
+//
+// set up webgl2
+//
+var renderCanvas = document.querySelector('#renderCanvas');
+renderCanvas.width = textureDimensions[0];
+renderCanvas.height = textureDimensions[1];
+var gl = renderCanvas.getContext('webgl2');
+gl.disable(gl.DEPTH_TEST); // no depth, we ray cast
+gl.clearColor(0.0, 0.0, 0.5, 1.0);
+gl.clear(gl.COLOR_BUFFER_BIT);
+
+// buffers for the textured plane in normalized space
+var renderImageCoordinatesBuffer = gl.createBuffer();
+var renderImageTexureCoordinatesBuffer = gl.createBuffer();
+var renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1.,  1., 0., 1.,  1., 0., ];
+gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
+var renderImageTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
+gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
+
+// the textures
+var textures = [];
+var textureIndex;
+for (textureIndex = 0; textureIndex < 2; ++textureIndex) {
+  var texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_3D, texture);
+  gl.texStorage3D(gl.TEXTURE_3D, 1, gl.RGBA8, 
+       textureDimensions[0], textureDimensions[1], textureDimensions[2]);
+
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+  textures.push(texture);
+}
+
+// the program and shaders
+var glProgram = gl.createProgram();
+var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
+gl.compileShader(vertexShader);
+if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile vertexShader');
+  console.log(gl.getShaderInfoLog(vertexShader));
+}
+var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
+gl.compileShader(fragmentShader);
+if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile fragmentShader');
+  console.log(gl.getShaderInfoLog(fragmentShader));
+}
+gl.attachShader(glProgram, vertexShader);
+gl.deleteShader(vertexShader);
+gl.attachShader(glProgram, fragmentShader);
+gl.deleteShader(fragmentShader);
+gl.linkProgram(glProgram);
+
+// create a framebuffer to use for texture targeting
+var framebuffer = gl.createFramebuffer();
+
+// render a frame
+function render() {
+  gl.viewport(0, 0, renderCanvas.width, renderCanvas.height);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  gl.useProgram(glProgram);
+
+  // set up the focus point (pointer position)
+  gl.uniform3f(gl.getUniformLocation(glProgram, "focusPoint"), focusPoint[0], focusPoint[1], focusPoint[2]);
+
+  // set up the textureDimensions
+  gl.uniform3f(gl.getUniformLocation(glProgram, "textureDimensions"), textureDimensions[0], textureDimensions[1], textureDimensions[2]);
+
+  // set up the sourceTexelSize
+  gl.uniform3f(gl.getUniformLocation(glProgram, "sourceTexelSize"), 1.0/textureDimensions[0], 1.0/textureDimensions[1], 1.0/textureDimensions[2]);
+
+  // the coordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
+  var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
+  gl.enableVertexAttribArray( coordinateLocation );
+  gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
+
+  // the textureCoordinate attribute
+  gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
+  var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
+  gl.enableVertexAttribArray( textureCoordinateLocation );
+  gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
+
+  var sourceTextureSampler = gl.createSampler();
+  gl.bindSampler(0, sourceTextureSampler);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "sourceTextureSampler"), sourceTextureSampler);
+  gl.uniform1i(gl.getUniformLocation(glProgram, "numberOfIterations"), numberOfIterations);
+  gl.uniform1f(gl.getUniformLocation(glProgram, "edgeWeight"), edgeWeight);
+
+  var sliceSpacing = 1. / textureDimensions[2];
+  var mipmapLevel = 0;
+  var sliceUniformLocation = gl.getUniformLocation(glProgram, "slice");
+  var iterationUniformLocation = gl.getUniformLocation(glProgram, "iteration");
+  var iteration;
+  for (iteration=0; iteration < numberOfIterations; ++iteration)
+  {
+    gl.uniform1i(iterationUniformLocation, iteration);
+
+    var sourceTexture = textures[iteration%2];
+    var targetTexture = textures[(iteration+1)%2];
+
+    // set the source texture
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_3D, sourceTexture);
+
+    var slice = 0.5 * sliceSpacing;
+    var sliceIndex;
+    for (sliceIndex=0; sliceIndex < textureDimensions[2]; ++sliceIndex) {
+      gl.uniform1f(sliceUniformLocation, slice);
+      // set the texture slice as the frame buffer to render into
+      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, 
+            targetTexture, mipmapLevel, sliceIndex);
+
+      // render the primitive, trigger the shaders
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      slice += sliceSpacing;
+    }
+  }
+
+  // final render of calculation to display
+  gl.uniform1i(iterationUniformLocation, iteration);
+  var sourceTexture = textures[iteration%2];
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_3D, sourceTexture);
+  // use the canvas frame buffer for last render
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+function initializePDE() {
+  $('#numberOfIterations').width(renderCanvas.width);
+  $('#edgeWeight').width(renderCanvas.width);
+  updateParameters();
+};
+initializePDE();
+
+//
+// user interface elements
+//
+function updateParameters() {
+  numberOfIterations = Number(document.getElementById('numberOfIterations').value);
+  edgeWeight = Number(document.getElementById('edgeWeight').value);
+  render();
+}
+
+// listen to continuous and release events
+// http://stackoverflow.com/questions/18544890/onchange-event-on-input-type-range-is-not-triggering-in-firefox-while-dragging
+document.getElementById('numberOfIterations').onchange = updateParameters;
+document.getElementById('edgeWeight').onchange = updateParameters;
+document.getElementById('numberOfIterations').oninput = updateParameters;
+document.getElementById('edgeWeight').oninput = updateParameters;
+
+//
+// drawing functions
+//
+
+var drawing = false;
+var drawStartNumberOfIterations;
+var seedPoint = [.5,.5];
+var currentPoint = [0., 0.];
+
+function normalizeCoordinate(x, y) {
+  return [x / renderCanvas.width, 1. - (y / renderCanvas.height)];
+}
+function startDraw(event) {
+  drawing = true;
+  drawStartNumberOfIterations = numberOfIterations;
+  seedPoint = normalizeCoordinate(event.offsetX, event.offsetY);
+  focusPoint = normalizeCoordinate(event.offsetX, event.offsetY);
+  updateDraw(event);
+};
+function endDraw(event) {
+  drawing = false;
+  updateDraw(event);
+};
+function updateDraw (event) {
+  currentPoint = normalizeCoordinate(event.offsetX, event.offsetY);
+  if (drawing) {
+    focusPoint = seedPoint;
+    var iterationDelta = Math.round(2000. * (currentPoint[0]-seedPoint[0]));
+    var newIterations = drawStartNumberOfIterations + iterationDelta;
+    document.getElementById('numberOfIterations').value = newIterations;
+  }
+  updateParameters();
+};
+
+$('#renderCanvas').mousedown(startDraw);
+$('#renderCanvas').mousemove(updateDraw);
+$('#renderCanvas').mouseup(endDraw);
+$('#renderCanvas').mouseout(endDraw);
+
+// once document is loaded...
+$(function () {
+  // TODO: whatever is needed...
+});
+
+</script>
+
+<p>
+<br>
+Check out <a href='https://github.com/pieper/sites/tree/gh-pages/glimp2'>the source code</a>.
+</p>
+
+<p>
+This demo uses WebGL2.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.
+</p>
+<p>
+The managment of multiple input textures is based on <a href="http://webglfundamentals.org/webgl/lessons/webgl-2-textures.html">this work</a>.
+</p>
+
+
+</body>
+</html>

@@ -66,24 +66,11 @@ in vec2 varyingTextureCoordinate;
 out vec4 fragmentColor;
 
 void main(void) {
-  // First time called, fill in initial volume data
-  // Last time called, render volume
-  // Rest of the iterations, run the pde from source to target volume at the point
 
   vec3 point = vec3(varyingTextureCoordinate,slice);
-  vec4 sourceColor = texture(sourceTextureSampler, point);
-  vec4 outputColor = vec4(0,0,0,1);
+  vec4 outputColor = texture(sourceTextureSampler, point);
 
-  if (iteration == 0) {
-    // initialize
-    if ( length(point - focusPoint) < .03 ) {
-      outputColor.r = 1.;
-    } else {
-      outputColor.r = 0.5;
-    }
-  }
-
-  if (iteration > 0 && iteration < numberOfIterations) {
+  if (iteration < numberOfIterations) {
     // do an iteration
     float distance = length(point - focusPoint);
     outputColor.g = distance * 30. / float(iteration);
@@ -91,13 +78,12 @@ void main(void) {
 
   if (iteration == numberOfIterations) {
     // output the result
-    outputColor = sourceColor;
     float divisions = 100.;
     float step = 1. / divisions;
     for (float division = 0.; division < divisions; ++division) {
-      outputColor += texture(sourceTextureSampler, vec3(varyingTextureCoordinate, division * step));
+      outputColor.g += texture(sourceTextureSampler, vec3(varyingTextureCoordinate, division * step)).g;
     }
-    outputColor /= divisions;
+    outputColor.g /= divisions;
     if ( length(point.xy - focusPoint.xy) < .03 ) {
       outputColor.b = 1.;
     } else {
@@ -114,9 +100,9 @@ void main(void) {
 'use strict'
 
 var focusPoint = [0.5, 0.5, 0.5]; // holds a value to be passed as a uniform to the shader
-var numberOfIterations = 300;
+var numberOfIterations = 30;
 var edgeWeight = 10.;
-var textureDimensions = [512,512,512];
+var textureDimensions = [256,256,256];
 
 //
 // set up webgl2
@@ -145,7 +131,7 @@ var textureIndex;
 for (textureIndex = 0; textureIndex < 2; ++textureIndex) {
   var texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_3D, texture);
-  gl.texStorage3D(gl.TEXTURE_3D, 1, gl.RGBA8, 
+  gl.texStorage3D(gl.TEXTURE_3D, 1, gl.RGBA8,
        textureDimensions[0], textureDimensions[1], textureDimensions[2]);
 
   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -155,6 +141,22 @@ for (textureIndex = 0; textureIndex < 2; ++textureIndex) {
   gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
   textures.push(texture);
 }
+
+// put some data into texture 0 - random data in red channel
+var voxelCount = textureDimensions[0] * textureDimensions[1] * textureDimensions[2];
+var arrayBuffer = new ArrayBuffer(voxelCount * 4);
+var textureImage = new Uint8Array(arrayBuffer);
+for (var voxelIndex = 0; voxelIndex < voxelCount; ++voxelIndex) {
+  textureImage[4*voxelIndex] = 255.*Math.random();
+  textureImage[4*voxelIndex+1] = 0;
+  textureImage[4*voxelIndex+2] = 0;
+  textureImage[4*voxelIndex+3] = 255;
+}
+gl.bindTexture(gl.TEXTURE_3D, textures[0]);
+gl.texSubImage3D(gl.TEXTURE_3D,
+      0, 0, 0, 0, // level, offsets
+      textureDimensions[0], textureDimensions[1], textureDimensions[2],
+      gl.RGBA, gl.UNSIGNED_BYTE, textureImage);
 
 // the program and shaders
 var glProgram = gl.createProgram();
@@ -219,9 +221,8 @@ function render() {
   var mipmapLevel = 0;
   var sliceUniformLocation = gl.getUniformLocation(glProgram, "slice");
   var iterationUniformLocation = gl.getUniformLocation(glProgram, "iteration");
-  var iteration;
-  for (iteration=0; iteration < numberOfIterations; ++iteration)
-  {
+  var iteration = 0;
+  do {
     gl.uniform1i(iterationUniformLocation, iteration);
 
     var sourceTexture = textures[iteration%2];
@@ -235,20 +236,22 @@ function render() {
     var sliceIndex;
     for (sliceIndex=0; sliceIndex < textureDimensions[2]; ++sliceIndex) {
       gl.uniform1f(sliceUniformLocation, slice);
+
       // set the texture slice as the frame buffer to render into
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, 
+      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
             targetTexture, mipmapLevel, sliceIndex);
 
       // render the primitive, trigger the shaders
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       slice += sliceSpacing;
     }
-  }
+    ++iteration;
+  } while( iteration < numberOfIterations );
 
   // final render of calculation to display
-  gl.uniform1i(iterationUniformLocation, iteration);
   var sourceTexture = textures[iteration%2];
+  gl.uniform1i(iterationUniformLocation, iteration);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_3D, sourceTexture);
   // use the canvas frame buffer for last render
@@ -320,7 +323,8 @@ $('#renderCanvas').mouseout(endDraw);
 
 // once document is loaded...
 $(function () {
-  // TODO: whatever is needed...
+
+ // TODO: whatever is needed...
 });
 
 </script>

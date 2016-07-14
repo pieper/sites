@@ -193,7 +193,7 @@
             for (var contentIndex in measurementContent) {
               var content = measurementContent[contentIndex];
               if (content.MeasuredValueSequence) {
-                var value = JSON.parse(JSON.stringify(concepts));
+                var value = JSON.parse(JSON.stringify(concepts)); // create new
                 var concept = content.ConceptNameCodeSequence.Value[0];
                 value.measurementConcept = concept.CodeMeaning.Value;
                 var measuredValue = content.MeasuredValueSequence.Value[0];
@@ -206,8 +206,8 @@
                     var content = contents[contentIndex];
                     if (content.ConceptNameCodeSequence) {
                       var concept = content.ConceptNameCodeSequence.Value[0];
-                      if (concept.CodeValue.Value == "121401" && concept.CodingSchemeDesignator == "DCM") {
-                        value.derivation = content.ConceptCodeSequence.Value[0].CodeMeaning;
+                      if (concept.CodeValue.Value == "121401" && concept.CodingSchemeDesignator.Value == "DCM") {
+                        value.derivation = content.ConceptCodeSequence.Value[0].CodeMeaning.Value;
                       }
                     }
                   }
@@ -319,6 +319,8 @@
                     for (var rowIndex in table.rows) {
                       var row = table.rows[rowIndex];
                       var document = {};
+                      document.instanceUID = instance.SOPInstanceUID.Value;
+                      document.seriesDescription = instance.SeriesDescription.Value;
                       for (var index in table.columns) {
                         var property = table.columns[index].title;
                         var value = row[index];

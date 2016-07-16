@@ -3,14 +3,22 @@
 <head>
 
   <title>STEP - WebGL2 </title>
-  <link rel="stylesheet" href="glimp/glimp.css" />
-  <script src='glimp/jquery-1.11.0.min.js'></script>
 
-  <script type="text/javascript" src="dcmio/DicomMetaDictionary.js"></script>
-  <script type="text/javascript" src="dcmio/BufferStream.js"></script>
-  <script type="text/javascript" src="dcmio/ValueRepresentation.js"></script>
-  <script type="text/javascript" src="dcmio/Tag.js"></script>
-  <script type="text/javascript" src="dcmio/DicomMessage.js"></script>
+  <link rel="stylesheet" href="../glimp/glimp.css" />
+
+  <script src='../glimp/jquery-1.11.0.min.js'></script>
+
+  <script type="text/javascript" src="../dcmio/DicomMetaDictionary.js"></script>
+  <script type="text/javascript" src="../dcmio/BufferStream.js"></script>
+  <script type="text/javascript" src="../dcmio/ValueRepresentation.js"></script>
+  <script type="text/javascript" src="../dcmio/Tag.js"></script>
+  <script type="text/javascript" src="../dcmio/DicomMessage.js"></script>
+  <script type="text/javascript" src="../dcmio/normalizers.js"></script>
+
+  <link rel="stylesheet" href="./css/main.css" />
+  <link rel="stylesheet" href="./css/dark.css" />
+  <script type="text/javascript" src="./js/ui.js"></script>
+  <script type="text/javascript" src="./js/ui.step.js"></script>
 
 </head>
 
@@ -215,13 +223,13 @@ function readDICOM(arrayBuffer) {
   dicomData = DicomMessage.readFile(arrayBuffer);
   dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
   setupDataset(dataset);
+
+  console.log(Normalizer.normalizeToDataset([dataset]))
+
   render();
 }
 
-// once document is loaded...
-$(function () {
-
-  var url = 'https://s3.amazonaws.com/IsomicsPublic/4-T2-multiframe-IPP_sorted_UID_fixed.dcm';
+function requestData(url) {
   var dataRequest = new XMLHttpRequest();
   dataRequest.responseType = "arraybuffer";
   dataRequest.onload = function (event) {
@@ -232,6 +240,18 @@ $(function () {
   };
   dataRequest.open("GET", url, true);
   dataRequest.send(null);
+}
+
+// once document is loaded...
+$(function () {
+
+  var step = new STEP();
+
+  var menubar = new Menubar(step);
+  document.body.appendChild(menubar.dom);
+
+  requestData('https://s3.amazonaws.com/IsomicsPublic/4-T2-multiframe-IPP_sorted_UID_fixed.dcm');
+
 });
 
 </script>

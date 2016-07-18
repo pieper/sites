@@ -5,89 +5,81 @@
  * @author mrdoob / http://mrdoob.com/
  */
 
-var STEP = function () {
-  this.applicationName = "STEP";
-};
+class STEP {
+  constructor() {
+    this.applicationName = "STEP";
+  }
+}
 
-STEP.prototype = {
-  // TODO (maybe)
-};
+class UIItem {
+  constructor(application) {
+  }
+  get dom() {
+    return this.container.dom;
+  }
+}
 
-var Menubar = function ( application ) {
+class Menubar extends UIItem {
+  constructor(application) {
+    super();
+    this.container = new UI.Panel();
+    this.container.setId('menubar');
+    this.container.add(new FileMenu(application).container);
+  }
+}
 
-	var container = new UI.Panel();
-	container.setId( 'menubar' );
+class MenuPanel extends UIItem {
+  constructor(application, options) {
+    super();
+    this.container = new UI.Panel();
+    this.container.setClass( 'menu' );
+    // title
+    var title = new UI.Panel();
+    title.setClass( 'title' );
+    title.setTextContent(options.title);
+    this.container.add( title );
+    // panel
+    this.menuPanel = new UI.Panel();
+    this.menuPanel.setClass( 'options' );
+    this.container.add( this.menuPanel );
+  }
+}
 
-	container.add( new Menubar.File( application ) );
-  /*
-	container.add( new Menubar.Edit( application ) );
-	container.add( new Menubar.Add( application ) );
-	container.add( new Menubar.Play( application ) );
-	container.add( new Menubar.View( application ) );
-	container.add( new Menubar.Help( application ) );
-	container.add( new Menubar.Status( application ) );
-  */
-	return container;
-};
+class FileMenu extends MenuPanel {
+  constructor(application) {
+    super(application, {title: 'File'});
+    // File -> New
+    var option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'New' );
+    option.onClick( function () {
 
-Menubar.File = function ( editor ) {
+      if ( confirm( 'Any unsaved data will be lost. Are you sure?' ) ) {
 
-	var container = new UI.Panel();
-	container.setClass( 'menu' );
+        //editor.clear();
 
-	var title = new UI.Panel();
-	title.setClass( 'title' );
-	title.setTextContent( 'File' );
-	container.add( title );
+      }
 
-	var options = new UI.Panel();
-	options.setClass( 'options' );
-	container.add( options );
+    } );
+    this.menuPanel.add( option );
+    // spacer
+    this.menuPanel.add( new UI.HorizontalRule() );
+    // File->Import
+    var fileInput = document.createElement( 'input' );
+    fileInput.type = 'file';
+    fileInput.addEventListener( 'change', function ( event ) {
 
-	// New
+      //editor.loader.loadFile( fileInput.files[ 0 ] );
 
-	var option = new UI.Row();
-	option.setClass( 'option' );
-	option.setTextContent( 'New' );
-	option.onClick( function () {
-
-		if ( confirm( 'Any unsaved data will be lost. Are you sure?' ) ) {
-
-			//editor.clear();
-
-		}
-
-	} );
-	options.add( option );
-
-	//
-
-	options.add( new UI.HorizontalRule() );
-
-	// Import
-
-	var fileInput = document.createElement( 'input' );
-	fileInput.type = 'file';
-	fileInput.addEventListener( 'change', function ( event ) {
-
-		//editor.loader.loadFile( fileInput.files[ 0 ] );
-
-	} );
-
-	var option = new UI.Row();
-	option.setClass( 'option' );
-	option.setTextContent( 'Import' );
-	option.onClick( function () {
-
-		fileInput.click();
-
-	} );
-	options.add( option );
-
-	//
-
-	options.add( new UI.HorizontalRule() );
-
-	return container;
-
-};
+    } );
+    var option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Import' );
+    option.onClick( function () {
+      fileInput.click();
+    } );
+    this.menuPanel.add( option );
+    //
+    this.menuPanel.add( new UI.HorizontalRule() );
+  }
+}

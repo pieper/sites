@@ -4,8 +4,6 @@
 
   <title>STEP - WebGL2 </title>
 
-  <link rel="stylesheet" href="../glimp/glimp.css" />
-
   <script src='../glimp/jquery-1.11.0.min.js'></script>
 
   <script type="text/javascript" src="../dcmio/DicomMetaDictionary.js"></script>
@@ -23,10 +21,6 @@
 </head>
 
 <body>
-
-<h1>STEP</h1>
-
-<h2>Unified View</h2>
 
 <canvas id="renderCanvas"></canvas>
 
@@ -91,6 +85,7 @@ var renderImageCoordinatesBuffer;
 var renderImageTexureCoordinatesBuffer;
 var sourceTexture;
 var renderCanvas = document.querySelector('#renderCanvas');
+var sliceOffsetUI;
 
 var gl = renderCanvas.getContext('webgl2');
 gl.disable(gl.DEPTH_TEST); // no depth, we ray cast
@@ -208,6 +203,7 @@ function render() {
 //
 function updateParameters() {
   sliceOffset = Number(document.getElementById('sliceOffset').value);
+  sliceOffsetUI.setValue(sliceOffset/1000.);
   render();
 }
 
@@ -222,10 +218,8 @@ var dataset;
 function readDICOM(arrayBuffer) {
   dicomData = DicomMessage.readFile(arrayBuffer);
   dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
+  dataset = Normalizer.normalizeToDataset([dataset]);
   setupDataset(dataset);
-
-  console.log(Normalizer.normalizeToDataset([dataset]))
-
   render();
 }
 
@@ -248,7 +242,22 @@ $(function () {
   var step = new STEP();
 
   var menubar = new Menubar(step);
-  document.body.appendChild(menubar.dom);
+  document.body.insertBefore(menubar.dom, document.body.firstChild);
+
+  sliceOffsetUI = new UI.Number();
+  sliceOffsetUI.value = .5;
+  sliceOffsetUI.min = 0;
+  sliceOffsetUI.max = 1;
+  sliceOffsetUI.precision = 2;
+  sliceOffsetUI.step = .25;
+  sliceOffsetUI.unit = "offset";
+  document.body.appendChild(sliceOffsetUI.dom);
+  sliceOffsetUI.onChange(function() {
+    var offset = 1000. * sliceOffsetUI.getValue();
+    document.getElementById('sliceOffset').setAttribute('value', offset);
+    updateParameters();
+  });
+
 
   requestData('https://s3.amazonaws.com/IsomicsPublic/4-T2-multiframe-IPP_sorted_UID_fixed.dcm');
 

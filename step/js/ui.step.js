@@ -20,11 +20,17 @@ class UIItem {
 }
 
 class Menubar extends UIItem {
-  constructor(application) {
+  constructor() {
     super();
     this.container = new UI.Panel();
     this.container.setId('menubar');
-    this.container.add(new FileMenu(application).container);
+  }
+}
+
+class stepMenubar extends Menubar {
+  constructor(application) {
+    super();
+    this.container.add(new stepFileMenu(application).container);
   }
 }
 
@@ -45,7 +51,7 @@ class MenuPanel extends UIItem {
   }
 }
 
-class FileMenu extends MenuPanel {
+class stepFileMenu extends MenuPanel {
   constructor(application) {
     super(application, {title: 'File'});
     // File -> New

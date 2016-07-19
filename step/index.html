@@ -24,13 +24,6 @@
 
 <canvas id="renderCanvas"></canvas>
 
-<table id='parameters'>
-  <tr>
-    <th style="text-align:left">Slice Offset</th>
-  </tr><tr>
-    <td><input type="range" min="0" max="1000" value="500" step="1" id="sliceOffset"></td>
-</table>
-
 <script id="vertexShader" type="x-shader/x-vertex">#version 300 es
 precision highp float;
 
@@ -52,6 +45,8 @@ precision highp isampler3D;
 
 uniform highp sampler3D sourceTextureSampler;
 uniform float sliceOffset;
+uniform float windowCenter;
+uniform float windowWidth;
 
 in vec2 varyingTextureCoordinate;
 
@@ -63,11 +58,9 @@ void main(void) {
   vec4 outputColor = vec4(0.,.4, .3,1.);
 
   // W/L per http://dicom.nema.org/MEDICAL/Dicom/2015c/output/chtml/part03/sect_C.11.2.html#sect_C.11.2.1.2
-  float WindowCenter = 2000.00;
-  float WindowWidth = 5000.0;
   float pixelValue;
   pixelValue = texture(sourceTextureSampler, point).r;
-  pixelValue = clamp( (pixelValue - (WindowCenter-0.5)) / (WindowWidth-1.) + .5, 0., 1. );
+  pixelValue = clamp( (pixelValue - (windowCenter-0.5)) / (windowWidth-1.) + .5, 0., 1. );
 
   outputColor.rgb = vec3(pixelValue);
 
@@ -79,29 +72,29 @@ void main(void) {
 'use strict'
 
 // globals
-var sliceOffset = 500;
-var textureDimensions;
-var renderImageCoordinatesBuffer;
-var renderImageTexureCoordinatesBuffer;
-var sourceTexture;
-var renderCanvas = document.querySelector('#renderCanvas');
-var sliceOffsetUI;
+let sliceOffset = 0.5;
+let textureDimensions;
+let renderImageCoordinatesBuffer;
+let renderImageTexureCoordinatesBuffer;
+let sourceTexture;
+let renderCanvas = document.querySelector('#renderCanvas');
+let sliceOffsetUI;
 
-var gl = renderCanvas.getContext('webgl2');
+let gl = renderCanvas.getContext('webgl2');
 gl.disable(gl.DEPTH_TEST); // no depth, we ray cast
-gl.clearColor(0.0, 0.0, 0.5, 1.0);
+gl.clearColor(0.0, 0.0, 0.0, 1.0);
 gl.clear(gl.COLOR_BUFFER_BIT);
 
 // the program and shaders
-var glProgram = gl.createProgram();
-var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+let glProgram = gl.createProgram();
+let vertexShader = gl.createShader(gl.VERTEX_SHADER);
 gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
 gl.compileShader(vertexShader);
 if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
   alert('Could not compile vertexShader');
   console.log(gl.getShaderInfoLog(vertexShader));
 }
-var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
 gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
 gl.compileShader(fragmentShader);
 if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
@@ -114,34 +107,33 @@ gl.attachShader(glProgram, fragmentShader);
 gl.deleteShader(fragmentShader);
 gl.linkProgram(glProgram);
 
-var imageArray;
+let imageArray;
 function setupDataset(dataset) {
   // width by height by depth (x, y z)
   textureDimensions = [dataset.Columns,dataset.Rows,dataset.NumberOfFrames];
   textureDimensions = textureDimensions.map(Number);
 
-  if (dataset.BitsAllocated != 16 ||
-      dataset.PixelRepresentation != 1) {
-    alert('Can only render signed short data');
+  if (dataset.BitsAllocated != 16) {
+    alert('Can only render 16 bit data');
     return;
   }
-  imageArray = new Int16Array(dataset.PixelData);
-  var imageFloat32Array = Float32Array.from(imageArray);
+  if (dataset.PixelRepresentation == 1) {
+    imageArray = new Int16Array(dataset.PixelData);
+  } else {
+    imageArray = new Uint16Array(dataset.PixelData);
+  }
+  let imageFloat32Array = Float32Array.from(imageArray);
 
   //
   // set up webgl2
   //
-  renderCanvas.width = textureDimensions[0];
-  renderCanvas.height = textureDimensions[1];
-  $('#sliceOffset').width(renderCanvas.width);
-
   // buffers for the textured plane in normalized space
   renderImageCoordinatesBuffer = gl.createBuffer();
   renderImageTexureCoordinatesBuffer = gl.createBuffer();
-  var renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1.,  1., 0., 1.,  1., 0., ];
+  let renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1.,  1., 0., 1.,  1., 0., ];
   gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
-  var renderImageTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
+  let renderImageTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
   gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
 
@@ -175,20 +167,22 @@ function render() {
 
   // the coordinate attribute
   gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
-  var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
+  let coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
   gl.enableVertexAttribArray( coordinateLocation );
   gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
 
   // the textureCoordinate attribute
   gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
-  var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
+  let textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
   gl.enableVertexAttribArray( textureCoordinateLocation );
   gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
 
-  var sourceTextureSampler = gl.createSampler();
+  let sourceTextureSampler = gl.createSampler();
   gl.bindSampler(0, sourceTextureSampler);
   gl.uniform1i(gl.getUniformLocation(glProgram, "sourceTextureSampler"), sourceTextureSampler);
-  gl.uniform1f(gl.getUniformLocation(glProgram, "sliceOffset"), sliceOffset / 1000.);
+  gl.uniform1f(gl.getUniformLocation(glProgram, "sliceOffset"), sliceOffset);
+  gl.uniform1f(gl.getUniformLocation(glProgram, "windowCenter"), Number(dataset.WindowCenter[0]));
+  gl.uniform1f(gl.getUniformLocation(glProgram, "windowWidth"), Number(dataset.WindowWidth[0]));
 
   // final render of calculation to display
   gl.activeTexture(gl.TEXTURE0);
@@ -202,19 +196,13 @@ function render() {
 // user interface elements
 //
 function updateParameters() {
-  sliceOffset = Number(document.getElementById('sliceOffset').value);
-  sliceOffsetUI.setValue(sliceOffset/1000.);
+  sliceOffset = sliceOffsetUI.getValue();
   render();
 }
 
-// listen to continuous and release events
-// http://stackoverflow.com/questions/18544890/onchange-event-on-input-type-range-is-not-triggering-in-firefox-while-dragging
-document.getElementById('sliceOffset').onchange = updateParameters;
-document.getElementById('sliceOffset').oninput = updateParameters;
-
 // once the data is downloaded
-var dicomData;
-var dataset;
+let dicomData;
+let dataset;
 function readDICOM(arrayBuffer) {
   dicomData = DicomMessage.readFile(arrayBuffer);
   dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
@@ -223,8 +211,8 @@ function readDICOM(arrayBuffer) {
   render();
 }
 
-function requestData(url) {
-  var dataRequest = new XMLHttpRequest();
+function requestInstance(url) {
+  let dataRequest = new XMLHttpRequest();
   dataRequest.responseType = "arraybuffer";
   dataRequest.onload = function (event) {
     readDICOM(dataRequest.response);
@@ -239,9 +227,9 @@ function requestData(url) {
 // once document is loaded...
 $(function () {
 
-  var step = new STEP();
+  let step = new STEP();
 
-  var menubar = new Menubar(step);
+  let menubar = new stepMenubar(step);
   document.body.insertBefore(menubar.dom, document.body.firstChild);
 
   sliceOffsetUI = new UI.Number();
@@ -252,16 +240,22 @@ $(function () {
   sliceOffsetUI.step = .25;
   sliceOffsetUI.unit = "offset";
   document.body.appendChild(sliceOffsetUI.dom);
-  sliceOffsetUI.onChange(function() {
-    var offset = 1000. * sliceOffsetUI.getValue();
-    document.getElementById('sliceOffset').setAttribute('value', offset);
-    updateParameters();
-  });
+  sliceOffsetUI.onChange(updateParameters);
 
-
-  requestData('https://s3.amazonaws.com/IsomicsPublic/4-T2-multiframe-IPP_sorted_UID_fixed.dcm');
-
+  let instanceURL;
+  instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.4334.1501.121218257574955556754163036146/object.dcm'
+  instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.238384565775432409889098605483402280666/object.dcm';
+  instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.175674587621970014199598735325/object.dcm';
+  instanceURL = 'https://s3.amazonaws.com/IsomicsPublic/4-T2-multiframe-IPP_sorted_UID_fixed.dcm';
+  requestInstance(instanceURL);
 });
+
+let onResize = function() {
+  renderCanvas.width = window.innerWidth;
+  renderCanvas.height = window.innerHeight;
+}
+onResize();
+window.onresize = onResize;
 
 </script>
 

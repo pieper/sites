@@ -133,7 +133,7 @@ function setupDataset(dataset) {
   let renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1.,  1., 0., 1.,  1., 0., ];
   gl.bindBuffer(gl.ARRAY_BUFFER, renderImageCoordinatesBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
-  let renderImageTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
+  let renderImageTextureCoordinates = [ 0, 1,  1, 1,  0, 0,  1, 0 ];
   gl.bindBuffer(gl.ARRAY_BUFFER, renderImageTexureCoordinatesBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
 
@@ -245,8 +245,8 @@ $(function () {
   let instanceURL;
   instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.4334.1501.121218257574955556754163036146/object.dcm'
   instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.238384565775432409889098605483402280666/object.dcm';
-  instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.175674587621970014199598735325/object.dcm';
   instanceURL = 'https://s3.amazonaws.com/IsomicsPublic/4-T2-multiframe-IPP_sorted_UID_fixed.dcm';
+  instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.175674587621970014199598735325/object.dcm';
   requestInstance(instanceURL);
 });
 

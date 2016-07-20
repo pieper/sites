@@ -198,6 +198,22 @@ UI.Row = function () {
 UI.Row.prototype = Object.create( UI.Element.prototype );
 UI.Row.prototype.constructor = UI.Row;
 
+// Table
+
+UI.Table = function () {
+
+	UI.Element.call( this );
+
+	this.dom = document.createElement( 'table' );
+
+	return this;
+
+};
+
+UI.Table.prototype = Object.create( UI.Element.prototype );
+UI.Table.prototype.constructor = UI.Table;
+
+
 // Panel
 
 UI.Panel = function () {

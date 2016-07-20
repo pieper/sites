@@ -1,4 +1,73 @@
-﻿.Panel.Collapsible.collapsed .Static .Button {
+body {
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 14px;
+	margin: 0;
+	overflow: hidden;
+}
+
+hr {
+	border: 0;
+	border-top: 1px solid #ccc;
+}
+
+button {
+	position: relative;
+}
+
+textarea {
+	tab-size: 4;
+	white-space: pre;
+	word-wrap: normal;
+}
+
+	textarea.success {
+		border-color: #8b8 !important;
+	}
+
+	textarea.fail {
+		border-color: #f00 !important;
+		background-color: rgba(255,0,0,0.05);
+	}
+
+textarea, input { outline: none; } /* osx */
+
+.Panel {
+	-moz-user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+
+	/* No support for these yet */
+	-o-user-select: none;
+	user-select: none;
+}
+
+	.Panel.Collapsible .Static {
+		margin: 0;
+	}
+
+	.Panel.Collapsible .Static .Button {
+		float: left;
+		margin-right: 6px;
+		width: 0;
+		height: 0;
+		border: 6px solid transparent;
+	}
+
+	.Panel.Collapsible.collapsed .Static .Button {
+		margin-top: 2px;
+		border-left-color: #bbb;
+	}
+
+	.Panel.Collapsible:not(.collapsed) .Static .Button {
+		margin-top: 6px;
+		border-top-color: #bbb;
+	}
+
+	.Panel.Collapsible.collapsed .Content {
+		display: none;
+	}
+
+.Panel.Collapsible.collapsed .Static .Button {
 	border-left-color: #444;
 }
 
@@ -76,6 +145,17 @@ input.Number {
 			display: block;
 		}
 
+		#menubar .menu .browser {
+			position: absolute;
+			display: none;
+			padding: 5px 0;
+			background: #111;
+		}
+
+		#menubar .menu:hover .browser {
+			display: block;
+		}
+
 			#menubar .menu .options hr {
 				border-color: #222;
 			}
@@ -103,43 +183,48 @@ input.Number {
 			margin: 0 !important;
 		}
 
-#sidebar {
+#bottomBar {
 	position: absolute;
 	right: 0;
-	top: 32px;
 	bottom: 0;
-	width: 300px;
+	height: 32px;
+	width: 100%;
 	background-color: #111;
 	overflow: auto;
+  opacity: 0.25;
 }
 
-	#sidebar * {
+#bottomBar:hover {
+  opacity: 0.75;
+}
+
+	#bottomBar * {
 		vertical-align: middle;
 	}
 
-	#sidebar input,
-	#sidebar textarea,
-	#sidebar select {
+	#bottomBar input,
+	#bottomBar textarea,
+	#bottomBar select {
 		background: #222;
 		border: 1px solid transparent;
 		color: #888;
 	}
 
-	#sidebar .Panel {
+	#bottomBar .Panel {
 		color: #888;
 		padding: 10px;
 		border-top: 1px solid #222;
 	}
 
-	#sidebar .Panel.collapsed {
+	#bottomBar .Panel.collapsed {
 		margin-bottom: 0;
 	}
 
-	#sidebar .Panel.Material canvas {
+	#bottomBar .Panel.Material canvas {
 		border: solid 1px #5A5A5A;
 	}
 
-	#sidebar .Row {
+	#bottomBar .Row {
 		min-height: 20px;
 		margin-bottom: 10px;
 	}

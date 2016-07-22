@@ -96,7 +96,7 @@ class stepFileMenu extends MenuPanel {
 class stepBrowserMenu extends MenuPanel {
   constructor(application, options) {
     options = options || {};
-    options.requestInstance = options.requestInstance || function(){};
+    options.requestSeries = options.requestSeries || function(){};
     super(application, {title: 'Browser'});
     this.menuPanel.setClass('browser');
 
@@ -222,12 +222,14 @@ class stepBrowserMenu extends MenuPanel {
         group_level : 4,
         stale : 'update_after',
       }).then(function(data) {
+        let instanceURLs = [];
         for (let rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
           let row = data.rows[rowIndex].key;
           let instanceUID = row[3];
           let instanceURL = chronicle._db_name + "/" + instanceUID + '/object.dcm';
-          options.requestInstance(instanceURL);
+          instanceURLs.push(instanceURL);
         };
+        options.requestSeries(instanceURLs);
       }).catch(function (err) {
         console.error(err);
       });

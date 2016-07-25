@@ -11,6 +11,8 @@
   <script type="text/javascript" src="../dcmio/DicomMessage.js"></script>
   <script type="text/javascript" src="../dcmio/normalizers.js"></script>
 
+  <script type="text/javascript" src="./js/gl-matrix-min.js"></script>
+
   <link rel="stylesheet" href="./css/step.css" />
   <script type="text/javascript" src="./js/ui.js"></script>
   <script type="text/javascript" src="./js/ui.step.js"></script>
@@ -208,9 +210,12 @@ function updateParameters() {
 function readDICOM(arrayBuffer) {
   let dicomData = DicomMessage.readFile(arrayBuffer);
   let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
-  dataset = Normalizer.normalizeToDataset([dataset]);
   return (dataset);
 }
+
+// example use:
+// let url = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.103997818648421156885408778508/object.dcm';
+// requestInstance(url, function(ab) { let ds = DicomMessage.readFile(ab); console.log(DicomMetaDictionary.naturalizeDataset(ds.dict))})
 
 function requestInstance(url, loaded) {
   console.log('requesting', url);
@@ -235,11 +240,37 @@ function requestSeries(instanceURLs) {
       seriesDatasets.push(dataset);
       if (seriesDatasets.length == instanceURLs.length) {
         step.dataset = Normalizer.normalizeToDataset(seriesDatasets);
+        setupDataset(step.dataset);
         render();
       }
     });
   });
 }
+
+const dataURLs = [
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.103997818648421156885408778508/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.132342573698930826478895707476/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.132765832419882059380935428706/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.133983309860870314301667037544/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.183129620499202809352195734791/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.185019404170243350547132089057/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.190856693629143151966532006066/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.213672649793036324016969672899/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.220483229612542930590572673225/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.223378409272621777170419332045/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.228265524314313520313994911302/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.237613705642967241727822941063/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.276117299669179235189617200092/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.291378801009832862134854162473/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.291756004040853923387536996513/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.318384541576876915009051710666/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.324960553099781141817880090681/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.328063687024673117172378941554/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.566710636073578871359629982455/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.613309369284887117391265294649/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.676104320644886284956145587187/object.dcm",
+  "http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.897524458414944086987347883855/object.dcm",
+];
 
 // once document is loaded...
 var step;
@@ -258,17 +289,24 @@ $(function () {
   });
   document.body.appendChild(bottomBar.dom);
 
-  let instanceURL;
-  instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.238384565775432409889098605483402280666/object.dcm';
-  instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.4334.1501.121218257574955556754163036146/object.dcm'
-  instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.175674587621970014199598735325/object.dcm';
-  instanceURL = 'https://s3.amazonaws.com/IsomicsPublic/4-T2-multiframe-IPP_sorted_UID_fixed.dcm';
-  requestInstance(instanceURL, function(arrayBuffer) {
-    step.dataset = readDICOM(arrayBuffer);
-    multiframeMR = step.dataset;
-    setupDataset(step.dataset);
-    render();
-  });
+  if (false) {
+
+    let instanceURL;
+    instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.32722.99.99.238384565775432409889098605483402280666/object.dcm';
+    instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.4334.1501.121218257574955556754163036146/object.dcm'
+    instanceURL = 'http://quantome.org:5984/chronicle/1.3.6.1.4.1.14519.5.2.1.3671.7001.175674587621970014199598735325/object.dcm';
+    instanceURL = 'https://s3.amazonaws.com/IsomicsPublic/4-T2-multiframe-IPP_sorted_UID_fixed.dcm';
+    requestInstance(instanceURL, function(arrayBuffer) {
+      step.dataset = Normalizer.normalizeToDataset([readDICOM(arrayBuffer)]);
+      setupDataset(step.dataset);
+      render();
+    });
+
+  } else {
+    requestSeries(dataURLs);
+  }
+
+
 });
 
 let onResize = function() {

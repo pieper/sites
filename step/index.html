@@ -61,11 +61,21 @@ out vec4 fragmentColor;
 void main(void) {
 
   vec3 point = vec3(varyingTextureCoordinate,sliceOffset);
-  vec4 outputColor = vec4(0.,.4, .3,1.);
+  vec4 outputColor = vec4(0., .4, .3, 1.);
 
   // W/L per http://dicom.nema.org/MEDICAL/Dicom/2015c/output/chtml/part03/sect_C.11.2.html#sect_C.11.2.1.2
-  float pixelValue;
-  pixelValue = texture(sourceTextureSampler, point).r;
+  float pixelValue = 0.;
+  float steps = 50.;
+  float thickness = .25;
+  float increment = thickness / steps;
+  float start = thickness / -2.;
+  float end = start + thickness;
+  vec3 offset = vec3(0., 0., 0.);
+  for (float step = start; step < end; step+=increment) {
+    offset.z = step;
+    pixelValue += texture(sourceTextureSampler, point+offset).r;
+  }
+  pixelValue /= steps;
   pixelValue = clamp( (pixelValue - (windowCenter-0.5)) / (windowWidth-1.) + .5, 0., 1. );
 
   outputColor.rgb = vec3(pixelValue);
@@ -319,7 +329,7 @@ window.onresize = onResize;
 </script>
 
 <p>
-This demo uses WebGL2.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.
+This demo uses <a href='https://www.khronos.org/registry/webgl/specs/latest/2.0/'>WebGL2</a>.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.  <a href='https://www.khronos.org/webgl/wiki/Getting_a_WebGL_Implementation'>See this page for details.</a>
 </p>
 
 </body>

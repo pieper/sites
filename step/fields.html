@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+  <title>STEP Fields - WebGL2 </title>
+
+  <script type="text/javascript" src="./space.js"></script>
+  <script type="text/javascript" src="./fields.js"></script>
+
+  <script type="text/javascript" src="./js/gl-matrix-min.js"></script>
+
+  <link rel="stylesheet" href="./css/step.css" />
+  <script type="text/javascript" src="./js/ui.js"></script>
+  <script type="text/javascript" src="./js/ui.step.js"></script>
+
+  <script src="./js/jquery-2.1.4.min.js"></script>
+
+</head>
+
+<body>
+
+<canvas id="renderCanvas"></canvas>
+
+<script>
+'use strict'
+
+// once document is loaded...
+let space;
+$(function () {
+
+  let fiducials = [];
+  for (let index=0; index < 2; index++) {
+    fiducials.push(new Fiducial({
+      point: [Math.random(), Math.random(), Math.random()],
+      radius: 0.5 * Math.random(),
+    }));
+  }
+
+  let fiducialField = new FiducialField({
+    fiducials,
+    rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
+  });
+
+  // console.log(fiducialField.shaderSource());
+
+  let fieldShader = new FieldShader({
+    fields: [fiducialField],
+  });
+
+  let uniforms = {
+    eyeRayOrigin: { type: '3fv', value: [.5, .5, -.5] },
+    viewNormal: { type: '3fv', value: [0., 0., 1.] },
+    viewRight: { type: '3fv', value: [1., 0., 0.] },
+    viewUp: { type: '3fv', value: [0., 1., 0.] },
+    halfSinViewAngle: { type: '1f', value: .1 },
+    rasBoxMin: { type: '3fv', value: [0., 0., 0.] },
+    rasBoxMax: { type: '3fv', value: [1., 1., 1.] },
+    gradientSize: { type: '1f', value: .001 },
+    rayMaxSteps: { type: '1i', value: 1000 },
+    sampleStep: { type: '1f', value: 0.001 },
+  };
+
+  space = new Space({
+    canvasSelector: '#renderCanvas',
+    uniforms,
+    fieldShader,
+  });
+
+  let onResize = function() {
+    renderCanvas.width = window.innerWidth;
+    renderCanvas.height = window.innerHeight;
+    space._render();
+  }
+  window.onresize = onResize;
+  onResize();
+});
+
+</script>
+
+<p>
+This demo uses <a href='https://www.khronos.org/registry/webgl/specs/latest/2.0/'>WebGL2</a>.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.  <a href='https://www.khronos.org/webgl/wiki/Getting_a_WebGL_Implementation'>See this page for details.</a>
+</p>
+
+</body>
+</html>

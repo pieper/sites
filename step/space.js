@@ -27,7 +27,7 @@ class Space {
     gl.shaderSource(this.vertexShader, this.vertexShaderSource);
     gl.compileShader(this.vertexShader);
     if (!gl.getShaderParameter(this.vertexShader, gl.COMPILE_STATUS)) {
-      console.log(this.vertexShaderSource);
+      this.logWithLineNumbers(this.vertexShaderSource);
       console.error('Could not compile vertexShader');
       console.log(gl.getShaderInfoLog(this.vertexShader));
     }
@@ -35,7 +35,7 @@ class Space {
     gl.shaderSource(this.fragmentShader, this.fragmentShaderSource);
     gl.compileShader(this.fragmentShader);
     if (!gl.getShaderParameter(this.fragmentShader, gl.COMPILE_STATUS)) {
-      console.log(this.fragmentShaderSource);
+      this.logWithLineNumbers(this.fragmentShaderSource);
       console.error('Could not compile fragmentShader');
       console.log(gl.getShaderInfoLog(this.fragmentShader));
     }
@@ -56,6 +56,14 @@ class Space {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
   }
 
+  logWithLineNumbers(string) {
+    let lineNumber = 1;
+    string.split("\n").forEach(line=>{
+      console.log(lineNumber, line);
+      lineNumber += 1;
+    });
+  }
+
   requestRender(options={}) {
     this.uniforms = options.uniforms || this.uniforms || {};
     if (this.pendingRenderRequest) {
@@ -73,6 +81,7 @@ class Space {
     if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
     if (uniform.type == '1f') {gl.uniform1f(location, uniform.value); return;}
     if (uniform.type == '1ui') {gl.uniform1ui(location, uniform.value); return;}
+    if (uniform.type == '1i') {gl.uniform1i(location, uniform.value); return;}
   }
 
   _render() {

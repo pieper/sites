@@ -40,7 +40,7 @@ class FiducialField extends Field {
         centerToSample = samplePoint - vec3( ${fiducial.point[0]}, ${fiducial.point[1]}, ${fiducial.point[2]} );
         distance = length(centerToSample);
         if (distance < glow * ${fiducial.radius}) {
-          sampleValue += smoothstep(distance/glow, distance*glow, distance);
+          sampleValue += 100. * smoothstep(distance/glow, distance*glow, distance);
           normal += normalize(centerToSample);
         }
 

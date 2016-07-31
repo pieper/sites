@@ -163,6 +163,18 @@ class FieldShader {
   fragmentShaderSource() {
     return (`${this.headerSource()}
 
+      uniform vec3 pointLight;
+      uniform vec3 eyeRayOrigin;
+      uniform vec3 viewNormal;
+      uniform vec3 viewRight;
+      uniform vec3 viewUp;
+      uniform float halfSinViewAngle;
+      uniform vec3 rasBoxMin;
+      uniform vec3 rasBoxMax;
+      uniform float gradientSize;
+      uniform int rayMaxSteps;
+      uniform float sampleStep;
+
       bool intersectBox(const in vec3 rayOrigin, const in vec3 rayDirection,
                         const in vec3 boxMin, const in vec3 boxMax,
                         out float tNear, out float tFar)
@@ -199,7 +211,6 @@ class FieldShader {
         float Kdiffuse = .95;
         float Kspecular = .90;
         float Shininess = 15.;
-        vec3 pointLight = vec3(200., 2500., 1000.); // TODO - lighting model
 
         vec3 litColor = Kambient * Cambient;
         vec3 pointToEye = normalize(eyeRayOrigin - samplePoint);
@@ -225,17 +236,6 @@ class FieldShader {
       // contributions until fully saturated.
       // Sample coordinate is 0->1 texture space
       //
-      uniform vec3 eyeRayOrigin;
-      uniform vec3 viewNormal;
-      uniform vec3 viewRight;
-      uniform vec3 viewUp;
-      uniform float halfSinViewAngle;
-      uniform vec3 rasBoxMin;
-      uniform vec3 rasBoxMax;
-      uniform float gradientSize;
-      uniform int rayMaxSteps;
-      uniform float sampleStep;
-
       vec4 rayCast( in vec3 sampleCoordinate )
       {
         vec4 backgroundRGBA = vec4(0.,0.,.5,1.); // TODO: mid blue background for now

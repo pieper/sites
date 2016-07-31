@@ -35,7 +35,7 @@ let space;
 $(function () {
 
   let fiducials = [];
-  for (let index=0; index < 7; index++) {
+  for (let index=0; index < 10; index++) {
     fiducials.push(new Fiducial({
       point: randomPoint(),
       radius: 0.5 * Math.random(),
@@ -44,26 +44,27 @@ $(function () {
 
   let fiducialField = new FiducialField({
     fiducials,
-    rgba: [Math.random(), Math.random(), Math.random(), .99],
+    rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
   });
 
-  // console.log(fiducialField.shaderSource());
+  console.log(fiducialField.rgba);
 
   let fieldShader = new FieldShader({
     fields: [fiducialField],
   });
 
   let uniforms = {
-    eyeRayOrigin: { type: '3fv', value: [0., 0., -15.] },
+    pointLight: { type: '3fv', value: [10., 30., -15.] },
+    eyeRayOrigin: { type: '3fv', value: [0., 0., -5.] },
     viewNormal: { type: '3fv', value: [0., 0., 1.5] },
     viewRight: { type: '3fv', value: [1., 0., 0.] },
-    viewUp: { type: '3fv', value: [0., -1., 0.] },
-    halfSinViewAngle: { type: '1f', value: .1 },
+    viewUp: { type: '3fv', value: [0., 1., 0.] },
+    halfSinViewAngle: { type: '1f', value: .15 },
     rasBoxMin: { type: '3fv', value: [-1., -1., -1.] },
     rasBoxMax: { type: '3fv', value: [1., 1., 1.] },
     gradientSize: { type: '1f', value: .001 },
     rayMaxSteps: { type: '1i', value: 100000 },
-    sampleStep: { type: '1f', value: 0.005 },
+    sampleStep: { type: '1f', value: 0.01 },
   };
 
   space = new Space({
@@ -79,6 +80,16 @@ $(function () {
   }
   window.onresize = onResize;
   onResize();
+
+  let deltaZ = -.1;
+  function animate() {
+    uniforms.eyeRayOrigin.value[2] += deltaZ;
+    let z = uniforms.eyeRayOrigin.value[2];
+    if (z > -1 || z < -20.) {deltaZ *= -1;}
+    space._render();
+    window.requestAnimationFrame(animate);
+  };
+  animate();
 });
 
 </script>

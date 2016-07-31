@@ -48,10 +48,10 @@ class Space {
     // buffers for the textured plane in normalized space
     this.renderImageCoordinatesBuffer = gl.createBuffer();
     this.renderImageTexureCoordinatesBuffer = gl.createBuffer();
-    let renderImageVertices = [ -1., -1., 0., 1., -1., 0., -1.,  1., 0., 1.,  1., 0., ];
+    let renderImageVertices = [ -1., -1., 0.,   1., -1., 0.,   -1.,  1., 0.,   1.,  1., 0., ];
     gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageCoordinatesBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
-    let renderImageTextureCoordinates = [ 0, 1,  1, 1,  0, 0,  1, 0 ];
+    let renderImageTextureCoordinates = [ 0, 0,   1, 0,   0, 1,   1, 1 ];
     gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageTexureCoordinatesBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
   }

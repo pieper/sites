@@ -22,6 +22,9 @@ class FiducialField extends Field {
   constructor(options={}) {
     super(options);
     this.rgba = options.rgba || [1., 0., 0., 0.5];
+    this.rgba = this.rgba.map(e=>e*1.00001); // hack to make it floating point
+    this.opacityScale = options.opacityScale || 1.;
+    this.opacityScale *= 1.00001; // hack to make it floating point
     this.fiducials = options.fiducials || [];
   }
 
@@ -39,8 +42,14 @@ class FiducialField extends Field {
 
         centerToSample = samplePoint - vec3( ${fiducial.point[0]}, ${fiducial.point[1]}, ${fiducial.point[2]} );
         distance = length(centerToSample);
+        /*
         if (distance < glow * ${fiducial.radius}) {
-          sampleValue += 100. * smoothstep(distance/glow, distance*glow, distance);
+          sampleValue += smoothstep(distance/glow, distance*glow, distance);
+          normal += normalize(centerToSample);
+        }
+        */
+        if (abs(distance - ${fiducial.radius}) < 0.01) {
+          sampleValue += ${this.rgba[3]};
           normal += normalize(centerToSample);
         }
 
@@ -61,7 +70,7 @@ class FiducialField extends Field {
       void transferFunction${this.id} (const in float sampleValue, const in float gradientMagnitude, out vec3 color, out float opacity)
       {
           color = vec3( ${this.rgba[0]}, ${this.rgba[1]}, ${this.rgba[2]} );
-          opacity = sampleValue * ${this.rgba[3]};
+          opacity = ${this.opacityScale} * sampleValue * ${this.rgba[3]};
       }
 
       uniform sampler3D sampler${this.id};

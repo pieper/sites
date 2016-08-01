@@ -35,7 +35,7 @@ let space;
 $(function () {
 
   let fiducials = [];
-  for (let index=0; index < 10; index++) {
+  for (let index=0; index < 20; index++) {
     fiducials.push(new Fiducial({
       point: randomPoint(),
       radius: 0.5 * Math.random(),
@@ -45,9 +45,8 @@ $(function () {
   let fiducialField = new FiducialField({
     fiducials,
     rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
+    opacityScale: 100.,
   });
-
-  console.log(fiducialField.rgba);
 
   let fieldShader = new FieldShader({
     fields: [fiducialField],

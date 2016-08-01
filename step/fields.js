@@ -42,13 +42,7 @@ class FiducialField extends Field {
 
         centerToSample = samplePoint - vec3( ${fiducial.point[0]}, ${fiducial.point[1]}, ${fiducial.point[2]} );
         distance = length(centerToSample);
-        /*
-        if (distance < glow * ${fiducial.radius}) {
-          sampleValue += smoothstep(distance/glow, distance*glow, distance);
-          normal += normalize(centerToSample);
-        }
-        */
-        if (abs(distance - ${fiducial.radius}) < 0.01) {
+        if (distance < ${fiducial.radius}) {
           sampleValue += ${this.rgba[3]};
           normal += normalize(centerToSample);
         }
@@ -218,8 +212,8 @@ class FieldShader {
         vec3 Cspecular = vec3(1.,1.,1.);
         float Kambient = .30;
         float Kdiffuse = .95;
-        float Kspecular = .90;
-        float Shininess = 15.;
+        float Kspecular = .0; // TODO - nonzero breaks windows, not mac
+        float Shininess = 10.;
 
         vec3 litColor = Kambient * Cambient;
         vec3 pointToEye = normalize(eyeRayOrigin - samplePoint);
@@ -234,7 +228,7 @@ class FieldShader {
             litColor += Kspecular * pow( reflectDot, Shininess ) * Cspecular;
           }
         }
-        return litColor;
+        return clamp(litColor, 0., 1.);
       }
 
       // these are the function definitions for sampleVolume* and transferFunction*
@@ -283,16 +277,18 @@ class FieldShader {
           ${this.fieldCompositingShaderSource()}
 
           // http://graphicsrunner.blogspot.com/2009/01/volume-rendering-101.html
-          opacity *= sampleStep;
-          integratedPixel.rgb += (1. - integratedPixel.a) * opacity * litColor;
-          integratedPixel.a += (1. - integratedPixel.a) * opacity;
-          integratedPixel = clamp(integratedPixel, 0., 1.);
+          if (opacity > 0.) {
+            opacity *= sampleStep;
+            integratedPixel.rgb += (1. - integratedPixel.a) * opacity * litColor;
+            integratedPixel.a += (1. - integratedPixel.a) * opacity;
+            integratedPixel = clamp(integratedPixel, 0.0001, 0.9999);
+          }
 
           tCurrent += sampleStep;
           if (
               tCurrent >= tFar  // stepped out of the volume
                 ||
-              integratedPixel.a >= 1.  // pixel is saturated
+              integratedPixel.a >= .99  // pixel is saturated
           ) {
             break; // we can stop now
           }

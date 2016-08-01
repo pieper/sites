@@ -121,6 +121,4 @@ class Space {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
   }
-
-
 }

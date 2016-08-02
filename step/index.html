@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
+<html lang="en">
 <head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 
   <title>STEP - WebGL2 </title>
-
-  <script type="text/javascript" src="./fields.js"></script>
 
   <script type="text/javascript" src="../dcmio/DicomMetaDictionary.js"></script>
   <script type="text/javascript" src="../dcmio/BufferStream.js"></script>
@@ -317,23 +317,6 @@ $(function () {
   } else {
     requestSeries(dataURLs);
   }
-
-  let fiducials = [];
-  for (let index=0; index < 20; index++) {
-    fiducials.push(new Fiducial({
-      point: [Math.random(), Math.random(), Math.random()],
-      radius: 0.5 * Math.random(),
-    }));
-  }
-
-  let fiducialField = new FiducialField({
-    fiducials,
-    rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
-  });
-
-  console.log(fiducialField.shaderSource());
-
-  console.log(new FieldShader().shaderSource());
 
 });
 

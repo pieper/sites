@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
+<html lang="en">
 <head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 
   <title>STEP Fields - WebGL2 </title>
 
@@ -15,6 +17,16 @@
 
   <script src="./js/jquery-2.1.4.min.js"></script>
 
+  <script type="text/javascript" src="../dcmio/DicomMetaDictionary.js"></script>
+  <script type="text/javascript" src="../dcmio/BufferStream.js"></script>
+  <script type="text/javascript" src="../dcmio/ValueRepresentation.js"></script>
+  <script type="text/javascript" src="../dcmio/Tag.js"></script>
+  <script type="text/javascript" src="../dcmio/DicomMessage.js"></script>
+  <script type="text/javascript" src="../dcmio/normalizers.js"></script>
+
+  <script src="./js/pouchdb-5.1.0.js"></script>
+  <script src="./js/pouchdb.memory.js"></script>
+
 </head>
 
 <body>
@@ -24,72 +36,152 @@
 <script>
 'use strict'
 
+let space;
+let chronicle;
+let deltaZ = -.1;
+
 function randomPoint() {
   let point = [0,0,0];
   point = point.map( element=>(-.5 + Math.random())*2. );
   return(point);
 }
 
-// once document is loaded...
-let space;
-$(function () {
+let fiducials = [];
+for (let index=0; index < 20; index++) {
+  fiducials.push(new Fiducial({
+    point: randomPoint(),
+    radius: 0.5 * Math.random(),
+  }));
+}
 
-  let fiducials = [];
-  for (let index=0; index < 20; index++) {
-    fiducials.push(new Fiducial({
-      point: randomPoint(),
-      radius: 0.5 * Math.random(),
-    }));
-  }
+/*
+let fiducialField = new FiducialField({
+  fiducials,
+  rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
+  opacityScale: 100.,
+});
+*/
 
-  let fiducialField = new FiducialField({
-    fiducials,
-    rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
-    opacityScale: 100.,
-  });
+////////////////////////
+// -- duplicated from index.html
+function readDICOM(arrayBuffer) {
+  let dicomData = DicomMessage.readFile(arrayBuffer);
+  let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
+  return (dataset);
+}
 
-  let fieldShader = new FieldShader({
-    fields: [fiducialField],
-  });
-
-  let uniforms = {
-    pointLight: { type: '3fv', value: [10., 30., -15.] },
-    eyeRayOrigin: { type: '3fv', value: [0., 0., -5.] },
-    viewNormal: { type: '3fv', value: [0., 0., 1.5] },
-    viewRight: { type: '3fv', value: [1., 0., 0.] },
-    viewUp: { type: '3fv', value: [0., 1., 0.] },
-    halfSinViewAngle: { type: '1f', value: .15 },
-    rasBoxMin: { type: '3fv', value: [-1., -1., -1.] },
-    rasBoxMax: { type: '3fv', value: [1., 1., 1.] },
-    gradientSize: { type: '1f', value: .001 },
-    rayMaxSteps: { type: '1i', value: 100000 },
-    sampleStep: { type: '1f', value: 0.005 },
+function requestInstance(url, loaded) {
+  let dataRequest = new XMLHttpRequest();
+  dataRequest.responseType = "arraybuffer";
+  dataRequest.onload = function (event) {
+    let arrayBuffer = dataRequest.response;
+    loaded(arrayBuffer);
   };
+  dataRequest.onprogress = function () {
+    console.log('LOADING', dataRequest.status);
+  };
+  dataRequest.open("GET", url, true);
+  dataRequest.send(null);
+}
+////////////////////////
 
-  space = new Space({
-    canvasSelector: '#renderCanvas',
-    uniforms,
-    fieldShader,
-  });
 
-  let onResize = function() {
-    renderCanvas.width = window.innerWidth;
-    renderCanvas.height = window.innerHeight;
-    space._render();
-  }
-  window.onresize = onResize;
-  onResize();
-
-  let deltaZ = -.1;
-  function animate() {
+let animationFrameRequestID;
+let animate = function() {
     uniforms.eyeRayOrigin.value[2] += deltaZ;
     let z = uniforms.eyeRayOrigin.value[2];
     if (z > -1 || z < -20.) {deltaZ *= -1;}
     space._render();
-    window.requestAnimationFrame(animate);
-  };
-  animate();
+    animationFrameRequestID = window.requestAnimationFrame(animate);
+};
+
+let uniforms = {
+  pointLight: { type: '3fv', value: [10., 30., -15.] },
+  eyeRayOrigin: { type: '3fv', value: [0., 0., -5.] },
+  viewNormal: { type: '3fv', value: [0., 0., 1.5] },
+  viewRight: { type: '3fv', value: [1., 0., 0.] },
+  viewUp: { type: '3fv', value: [0., 1., 0.] },
+  halfSinViewAngle: { type: '1f', value: .15 },
+  rasBoxMin: { type: '3fv', value: [-1., -1., -1.] },
+  rasBoxMax: { type: '3fv', value: [1., 1., 1.] },
+  gradientSize: { type: '1f', value: .001 },
+  rayMaxSteps: { type: '1i', value: 100000 },
+  sampleStep: { type: '1f', value: 0.005 },
+};
+
+$(function () {
+  // once document is loaded...
+
+  chronicle = new PouchDB('http://quantome.org:5984/chronicle');
+
+      /*
+space = new Space({
+  canvasSelector: '#renderCanvas',
+  uniforms,
+  fields: [fiducialField],
 });
+
+space._render();
+      */
+
+  let onResize = function() {
+    renderCanvas.width = window.innerWidth;
+    renderCanvas.height = window.innerHeight;
+    if (space) {
+      space._render();
+    }
+  }
+  window.onresize = onResize;
+  onResize();
+
+  let ctSeriesUID = "1.2.826.0.1.3680043.2.1125.1.99742212059636314189164026308034236";
+  seriesField(ctSeriesUID);
+});
+
+function instancesField(instanceURLs) {
+  var seriesDatasets = [];
+  instanceURLs.forEach(function(instanceURL) {
+    requestInstance(instanceURL, function(arrayBuffer) {
+      let dataset = readDICOM(arrayBuffer);
+      seriesDatasets.push(dataset);
+      if (seriesDatasets.length == instanceURLs.length) {
+        if (animationFrameRequestID) {
+          window.cancelAnimationFrame(animationFrameRequestID);
+          animationFrameRequestID = undefined;
+        }
+
+
+        let dataset = Normalizer.normalizeToDataset(seriesDatasets);
+        let imageField = new ImageField({dataset});
+
+        space = new Space({
+          canvasSelector: '#renderCanvas',
+          uniforms,
+          fields: [imageField],
+          //fields: [fiducialField],
+        });
+
+        space._render();
+      }
+    });
+  });
+}
+
+function seriesField(seriesUID) {
+  chronicle.query("instances/seriesInstances", {
+    reduce : false,
+    stale : 'update_after',
+    key : seriesUID,
+  }).then(function(data) {
+    let instanceURLs = [];
+    data.rows.forEach(row => {
+      instanceURLs.push(chronicle._db_name + "/" + row.value[1] + '/object.dcm');
+    });
+    instancesField(instanceURLs);
+  }).catch(function (err) {
+    console.error(err);
+  });
+}
 
 </script>
 

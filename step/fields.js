@@ -1,15 +1,45 @@
-
 class Field {
   constructor(options={}) {
     this.id = Field.nextId;
+    this.texture = undefined;
     Field.nextId++;
   }
 
   samplingShaderSource() {
-    return("");
+    // return a string with these functions implemented in GLSL
+    return(`
+      vec3 transformPoint${this.id}(const in vec3 samplePoint)
+      {
+        return(samplePoint);
+      }
+      void transferFunction${this.id} (const in float sampleValue,
+                                       const in float gradientMagnitude,
+                                       out vec3 color,
+                                       out float opacity)
+      {
+      }
+      void sampleField${this.id} (const in sampler3D textureUnit,
+                                  const in vec3 samplePointIn,
+                                  const in float gradientSize,
+                                  out float sampleValue,
+                                  out vec3 normal,
+                                  out float gradientMagnitude)
+      {
+      }
+    `);
+  }
+
+  uniforms() {
+    // return an object of the current uniform values
+    return({});
+  }
+
+  fieldToTexture(gl) {
+    // unsure the field data is stored in the texture
+    // unit associated with this.id in the gl context
   }
 }
-Field.nextId = 0;
+Field.nextId = 0; // TODO: for now this is texture unit
 
 class Fiducial {
   constructor(options={}) {
@@ -29,10 +59,10 @@ class FiducialField extends Field {
   }
 
   uniforms() {
-    let samplerName = 'sampler'+this.id;
-    return({
-      samplerName: {type: '1i', value: this.id},
-    });
+    let textureUnit = 'textureUnit'+this.id;
+    let u = {};
+    u['textureUnit'] = {type: '1i', value: textureUnit};
+    return(u);
   }
 
   fiducialsSource() {
@@ -61,14 +91,22 @@ class FiducialField extends Field {
           return samplePoint; // identity by default
       }
 
-      void transferFunction${this.id} (const in float sampleValue, const in float gradientMagnitude, out vec3 color, out float opacity)
+      void transferFunction${this.id} (const in float sampleValue,
+                                       const in float gradientMagnitude,
+                                       out vec3 color,
+                                       out float opacity)
       {
           color = vec3( ${this.rgba[0]}, ${this.rgba[1]}, ${this.rgba[2]} );
           opacity = ${this.opacityScale} * sampleValue * ${this.rgba[3]};
       }
 
-      uniform sampler3D sampler${this.id};
-      void sampleVolume${this.id} (const in sampler3D volumeTextureUnit, const in vec3 samplePointIn, const in float gradientSize, out float sampleValue, out vec3 normal, out float gradientMagnitude)
+      uniform sampler3D textureUnit${this.id};
+      void sampleField${this.id} (const in sampler3D textureUnit,
+                                  const in vec3 samplePointIn,
+                                  const in float gradientSize,
+                                  out float sampleValue,
+                                  out vec3 normal,
+                                  out float gradientMagnitude)
       {
         // TODO: transform should be associated with the sampling, not the ray point
         //       so that gradient is calculated incorporating transform
@@ -78,7 +116,7 @@ class FiducialField extends Field {
         float distance;
         float glow = 1.2;
 
-        // default if sampleValue is not in fiducial
+        // default if sampleValue is not in any fiducial
         sampleValue = 0.;
         normal = vec3(0,0,0);
         gradientMagnitude = 1.;
@@ -94,216 +132,161 @@ class FiducialField extends Field {
   }
 }
 
-class FieldShader {
+class ImageField extends Field {
   constructor(options={}) {
-    this.fields = options.fields || [];
+    super(options);
+    this.dataset = options.dataset || {};
+    this.analyze();
   }
 
-  perFieldSamplingShaderSource() {
-    let perFieldSamplingShaderSource = '';
-    this.fields.forEach(field=>{
-      perFieldSamplingShaderSource += field.samplingShaderSource();
-    });
-    return(perFieldSamplingShaderSource);
+  analyze() {
+    // examine the dataset and calculate intermediate values needed for rendering
+    // TODO: patientToPixel and related matrices should be generalized to functions.
+    // TODO: transfer function parameters could be textures.
+
+    // matrix from sampling space (patient, mm) to STP (0 to 1) texture coordinates
+    this.patientToPixel = [
+      1., 0., 0., 0.,
+      0., 1., 0., 0.,
+      0., 0., 1., 0.,
+      0., 0., 0., 1.,
+    ];
+
+    // the inverse transpose of the upper 3x3 of the pixelToPatient matrix,
+    // which is the transpose of the upper 3x3 of the patientToPixel matrix
+    this.normalPixelToPatient = [
+      1., 0., 0.,
+      0., 1., 0.,
+      0., 0., 1.,
+    ];
+
+    this.windowCenter = Number(this.dataset.WindowCenter[0]);
+    this.windowWidth = Number(this.dataset.WindowWidth[0]);
+
+    this.textureDimensions = [this.dataset.Columns,
+                              this.dataset.Rows,
+                              this.dataset.NumberOfFrames];
+    this.textureDimensions = this.textureDimensions.map(Number);
+
+    if (this.dataset.BitsAllocated != 16) {
+      console.error('Can only render 16 bit data');
+    }
+
   }
 
-  perFieldCompositingShaderSource() {
-    let source = '';
-    this.fields.forEach(field=>{
-      source += `
-          // accumulate per-field opacities and lit colors
-          sampleVolume${field.id}(sampler${field.id}, 
-                                  samplePoint, gradientSize, sampleValue, normal, gradientMagnitude);
-          transferFunction${field.id}(sampleValue, gradientMagnitude, color, fieldOpacity);
-          litColor += fieldOpacity * lightingModel(samplePoint, normal, color, eyeRayOrigin);
-          opacity += fieldOpacity;
-      `;
-    });
-    return(source);
+  uniforms() {
+    // TODO: need to be keyed to id (in a struct)
+    let u = {
+      patientToPixel: {type: "Matrix4fv", value: this.patientToPixel},
+      normalPixelToPatient: {type: "Matrix3fv", value: this.normalPixelToPatient},
+      windowCenter: {type: "1f", value: this.windowCenter},
+      windowWidth: {type: "1f", value: this.windowWidth},
+    };
+    let textureUnit = 'textureUnit'+this.id;
+    u['textureUnit'] = {type: '1i', value: textureUnit};
+    return(u);
   }
 
-  fieldCompositingShaderSource() {
-    let fieldCompositingShaderSource = ` 
-          vec3 normal;
-          float gradientMagnitude;
-          vec3 color;
-          float opacity = 0.;
-          vec3 litColor = vec3(0.);
-          float fieldOpacity = 0.;
-          vec3 fieldLitColor = vec3(0.);
+  samplingShaderSource() {
+    return(`
+      uniform highp sampler3D textureUnit${this.id};
 
-          ${this.perFieldCompositingShaderSource()}
+      vec3 transformPoint${this.id}(const in vec3 samplePoint)
+      {
+        return(samplePoint);
+      }
 
-          // normalize back so that litColor is mean of all fields weighted by opacity
-          litColor /= opacity;
-    `;
+      uniform float windowCenter;
+      uniform float windowWidth;
+      void transferFunction${this.id} (const in float sampleValue,
+                                       const in float gradientMagnitude,
+                                       out vec3 color,
+                                       out float opacity)
+      {
+        float pixelValue = clamp( (sampleValue - (windowCenter-0.5)) / (windowWidth-1.) + .5, 0., 1. );
+        color = vec3(pixelValue);
+        opacity = 100. * pixelValue;
+      }
 
-    return(fieldCompositingShaderSource);
-  }
+      uniform mat4 patientToPixel;
+      void sampleField${this.id} (const in sampler3D textureUnit,
+                                  const in vec3 samplePointIn,
+                                  const in float gradientSize,
+                                  out float sampleValue, out vec3 normal,
+                                  out float gradientMagnitude)
+      {
+        vec3 samplePoint = transformPoint${this.id}(samplePointIn);
+        //vec3 stpPoint = patientToPixel${this.id}(samplePoint); TODO
+        vec3 stpPoint = (patientToPixel * vec4(samplePoint, 1.)).xyz;
 
-  headerSource() {
-    return(`#version 300 es
-      precision highp float;
-      precision highp int;
-      precision highp sampler3D;
-      precision highp isampler3D;
+        if (any(lessThan(stpPoint, vec3(0))) || any(greaterThan(stpPoint,vec3(1)))) {
+            sampleValue = 0.;
+            gradientMagnitude = 0.;
+            return;
+        }
+
+        sampleValue = 1.;
+        sampleValue = distance(stpPoint, vec3(0.));
+        sampleValue = texture(textureUnit, stpPoint).r;
+
+        normal = vec3(0., 0., -1.);
+        gradientMagnitude = 0.;
+      }
     `);
   }
 
-  vertexShaderSource() {
-    return (`${this.headerSource()}
-      in vec3 coordinate;
-      in vec2 textureCoordinate;
-      out vec3 interpolatedTextureCoordinate;
-      void main()
-      {
-        interpolatedTextureCoordinate = vec3(textureCoordinate, .5);
-        gl_Position = vec4(coordinate, 1.);
-      }
-    `);
+  fieldToTexture(gl) {
+
+    let imageArray;
+    if (this.dataset.PixelRepresentation == 1) {
+      imageArray = new Int16Array(this.dataset.PixelData);
+    } else {
+      imageArray = new Uint16Array(this.dataset.PixelData);
+    }
+    let imageFloat32Array = Float32Array.from(imageArray);
+
+    this.texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_3D, this.texture);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_BASE_LEVEL, 0);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAX_LEVEL, 0);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F,
+     this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2]);
+    gl.texSubImage3D(gl.TEXTURE_3D,
+      0, 0, 0, 0, // level, offsets
+      this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2],
+      gl.RED, gl.FLOAT, imageFloat32Array);
   }
-
-  fragmentShaderSource() {
-    return (`${this.headerSource()}
-
-      uniform vec3 pointLight;
-      uniform vec3 eyeRayOrigin;
-      uniform vec3 viewNormal;
-      uniform vec3 viewRight;
-      uniform vec3 viewUp;
-      uniform float halfSinViewAngle;
-      uniform vec3 rasBoxMin;
-      uniform vec3 rasBoxMax;
-      uniform float gradientSize;
-      uniform int rayMaxSteps;
-      uniform float sampleStep;
-
-      bool intersectBox(const in vec3 rayOrigin, const in vec3 rayDirection,
-                        const in vec3 boxMin, const in vec3 boxMax,
-                        out float tNear, out float tFar)
-        // intersect ray with a box
-        // http://www.siggraph.org/education/materials/HyperGraph/raytrace/rtinter3.htm
-      {
-          // compute intersection of ray with all six bbox planes
-          vec3 invRay = vec3(1.) / rayDirection;
-          vec3 tBot = invRay * (boxMin - rayOrigin);
-          vec3 tTop = invRay * (boxMax - rayOrigin);
-
-          // re-order intersections to find smallest and largest on each axis
-          vec3 tMin = min(tTop, tBot);
-          vec3 tMax = max(tTop, tBot);
-
-          // find the largest tMin and the smallest tMax
-          float largest_tMin = max(max(tMin.x, tMin.y), max(tMin.x, tMin.z));
-          float smallest_tMax = min(min(tMax.x, tMax.y), min(tMax.x, tMax.z));
-
-          tNear = largest_tMin;
-          tFar = smallest_tMax;
-
-          return smallest_tMax > largest_tMin;
-      }
-
-      vec3 lightingModel( in vec3 samplePoint, in vec3 normal, in vec3 color, in vec3 eyeRayOrigin )
-      {
-        // Phong lighting
-        // http://en.wikipedia.org/wiki/Phong_reflection_model
-        vec3 Cambient = color;
-        vec3 Cdiffuse = color;
-        vec3 Cspecular = vec3(1.,1.,1.);
-        float Kambient = .30;
-        float Kdiffuse = .95;
-        float Kspecular = .0; // TODO - nonzero breaks windows, not mac
-        float Shininess = 10.;
-
-        vec3 litColor = Kambient * Cambient;
-        vec3 pointToEye = normalize(eyeRayOrigin - samplePoint);
-
-        if (dot(pointToEye, normal) > 0.) {
-          vec3 pointToLight = normalize(pointLight - samplePoint);
-          float lightDot = dot(pointToLight,normal);
-          vec3 lightReflection = reflect(pointToLight,normal);
-          float reflectDot = dot(lightReflection,pointToEye);
-          if (lightDot > 0.) {
-            litColor += Kdiffuse * lightDot * Cdiffuse;
-            litColor += Kspecular * pow( reflectDot, Shininess ) * Cspecular;
-          }
-        }
-        return clamp(litColor, 0., 1.);
-      }
-
-      // these are the function definitions for sampleVolume* and transferFunction*
-      // that define a field at a sample point in space
-      ${this.perFieldSamplingShaderSource()}
-
-      // field ray caster - starts from the front and collects color and opacity
-      // contributions until fully saturated.
-      // Sample coordinate is 0->1 texture space
-      //
-      vec4 rayCast( in vec3 sampleCoordinate )
-      {
-        vec4 backgroundRGBA = vec4(0.,0.,.5,1.); // TODO: mid blue background for now
-
-        // TODO aspect: float aspect = imageW / (1.0 * imageH);
-        vec2 normalizedCoordinate = 2. * (sampleCoordinate.st -.5);
-
-        // calculate eye ray in world space
-        vec3 eyeRayDirection;
-
-        // ||viewNormal + u * viewRight + v * viewUp||
-        eyeRayDirection = normalize ( viewNormal
-                                    + viewRight * halfSinViewAngle * normalizedCoordinate.x
-                                    + viewUp * halfSinViewAngle * normalizedCoordinate.y );
-
-        // find intersection with box, possibly terminate early
-        float tNear, tFar;
-        bool hit = intersectBox( eyeRayOrigin, eyeRayDirection, rasBoxMin, rasBoxMax, tNear, tFar );
-        if (!hit) {
-          return (backgroundRGBA);
-        }
-
-        if (tNear < 0.) tNear = 0.;     // clamp to near plane
-
-        // march along ray from front, accumulating color and opacity
-        vec4 integratedPixel = vec4(0.);
-        float tCurrent = tNear;
-        float sampleValue;
-        int rayStep;
-        for(rayStep = 0; rayStep < rayMaxSteps; rayStep++) {
-
-          vec3 samplePoint = eyeRayOrigin + eyeRayDirection * tCurrent;
-
-          // this is the code that composites together samples
-          // from all the fields in the space
-          ${this.fieldCompositingShaderSource()}
-
-          // http://graphicsrunner.blogspot.com/2009/01/volume-rendering-101.html
-          if (opacity > 0.) {
-            opacity *= sampleStep;
-            integratedPixel.rgb += (1. - integratedPixel.a) * opacity * litColor;
-            integratedPixel.a += (1. - integratedPixel.a) * opacity;
-            integratedPixel = clamp(integratedPixel, 0.0001, 0.9999);
-          }
-
-          tCurrent += sampleStep;
-          if (
-              tCurrent >= tFar  // stepped out of the volume
-                ||
-              integratedPixel.a >= .99  // pixel is saturated
-          ) {
-            break; // we can stop now
-          }
-        }
-        return(vec4(mix(backgroundRGBA.rgb, integratedPixel.rgb, integratedPixel.a), 1.));
-      }
-
-      in vec3 interpolatedTextureCoordinate;
-      out vec4 fragmentColor;
-      void main()
-      {
-        fragmentColor = rayCast(interpolatedTextureCoordinate);
-      }
-
-    `);
-  }
-
 }
+
+        /* TODO:
+         * use columns of patientToPixel to map gradient sample vectors
+         * into pixel (texture) space
+         *
+        #define S(point) texture(%(textureUnit)s(textureUnit, point)
+        // read from 3D texture
+        sample = S(stpPoint);
+        // central difference sample gradient (P is +1, N is -1)
+        float sP00 = S(stpPoint + vec3(%(mmToS)f * gradientSize,0,0));
+        float sN00 = S(stpPoint - vec3(%(mmToS)f * gradientSize,0,0));
+        float s0P0 = S(stpPoint + vec3(0,%(mmToT)f * gradientSize,0));
+        float s0N0 = S(stpPoint - vec3(0,%(mmToT)f * gradientSize,0));
+        float s00P = S(stpPoint + vec3(0,0,%(mmToP)f * gradientSize));
+        float s00N = S(stpPoint - vec3(0,0,%(mmToP)f * gradientSize));
+        #undef S
+        // TODO: add Sobel option to filter gradient
+        // https://en.wikipedia.org/wiki/Sobel_operator#Extension_to_other_dimensions
+        vec3 gradient = vec3( (sP00-sN00),
+                              (s0P0-s0N0),
+                              (s00P-s00N) );
+        gradientMagnitude = length(gradient);
+        // https://en.wikipedia.org/wiki/Normal_(geometry)#Transforming_normals
+        mat3 normalSTPToRAS = mat3(%(normalSTPToRAS)s);
+        vec3 localNormal;
+        localNormal = (-1. / gradientMagnitude) * gradient;
+        normal = normalize(normalSTPToRAS * localNormal);
+         */

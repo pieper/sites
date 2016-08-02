@@ -54,13 +54,11 @@ for (let index=0; index < 20; index++) {
   }));
 }
 
-/*
 let fiducialField = new FiducialField({
   fiducials,
   rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
   opacityScale: 100.,
 });
-*/
 
 ////////////////////////
 // -- duplicated from index.html
@@ -114,16 +112,6 @@ $(function () {
 
   chronicle = new PouchDB('http://quantome.org:5984/chronicle');
 
-      /*
-space = new Space({
-  canvasSelector: '#renderCanvas',
-  uniforms,
-  fields: [fiducialField],
-});
-
-space._render();
-      */
-
   let onResize = function() {
     renderCanvas.width = window.innerWidth;
     renderCanvas.height = window.innerHeight;
@@ -157,11 +145,10 @@ function instancesField(instanceURLs) {
         space = new Space({
           canvasSelector: '#renderCanvas',
           uniforms,
-          fields: [imageField],
-          //fields: [fiducialField],
+          fields: [imageField, fiducialField],
         });
 
-        space._render();
+        animate();
       }
     });
   });

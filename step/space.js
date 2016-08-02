@@ -264,7 +264,7 @@ class SpaceShader {
         vec3 Cspecular = vec3(1.,1.,1.);
         float Kambient = .30;
         float Kdiffuse = .95;
-        float Kspecular = .0; // TODO - nonzero breaks windows, not mac
+        float Kspecular = .80; // TODO - nonzero breaks windows, not mac
         float Shininess = 10.;
 
         vec3 litColor = Kambient * Cambient;
@@ -296,6 +296,7 @@ class SpaceShader {
         vec4 backgroundRGBA = vec4(0.2,0.,.5,1.); // TODO: mid blue background for now
 
         // TODO aspect: float aspect = imageW / (1.0 * imageH);
+        // normalized to -1 to 1
         vec2 normalizedCoordinate = 2. * (sampleCoordinate.st -.5);
 
         // calculate eye ray in world space

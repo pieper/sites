@@ -146,10 +146,10 @@ class ImageField extends Field {
 
     // matrix from sampling space (patient, mm) to STP (0 to 1) texture coordinates
     this.patientToPixel = [
-      1., 0., 0., 0.,
-      0., 1., 0., 0.,
-      0., 0., 1., 0.,
-      0., 0., 0., 1.,
+      0.5, 0., 0., 0.,
+      0., 0.5, 0., 0.,
+      0., 0., 0.5, 0.,
+      0.5, 0.5, 0.5, 1.,
     ];
 
     // the inverse transpose of the upper 3x3 of the pixelToPatient matrix,

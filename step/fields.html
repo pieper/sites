@@ -122,8 +122,17 @@ $(function () {
   window.onresize = onResize;
   onResize();
 
-  let ctSeriesUID = "1.2.826.0.1.3680043.2.1125.1.99742212059636314189164026308034236";
-  seriesField(ctSeriesUID);
+  if (true) {
+    let ctSeriesUID = "1.2.826.0.1.3680043.2.1125.1.99742212059636314189164026308034236";
+    seriesField(ctSeriesUID);
+  } else {
+    space = new Space({
+      canvasSelector: '#renderCanvas',
+      uniforms,
+      fields: [fiducialField],
+    });
+    addEventListeners();
+  }
 });
 
 function instancesField(instanceURLs) {
@@ -148,7 +157,8 @@ function instancesField(instanceURLs) {
           fields: [imageField, fiducialField],
         });
 
-        animate();
+        space._render();
+        addEventListeners();
       }
     });
   });
@@ -170,11 +180,23 @@ function seriesField(seriesUID) {
   });
 }
 
+function addEventListeners() {
+  space.canvas.addEventListener('mousemove', moveEvent=>{
+    let normalizedX = -9. + (18. * moveEvent.clientX / space.canvas.width);
+    let normalizedY = -9. + (18. * moveEvent.clientY / space.canvas.height);
+    uniforms.eyeRayOrigin.value = [-1.*normalizedX, 1.*normalizedY, -10.];
+    uniforms.viewNormal.value = [normalizedX/10, -1.*normalizedY/10, 1];
+    space._render();
+  });
+}
+
 </script>
 
 <p>
 This demo uses <a href='https://www.khronos.org/registry/webgl/specs/latest/2.0/'>WebGL2</a>.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.  <a href='https://www.khronos.org/webgl/wiki/Getting_a_WebGL_Implementation'>See this page for details.</a>
 </p>
-
+<p>
+For windows be sure to turn off ANGLE and use your native OpenGL.  <a href='https://github.com/mrdoob/three.js/wiki/How-to-use-OpenGL-or-ANGLE-rendering-on-Windows'>See this page for more info</a>
+</p>
 </body>
 </html>

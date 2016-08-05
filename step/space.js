@@ -33,6 +33,7 @@ class Space {
       this.logWithLineNumbers(this.vertexShaderSource);
       console.error('Could not compile vertexShader');
       console.log(gl.getShaderInfoLog(this.vertexShader));
+      return;
     }
     this.fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(this.fragmentShader, this.fragmentShaderSource);
@@ -41,6 +42,7 @@ class Space {
       this.logWithLineNumbers(this.fragmentShaderSource);
       console.error('Could not compile fragmentShader');
       console.log(gl.getShaderInfoLog(this.fragmentShader));
+      return;
     }
     gl.attachShader(this.program, this.vertexShader);
     gl.deleteShader(this.vertexShader);
@@ -51,6 +53,7 @@ class Space {
       this.logWithLineNumbers(this.fragmentShaderSource);
       console.error('Could not link program');
       console.log(gl.getProgramInfoLog(this.program));
+      return;
     }
 
     // buffers for the textured plane in normalized space
@@ -80,10 +83,7 @@ class Space {
     if (this.pendingRenderRequest) {
       return;
     }
-    // todo
-    this.pendingRenderRequest = window.requestIdleCallback(this._render, {
-      timeout: this.renderRequestTimeout
-    });
+    this.pendingRenderRequest = window.setTimeout(this._render, 0, space);
   }
 
   _setUniform(key, uniform) {
@@ -98,41 +98,45 @@ class Space {
     console.error('Could not set uniform', uniform);
   }
 
-  _render() {
+  _render(space) {
 
-    this.pendingRenderRequest = false;
+    if (!space.gl) {
+      space.requestRender();
+      return;
+    }
+    space.pendingRenderRequest = false;
 
-    let gl = this.gl;
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    let gl = space.gl;
+    gl.viewport(0, 0, space.canvas.width, space.canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    gl.useProgram(this.program);
+    gl.useProgram(space.program);
 
     // the coordinate attribute
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageCoordinatesBuffer);
-    let coordinateLocation = gl.getAttribLocation(this.program, "coordinate");
+    gl.bindBuffer(gl.ARRAY_BUFFER, space.renderImageCoordinatesBuffer);
+    let coordinateLocation = gl.getAttribLocation(space.program, "coordinate");
     gl.enableVertexAttribArray( coordinateLocation );
     gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
 
     // the textureCoordinate attribute
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageTexureCoordinatesBuffer);
-    let textureCoordinateLocation = gl.getAttribLocation(this.program, "textureCoordinate");
+    gl.bindBuffer(gl.ARRAY_BUFFER, space.renderImageTexureCoordinatesBuffer);
+    let textureCoordinateLocation = gl.getAttribLocation(space.program, "textureCoordinate");
     gl.enableVertexAttribArray( textureCoordinateLocation );
     gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
 
     // the overall application uniforms, and the per-field uniforms
-    Object.keys(this.uniforms).forEach(key=>{
-      this._setUniform(key, this.uniforms[key]);
+    Object.keys(space.uniforms).forEach(key=>{
+      space._setUniform(key, space.uniforms[key]);
     });
-    this.spaceShader.fields.forEach(field=>{
+    space.spaceShader.fields.forEach(field=>{
       let uniforms = field.uniforms();
       Object.keys(uniforms).forEach(key=>{
-        this._setUniform(key, uniforms[key]);
+        space._setUniform(key, uniforms[key]);
       });
     });
 
     // activate any field textures
-    this.spaceShader.fields.forEach(field=>{
+    space.spaceShader.fields.forEach(field=>{
       if (field.texture) {
         gl.activeTexture(gl.TEXTURE0+field.id);
         gl.bindTexture(gl.TEXTURE_3D, field.texture);

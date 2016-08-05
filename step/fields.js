@@ -132,11 +132,10 @@ class FiducialField extends Field {
   }
 }
 
-class ImageField extends Field {
+class PixelField extends Field {
   constructor(options={}) {
     super(options);
     this.dataset = options.dataset || {};
-    this.analyze();
   }
 
   analyze() {
@@ -160,18 +159,10 @@ class ImageField extends Field {
       0., 0., 1.,
     ];
 
-    this.windowCenter = Number(this.dataset.WindowCenter[0]);
-    this.windowWidth = Number(this.dataset.WindowWidth[0]);
-
     this.textureDimensions = [this.dataset.Columns,
                               this.dataset.Rows,
                               this.dataset.NumberOfFrames];
     this.textureDimensions = this.textureDimensions.map(Number);
-
-    if (this.dataset.BitsAllocated != 16) {
-      console.error('Can only render 16 bit data');
-    }
-
   }
 
   uniforms() {
@@ -179,11 +170,48 @@ class ImageField extends Field {
     let u = {
       patientToPixel: {type: "Matrix4fv", value: this.patientToPixel},
       normalPixelToPatient: {type: "Matrix3fv", value: this.normalPixelToPatient},
-      windowCenter: {type: "1f", value: this.windowCenter},
-      windowWidth: {type: "1f", value: this.windowWidth},
     };
     let textureUnit = 'textureUnit'+this.id;
     u['textureUnit'] = {type: '1i', value: textureUnit};
+    return(u);
+  }
+
+  fieldToTexture(gl) {
+    this.texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_3D, this.texture);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_BASE_LEVEL, 0);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAX_LEVEL, 0);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+  }
+}
+
+class ImageField extends PixelField {
+  constructor(options={}) {
+    super(options);
+    this.analyze();
+  }
+
+  analyze() {
+    super.analyze();
+    this.windowCenter = Number(this.dataset.WindowCenter[0]);
+    this.windowWidth = Number(this.dataset.WindowWidth[0]);
+
+    if (this.dataset.BitsAllocated != 16) {
+      console.error('Can only render 16 bit data');
+    }
+  }
+
+  uniforms() {
+    // TODO: need to be keyed to id (in a struct)
+
+    let u = super.uniforms();
+    u.windowCenter = {type: "1f", value: this.windowCenter};
+    u.windowWidth = {type: "1f", value: this.windowWidth};
+    u.textureUnit = {type: '1i', value: 'textureUnit'+this.id};
     return(u);
   }
 
@@ -225,8 +253,6 @@ class ImageField extends Field {
             return;
         }
 
-        sampleValue = 1.;
-        sampleValue = distance(stpPoint, vec3(0.));
         sampleValue = texture(textureUnit, stpPoint).r;
 
         normal = vec3(0., 0., -1.);
@@ -237,6 +263,7 @@ class ImageField extends Field {
 
   fieldToTexture(gl) {
 
+    super.fieldToTexture(gl);
     let imageArray;
     if (this.dataset.PixelRepresentation == 1) {
       imageArray = new Int16Array(this.dataset.PixelData);
@@ -245,21 +272,100 @@ class ImageField extends Field {
     }
     let imageFloat32Array = Float32Array.from(imageArray);
 
-    this.texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_3D, this.texture);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_BASE_LEVEL, 0);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAX_LEVEL, 0);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
     gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F,
      this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2]);
     gl.texSubImage3D(gl.TEXTURE_3D,
       0, 0, 0, 0, // level, offsets
       this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2],
       gl.RED, gl.FLOAT, imageFloat32Array);
+  }
+}
+
+class SegmentationField extends PixelField {
+  constructor(options={}) {
+    super(options);
+    this.analyze();
+  }
+
+  analyze() {
+    super.analyze();
+
+    if (this.dataset.BitsAllocated != 1) {
+      console.warn(this, 'Can only render 1 bit data');
+    }
+    this.textureDimensions[0] /= 8;
+  }
+
+  uniforms() {
+    let u = super.uniforms();
+    u.packingFactor = {type: '1ui', value: this.textureDimensions[0]};
+    return(u);
+  }
+
+  samplingShaderSource() {
+    return(`
+      uniform highp isampler3D textureUnit${this.id};
+
+      vec3 transformPoint${this.id}(const in vec3 samplePoint)
+      {
+        return(samplePoint);
+      }
+
+      void transferFunction${this.id} (const in float sampleValue,
+                                       const in float gradientMagnitude,
+                                       out vec3 color,
+                                       out float opacity)
+      {
+        color = vec3(0., 0., 0.);
+        opacity = 0.;
+        if (sampleValue > 0.) {
+          color = vec3(1., 1., 0.);
+          opacity = 1.;
+        }
+      }
+
+      uniform mat4 patientToPixel;
+      uniform uint packingFactor;
+      void sampleField${this.id} (const in isampler3D textureUnit,
+                                  const in vec3 samplePointIn,
+                                  const in float gradientSize,
+                                  out float sampleValue, out vec3 normal,
+                                  out float gradientMagnitude)
+      {
+        vec3 samplePoint = transformPoint${this.id}(samplePointIn);
+        //vec3 stpPoint = patientToPixel${this.id}(samplePoint); TODO
+        vec3 stpPoint = (patientToPixel * vec4(samplePoint, 1.)).xyz;
+
+        if (any(lessThan(stpPoint, vec3(0.))) ||
+            any(greaterThan(stpPoint,vec3(1.)))) {
+          sampleValue = 0.;
+          gradientMagnitude = 0.;
+          return;
+        }
+
+        uint bitIndex = uint(floor(8.*fract(stpPoint.x*float(packingFactor))));
+        uint uintSampleValue = uint(texture(textureUnit, stpPoint).r);
+        uint bitValue = (uintSampleValue >> bitIndex) & uint(1);
+        sampleValue = float(bitValue);
+
+        normal = vec3(0., 0., -1.);
+        gradientMagnitude = 0.;
+      }
+    `);
+  }
+
+  fieldToTexture(gl) {
+
+    let byteArray;
+    byteArray = new Uint8Array(this.dataset.PixelData);
+
+    super.fieldToTexture(gl);
+    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI,
+     this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2]);
+    gl.texSubImage3D(gl.TEXTURE_3D,
+      0, 0, 0, 0, // level, offsets
+      this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2],
+      gl.RED_INTEGER, gl.UNSIGNED_BYTE, byteArray);
   }
 }
 

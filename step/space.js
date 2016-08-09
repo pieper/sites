@@ -4,11 +4,7 @@ class Space {
     // required
     this.canvasSelector = options.canvasSelector;
     this.uniforms = options.uniforms;
-    let fields = options.fields;
-
-    this.spaceShader = new SpaceShader({fields});
-    this.vertexShaderSource = this.spaceShader.vertexShaderSource();
-    this.fragmentShaderSource = this.spaceShader.fragmentShaderSource();
+    this.fields = options.fields;
 
     // optional
     this.clearColor = options.clearColor || [0., 0., 0., 1.];
@@ -17,12 +13,41 @@ class Space {
     // state
     this.pendingRenderRequest = false;
 
+    this.spaceShader = new SpaceShader({fields: this.fields});
 
     this.canvas = document.querySelector(options.canvasSelector);
     this.gl = this.canvas.getContext('webgl2');
     let gl = this.gl;
 
     gl.clear(gl.COLOR_BUFFER_BIT);
+
+    // buffers for the textured plane in normalized space
+    this.renderImageCoordinatesBuffer = gl.createBuffer();
+    this.renderImageTexureCoordinatesBuffer = gl.createBuffer();
+    let renderImageVertices = [ -1., -1., 0.,   1., -1., 0.,   -1.,  1., 0.,   1.,  1., 0., ];
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageCoordinatesBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
+    let renderImageTextureCoordinates = [ 0, 0,   1, 0,   0, 1,   1, 1 ];
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageTexureCoordinatesBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
+
+    this.updateFields();
+  }
+
+  logWithLineNumbers(string) {
+    let lineNumber = 1;
+    string.split("\n").forEach(line=>{
+      console.log(lineNumber, line);
+      lineNumber += 1;
+    });
+  }
+
+  updateFields() {
+    let gl = this.gl;
+    if (this.program) {gl.deleteProgram(this.program);}
+
+    this.vertexShaderSource = this.spaceShader.vertexShaderSource();
+    this.fragmentShaderSource = this.spaceShader.fragmentShaderSource();
 
     // the program and shaders
     this.program = gl.createProgram();
@@ -56,26 +81,8 @@ class Space {
       return;
     }
 
-    // buffers for the textured plane in normalized space
-    this.renderImageCoordinatesBuffer = gl.createBuffer();
-    this.renderImageTexureCoordinatesBuffer = gl.createBuffer();
-    let renderImageVertices = [ -1., -1., 0.,   1., -1., 0.,   -1.,  1., 0.,   1.,  1., 0., ];
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageCoordinatesBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
-    let renderImageTextureCoordinates = [ 0, 0,   1, 0,   0, 1,   1, 1 ];
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageTexureCoordinatesBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
-
     // activate any field textures
     this.spaceShader.fields.forEach(field=>field.fieldToTexture(gl));
-  }
-
-  logWithLineNumbers(string) {
-    let lineNumber = 1;
-    string.split("\n").forEach(line=>{
-      console.log(lineNumber, line);
-      lineNumber += 1;
-    });
   }
 
   requestRender(options={}) {
@@ -83,7 +90,7 @@ class Space {
     if (this.pendingRenderRequest) {
       return;
     }
-    this.pendingRenderRequest = window.setTimeout(this._render, 0, space);
+    this.pendingRenderRequest = window.setTimeout(this._render, 0, this);
   }
 
   _setUniform(key, uniform) {

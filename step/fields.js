@@ -168,15 +168,17 @@ class PixelField extends Field {
   uniforms() {
     // TODO: need to be keyed to id (in a struct)
     let u = {
-      patientToPixel: {type: "Matrix4fv", value: this.patientToPixel},
       normalPixelToPatient: {type: "Matrix3fv", value: this.normalPixelToPatient},
     };
+    let patientToPixel = 'patientToPixel'+this.id;
+    u[patientToPixel] = {type: "Matrix4fv", value: this.patientToPixel};
     let textureUnit = 'textureUnit'+this.id;
     u['textureUnit'] = {type: '1i', value: textureUnit};
     return(u);
   }
 
   fieldToTexture(gl) {
+    if (this.texture) {gl.deleteTexture(this.texture);}
     this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_3D, this.texture);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_BASE_LEVEL, 0);
@@ -233,10 +235,10 @@ class ImageField extends PixelField {
       {
         float pixelValue = clamp( (sampleValue - (windowCenter-0.5)) / (windowWidth-1.) + .5, 0., 1. );
         color = vec3(pixelValue);
-        opacity = 100. * pixelValue;
+        opacity = 20. * pixelValue;
       }
 
-      uniform mat4 patientToPixel;
+      uniform mat4 patientToPixel${this.id};
       void sampleField${this.id} (const in sampler3D textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
@@ -245,7 +247,7 @@ class ImageField extends PixelField {
       {
         vec3 samplePoint = transformPoint${this.id}(samplePointIn);
         //vec3 stpPoint = patientToPixel${this.id}(samplePoint); TODO
-        vec3 stpPoint = (patientToPixel * vec4(samplePoint, 1.)).xyz;
+        vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
 
         if (any(lessThan(stpPoint, vec3(0))) || any(greaterThan(stpPoint,vec3(1)))) {
             sampleValue = 0.;
@@ -272,12 +274,12 @@ class ImageField extends PixelField {
     }
     let imageFloat32Array = Float32Array.from(imageArray);
 
-    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F,
-     this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2]);
+    let [w,h,d] = this.textureDimensions;
+    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F, w, h, d);
     gl.texSubImage3D(gl.TEXTURE_3D,
-      0, 0, 0, 0, // level, offsets
-      this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2],
-      gl.RED, gl.FLOAT, imageFloat32Array);
+                     0, 0, 0, 0, // level, offsets
+                     w, h, d,
+                     gl.RED, gl.FLOAT, imageFloat32Array);
   }
 }
 
@@ -320,11 +322,11 @@ class SegmentationField extends PixelField {
         opacity = 0.;
         if (sampleValue > 0.) {
           color = vec3(1., 1., 0.);
-          opacity = 1.;
+          opacity = 10.;
         }
       }
 
-      uniform mat4 patientToPixel;
+      uniform mat4 patientToPixel${this.id};
       uniform uint packingFactor;
       void sampleField${this.id} (const in isampler3D textureUnit,
                                   const in vec3 samplePointIn,
@@ -334,7 +336,7 @@ class SegmentationField extends PixelField {
       {
         vec3 samplePoint = transformPoint${this.id}(samplePointIn);
         //vec3 stpPoint = patientToPixel${this.id}(samplePoint); TODO
-        vec3 stpPoint = (patientToPixel * vec4(samplePoint, 1.)).xyz;
+        vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
 
         if (any(lessThan(stpPoint, vec3(0.))) ||
             any(greaterThan(stpPoint,vec3(1.)))) {
@@ -360,12 +362,12 @@ class SegmentationField extends PixelField {
     byteArray = new Uint8Array(this.dataset.PixelData);
 
     super.fieldToTexture(gl);
-    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI,
-     this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2]);
+    let [w,h,d] = this.textureDimensions;
+    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI, w, h, d);
     gl.texSubImage3D(gl.TEXTURE_3D,
-      0, 0, 0, 0, // level, offsets
-      this.textureDimensions[0], this.textureDimensions[1], this.textureDimensions[2],
-      gl.RED_INTEGER, gl.UNSIGNED_BYTE, byteArray);
+                     0, 0, 0, 0, // level, offsets
+                     w, h, d,
+                     gl.RED_INTEGER, gl.UNSIGNED_BYTE, byteArray);
   }
 }
 

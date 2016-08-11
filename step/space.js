@@ -3,10 +3,10 @@ class Space {
 
     // required
     this.canvasSelector = options.canvasSelector;
-    this.uniforms = options.uniforms;
-    this.fields = options.fields;
 
     // optional
+    this.uniforms = options.uniforms || [];
+    this.fields = options.fields || [];
     this.clearColor = options.clearColor || [0., 0., 0., 1.];
     this.renderRequestTimeout = options.renderRequestTimeout || 100.;
 
@@ -24,10 +24,16 @@ class Space {
     // buffers for the textured plane in normalized space
     this.renderImageCoordinatesBuffer = gl.createBuffer();
     this.renderImageTexureCoordinatesBuffer = gl.createBuffer();
-    let renderImageVertices = [ -1., -1., 0.,   1., -1., 0.,   -1.,  1., 0.,   1.,  1., 0., ];
+    let renderImageVertices = [ -1., -1., 0.,
+                                 1., -1., 0.,
+                                -1.,  1., 0.,
+                                 1.,  1., 0., ];
     gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageCoordinatesBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
-    let renderImageTextureCoordinates = [ 0, 0,   1, 0,   0, 1,   1, 1 ];
+    let renderImageTextureCoordinates = [ 0, 0,
+                                          1, 0,
+                                          0, 1,
+                                          1, 1 ];
     gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageTexureCoordinatesBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
 
@@ -43,6 +49,7 @@ class Space {
   }
 
   updateFields() {
+    // recreate the program and textures for the current field list
     let gl = this.gl;
     if (this.program) {gl.deleteProgram(this.program);}
 
@@ -144,8 +151,8 @@ class Space {
 
     // activate any field textures
     space.spaceShader.fields.forEach(field=>{
+      gl.activeTexture(gl.TEXTURE0+field.id);
       if (field.texture) {
-        gl.activeTexture(gl.TEXTURE0+field.id);
         gl.bindTexture(gl.TEXTURE_3D, field.texture);
       }
     });
@@ -153,7 +160,6 @@ class Space {
     // draw to the main framebuffer!
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
   }
 }
 

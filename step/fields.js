@@ -35,8 +35,13 @@ class Field {
   }
 
   fieldToTexture(gl) {
-    // unsure the field data is stored in the texture
+    // ensure the field data is stored in the texture
     // unit associated with this.id in the gl context
+    if (this.texture) {gl.deleteTexture(this.texture);}
+    this.texture = gl.createTexture();
+    console.log('binding ', this.id);
+    gl.activeTexture(gl.TEXTURE0+this.id);
+    gl.bindTexture(gl.TEXTURE_3D, this.texture);
   }
 }
 Field.nextId = 0; // TODO: for now this is texture unit
@@ -61,7 +66,7 @@ class FiducialField extends Field {
   uniforms() {
     let textureUnit = 'textureUnit'+this.id;
     let u = {};
-    u['textureUnit'] = {type: '1i', value: textureUnit};
+    u[textureUnit] = {type: '1i', value: this.id};
     return(u);
   }
 
@@ -130,6 +135,19 @@ class FiducialField extends Field {
 
     return(source);
   }
+
+  fieldToTexture(gl) {
+    // allocate and fill a dummy texture
+    super.fieldToTexture(gl);
+    let imageFloat32Array = Float32Array.from([0]);
+
+    let [w,h,d] = [1,1,1];
+    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F, w, h, d);
+    gl.texSubImage3D(gl.TEXTURE_3D,
+                     0, 0, 0, 0, // level, offsets
+                     w, h, d,
+                     gl.RED, gl.FLOAT, imageFloat32Array);
+  }
 }
 
 class PixelField extends Field {
@@ -173,14 +191,13 @@ class PixelField extends Field {
     let patientToPixel = 'patientToPixel'+this.id;
     u[patientToPixel] = {type: "Matrix4fv", value: this.patientToPixel};
     let textureUnit = 'textureUnit'+this.id;
-    u['textureUnit'] = {type: '1i', value: textureUnit};
+    u[textureUnit] = {type: '1i', value: this.id};
     return(u);
   }
 
   fieldToTexture(gl) {
-    if (this.texture) {gl.deleteTexture(this.texture);}
-    this.texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_3D, this.texture);
+    // common texture operations for all pixel-based fields
+    super.fieldToTexture(gl);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_BASE_LEVEL, 0);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAX_LEVEL, 0);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -213,7 +230,6 @@ class ImageField extends PixelField {
     let u = super.uniforms();
     u.windowCenter = {type: "1f", value: this.windowCenter};
     u.windowWidth = {type: "1f", value: this.windowWidth};
-    u.textureUnit = {type: '1i', value: 'textureUnit'+this.id};
     return(u);
   }
 
@@ -264,7 +280,7 @@ class ImageField extends PixelField {
   }
 
   fieldToTexture(gl) {
-
+    // allocate and fill a float 3D texture for the image data
     super.fieldToTexture(gl);
     let imageArray;
     if (this.dataset.PixelRepresentation == 1) {
@@ -272,14 +288,17 @@ class ImageField extends PixelField {
     } else {
       imageArray = new Uint16Array(this.dataset.PixelData);
     }
+    console.log('array...');
     let imageFloat32Array = Float32Array.from(imageArray);
 
     let [w,h,d] = this.textureDimensions;
     gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F, w, h, d);
+    console.log('uploading...');
     gl.texSubImage3D(gl.TEXTURE_3D,
                      0, 0, 0, 0, // level, offsets
                      w, h, d,
                      gl.RED, gl.FLOAT, imageFloat32Array);
+    console.log('done');
   }
 }
 
@@ -357,11 +376,10 @@ class SegmentationField extends PixelField {
   }
 
   fieldToTexture(gl) {
-
+    // allocate and fill a byte texture of packed mask bits
+    super.fieldToTexture(gl);
     let byteArray;
     byteArray = new Uint8Array(this.dataset.PixelData);
-
-    super.fieldToTexture(gl);
     let [w,h,d] = this.textureDimensions;
     gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI, w, h, d);
     gl.texSubImage3D(gl.TEXTURE_3D,

@@ -54,11 +54,13 @@ for (let index=0; index < 5; index++) {
   }));
 }
 
+/*
 let fiducialField = new FiducialField({
   fiducials,
   rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
   opacityScale: 100.,
 });
+*/
 
 ////////////////////////
 // -- duplicated from index.html
@@ -129,7 +131,7 @@ $(function () {
   step.space = new Space({
     canvasSelector: '#renderCanvas',
     uniforms,
-    fields: [fiducialField],
+    //fields: [fiducialField],
   });
   step.space._render(step.space);
 
@@ -143,6 +145,7 @@ $(function () {
     let segmentationField = new SegmentationField({dataset});
     step.space.fields.push(segmentationField);
     step.space.updateFields();
+    step.space.requestRender();
     addEventListeners();
   });
 });
@@ -158,8 +161,7 @@ function instancesField(instanceURLs) {
           window.cancelAnimationFrame(animationFrameRequestID);
           animationFrameRequestID = undefined;
         }
-
-
+        console.log(seriesDatasets);
         let dataset = Normalizer.normalizeToDataset(seriesDatasets);
         let imageField = new ImageField({dataset});
         step.space.fields.push(imageField);

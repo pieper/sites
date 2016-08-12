@@ -38,19 +38,22 @@
 
 let step = {};
 let chronicle;
-let deltaZ = -.1;
+let deltaZ = -20.1;
 
 function randomPoint() {
   let point = [0,0,0];
   point = point.map( element=>(-.5 + Math.random())*2. );
+  point = [-250 + Math.random()*500.,
+           -450 + Math.random()*500.,
+           -280 + Math.random()*40.];
   return(point);
 }
 
 let fiducials = [];
-for (let index=0; index < 5; index++) {
+for (let index=0; index < 10; index++) {
   fiducials.push(new Fiducial({
     point: randomPoint(),
-    radius: 0.5 * Math.random(),
+    radius: 10 * Math.random(),
   }));
 }
 
@@ -99,17 +102,21 @@ let animate = function(onoff='on') {
 
 let uniforms = {
   pointLight: { type: '3fv', value: [10., 30., -15.] },
-  eyeRayOrigin: { type: '3fv', value: [0., 0., -5.] },
+  eyeRayOrigin: { type: '3fv', value: [0., 0., -30.] },
   viewNormal: { type: '3fv', value: [0., 0., 1.5] },
-  viewRight: { type: '3fv', value: [1., 0., 0.] },
-  viewUp: { type: '3fv', value: [0., 1., 0.] },
+  viewRight: { type: '3fv', value: [-1., 0., 0.] },
+  viewUp: { type: '3fv', value: [0., -1., 0.] },
   halfSinViewAngle: { type: '1f', value: .15 },
-  rasBoxMin: { type: '3fv', value: [-3., -3., -3.] },
-  rasBoxMax: { type: '3fv', value: [3., 3., 3.] },
+  viewBoxMin: { type: '3fv', value: [-3., -3., -3.] },
+  viewBoxMax: { type: '3fv', value: [3., 3., 3.] },
   gradientSize: { type: '1f', value: .001 },
-  rayMaxSteps: { type: '1i', value: 100000 },
+  rayMaxSteps: { type: '1i', value: 10000 },
   sampleStep: { type: '1f', value: 0.005 },
 };
+uniforms.viewBoxMax.value = [250, 49, -240];
+uniforms.viewBoxMin.value = [-250, -250, -280];
+uniforms.eyeRayOrigin.value = [0., -100., -800.];
+console.log(uniforms);
 
 $(function () {
   // once document is loaded...
@@ -141,6 +148,20 @@ $(function () {
   requestInstance(segInstanceURL, function(arrayBuffer) {
     let dataset = Normalizer.normalizeToDataset([readDICOM(arrayBuffer)]);
     let segmentationField = new SegmentationField({dataset});
+    uniforms.viewBoxMin.value = segmentationField.bounds.min;
+    uniforms.viewBoxMax.value = segmentationField.bounds.max;
+    uniforms.eyeRayOrigin.value = segmentationField.center;
+    uniforms.eyeRayOrigin.value[2] -= 80. * (segmentationField.bounds.max[2] - segmentationField.bounds.min[2]);
+    uniforms.pointLight.value = uniforms.eyeRayOrigin.value;
+    console.log(uniforms);
+    fiducials.push(new Fiducial({
+      point: segmentationField.bounds.min,
+      radius: 50.5,
+    }));
+    fiducials.push(new Fiducial({
+      point: segmentationField.bounds.max,
+      radius: 50.5,
+    }));
     step.space.fields.push(segmentationField);
     step.space.updateFields();
     step.space.requestRender();
@@ -162,6 +183,22 @@ function instancesField(instanceURLs) {
         console.log(seriesDatasets);
         let dataset = Normalizer.normalizeToDataset(seriesDatasets);
         let imageField = new ImageField({dataset});
+
+    uniforms.viewBoxMin.value = imageField.bounds.min;
+    uniforms.viewBoxMax.value = imageField.bounds.max;
+    uniforms.eyeRayOrigin.value = imageField.center;
+    uniforms.eyeRayOrigin.value[2] -= 10. * (imageField.bounds.max[2] - imageField.bounds.min[2]);
+    uniforms.pointLight.value = uniforms.eyeRayOrigin.value;
+    console.log(uniforms);
+    fiducials.push(new Fiducial({
+      point: imageField.bounds.min,
+      radius: 80.5,
+    }));
+    fiducials.push(new Fiducial({
+      point: imageField.bounds.max,
+      radius: 80.5,
+    }));
+
         step.space.fields.push(imageField);
         step.space.updateFields();
         step.space.requestRender();
@@ -189,8 +226,9 @@ function seriesField(seriesUID) {
 
 function addEventListeners() {
   step.space.canvas.addEventListener('mousemove', moveEvent=>{
-    let normalizedX = -9. + (18. * moveEvent.clientX / step.space.canvas.width);
-    let normalizedY = -9. + (18. * moveEvent.clientY / step.space.canvas.height);
+    return;
+    let normalizedX = -90. + (180. * moveEvent.clientX / step.space.canvas.width);
+    let normalizedY = -290. + (180. * moveEvent.clientY / step.space.canvas.height);
     let eyeDistance = uniforms.eyeRayOrigin.value[2];
     uniforms.eyeRayOrigin.value = [-1.*normalizedX, 1.*normalizedY, eyeDistance];
     uniforms.viewNormal.value = [-1.*normalizedX/eyeDistance, normalizedY/eyeDistance, 1];
@@ -198,7 +236,7 @@ function addEventListeners() {
   }, {passive:true});
 
   step.space.canvas.addEventListener('mousewheel', wheelEvent=>{
-    let delta = .1;
+    let delta = 50.1;
     if (wheelEvent.wheelDelta < 0) {
       delta *= -1;
     }

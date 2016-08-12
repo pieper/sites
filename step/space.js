@@ -92,9 +92,12 @@ class Space {
     this.spaceShader.fields.forEach(field=>field.fieldToTexture(gl));
   }
 
-  requestRender(options={}) {
-    this.uniforms = options.uniforms || this.uniforms || {};
+  requestRender() {
+    this._render();
+    return;
+
     if (this.pendingRenderRequest) {
+      console.log('skipping render');
       return;
     }
     this.pendingRenderRequest = window.setTimeout(this._render, 0, this);
@@ -104,6 +107,7 @@ class Space {
     let gl = this.gl;
     let location = gl.getUniformLocation(this.program, key);
     if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
+    if (uniform.type == '3iv') {gl.uniform3iv(location, uniform.value); return;}
     if (uniform.type == '1f') {gl.uniform1f(location, uniform.value); return;}
     if (uniform.type == '1ui') {gl.uniform1ui(location, uniform.value); return;}
     if (uniform.type == '1i') {gl.uniform1i(location, uniform.value); return;}
@@ -112,10 +116,10 @@ class Space {
     console.error('Could not set uniform', uniform);
   }
 
-  _render(space) {
+  _render() {
 
-    if (!space.gl) {
-      space.requestRender();
+    let space = this;
+    if (!this.gl) {
       return;
     }
     space.pendingRenderRequest = false;
@@ -241,8 +245,8 @@ class SpaceShader {
       uniform vec3 viewRight;
       uniform vec3 viewUp;
       uniform float halfSinViewAngle;
-      uniform vec3 rasBoxMin;
-      uniform vec3 rasBoxMax;
+      uniform vec3 viewBoxMin;
+      uniform vec3 viewBoxMax;
       uniform float gradientSize;
       uniform int rayMaxSteps;
       uniform float sampleStep;
@@ -326,7 +330,7 @@ class SpaceShader {
 
         // find intersection with box, possibly terminate early
         float tNear, tFar;
-        bool hit = intersectBox( eyeRayOrigin, eyeRayDirection, rasBoxMin, rasBoxMax, tNear, tFar );
+        bool hit = intersectBox( eyeRayOrigin, eyeRayDirection, viewBoxMin, viewBoxMax, tNear, tFar );
         if (!hit) {
           return (backgroundRGBA);
         }

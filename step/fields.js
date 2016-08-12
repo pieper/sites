@@ -2,6 +2,9 @@ class Field {
   constructor(options={}) {
     this.id = Field.nextId;
     this.texture = undefined;
+    this.bounds = undefined; // the spatial extent of the field.
+                             // undefined means there is no bound, otherwise
+                             // an object with min and max
     Field.nextId++;
   }
 
@@ -43,6 +46,7 @@ class Field {
     gl.activeTexture(gl.TEXTURE0+this.id);
     gl.bindTexture(gl.TEXTURE_3D, this.texture);
   }
+
 }
 Field.nextId = 0; // TODO: for now this is texture unit
 
@@ -161,14 +165,45 @@ class PixelField extends Field {
     // TODO: patientToPixel and related matrices should be generalized to functions.
     // TODO: transfer function parameters could be textures.
 
-    // matrix from sampling space (patient, mm) to STP (0 to 1) texture coordinates
-    this.patientToPixel = [
-      0.5, 0., 0., 0.,
-      0., 0.5, 0., 0.,
-      0., 0., 0.5, 0.,
-      0.5, 0.5, 0.5, 1.,
-    ];
+    this.pixelDimensions = [this.dataset.Columns,
+                              this.dataset.Rows,
+                              this.dataset.NumberOfFrames].map(Number);
 
+    // matrix from sampling space (patient, mm) to STP (0 to 1) texture coordinates
+    let sharedGroups = this.dataset.SharedFunctionalGroups;
+    let orientation = sharedGroups.PlaneOrientation.ImageOrientationPatient;
+    let columnStepToPatient = vec3.fromValues(...orientation.slice(0,3).map(Number));
+    let rowStepToPatient = vec3.fromValues(...orientation.slice(3,6).map(Number));
+    let sliceStepToPatient = vec3.create();
+    vec3.cross(sliceStepToPatient, columnStepToPatient, rowStepToPatient);
+
+    let spacingBetweenColumns = Number(sharedGroups.PixelMeasures.PixelSpacing[0]);
+    let spacingBetweenRows = Number(sharedGroups.PixelMeasures.PixelSpacing[1]);
+    let spacingBetweenSlices = Number(sharedGroups.PixelMeasures.SpacingBetweenSlices);
+
+    /*
+    spacingBetweenColumns /= this.pixelDimensions[0];
+    spacingBetweenRows /= this.pixelDimensions[1];
+    spacingBetweenSlices /= this.pixelDimensions[2];
+    */
+
+    vec3.scale(columnStepToPatient, columnStepToPatient, spacingBetweenColumns);
+    vec3.scale(rowStepToPatient, rowStepToPatient, spacingBetweenRows);
+    vec3.scale(sliceStepToPatient, sliceStepToPatient, spacingBetweenSlices);
+
+    let perFrameGroups = this.dataset.PerFrameFunctionalGroups;
+    let position0 = perFrameGroups[0].PlanePosition.ImagePositionPatient;
+    let origin = vec3.fromValues(...position0.map(Number));
+
+    this.pixelToPatient = mat4.fromValues(...columnStepToPatient, 0,
+                                          ...rowStepToPatient, 0,
+                                          ...sliceStepToPatient, 0,
+                                          ...origin, 1);
+    let patientToPixel = mat4.create();
+    mat4.invert(patientToPixel, this.pixelToPatient);
+    this.patientToPixel = patientToPixel.valueOf();
+
+    // TODO:
     // the inverse transpose of the upper 3x3 of the pixelToPatient matrix,
     // which is the transpose of the upper 3x3 of the patientToPixel matrix
     this.normalPixelToPatient = [
@@ -177,10 +212,27 @@ class PixelField extends Field {
       0., 0., 1.,
     ];
 
-    this.textureDimensions = [this.dataset.Columns,
-                              this.dataset.Rows,
-                              this.dataset.NumberOfFrames];
-    this.textureDimensions = this.textureDimensions.map(Number);
+
+    // the bounds are the outer corners of the very first and very last
+    // pixels of the dataset measured in pixel space
+    let halfSpacings = vec4.fromValues(0.5, 0.5, 0.5, 0.);
+    vec4.transformMat4(halfSpacings, halfSpacings, this.pixelToPatient);
+    let firstCorner = vec3.create();
+    vec3.subtract(firstCorner, origin, halfSpacings);
+    let dimensions = vec4.fromValues(...this.pixelDimensions,1);
+    let secondCorner4 = vec4.create();
+    vec4.transformMat4(secondCorner4, dimensions, this.pixelToPatient);
+    vec4.subtract(secondCorner4, secondCorner4, halfSpacings);
+    let secondCorner = vec3.fromValues(...secondCorner4.valueOf().slice(0,3));
+    let min = vec3.create();
+    let max = vec3.create();
+    vec3.min(min, firstCorner, secondCorner);
+    vec3.max(max, firstCorner, secondCorner);
+    this.bounds = {min : min.valueOf(), max : max.valueOf()};
+    let center = vec3.create();
+    vec3.add(center, min, max);
+    vec3.scale(center, center, 0.5);
+    this.center = center.valueOf();
   }
 
   uniforms() {
@@ -192,6 +244,8 @@ class PixelField extends Field {
     u[patientToPixel] = {type: "Matrix4fv", value: this.patientToPixel};
     let textureUnit = 'textureUnit'+this.id;
     u[textureUnit] = {type: '1i', value: this.id};
+    let pixelDimensions = 'pixelDimensions'+this.id;
+    u[pixelDimensions] = {type: '3iv', value: this.pixelDimensions};
     return(u);
   }
 
@@ -255,6 +309,7 @@ class ImageField extends PixelField {
       }
 
       uniform mat4 patientToPixel${this.id};
+      uniform ivec3 pixelDimensions${this.id};
       void sampleField${this.id} (const in sampler3D textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
@@ -262,9 +317,8 @@ class ImageField extends PixelField {
                                   out float gradientMagnitude)
       {
         vec3 samplePoint = transformPoint${this.id}(samplePointIn);
-        //vec3 stpPoint = patientToPixel${this.id}(samplePoint); TODO
         vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
-
+        stpPoint /= vec3(pixelDimensions${this.id});
         if (any(lessThan(stpPoint, vec3(0))) || any(greaterThan(stpPoint,vec3(1)))) {
             sampleValue = 0.;
             gradientMagnitude = 0.;
@@ -291,7 +345,7 @@ class ImageField extends PixelField {
     console.log('array...');
     let imageFloat32Array = Float32Array.from(imageArray);
 
-    let [w,h,d] = this.textureDimensions;
+    let [w,h,d] = this.pixelDimensions;
     gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F, w, h, d);
     console.log('uploading...');
     gl.texSubImage3D(gl.TEXTURE_3D,
@@ -314,12 +368,12 @@ class SegmentationField extends PixelField {
     if (this.dataset.BitsAllocated != 1) {
       console.warn(this, 'Can only render 1 bit data');
     }
-    this.textureDimensions[0] /= 8;
+    this.pixelDimensions[0] /= 8; // the array size is smaller due to packing
   }
 
   uniforms() {
     let u = super.uniforms();
-    u.packingFactor = {type: '1ui', value: this.textureDimensions[0]};
+    u.packingFactor = {type: '1ui', value: this.pixelDimensions[0]};
     return(u);
   }
 
@@ -346,6 +400,7 @@ class SegmentationField extends PixelField {
       }
 
       uniform mat4 patientToPixel${this.id};
+      uniform ivec3 pixelDimensions${this.id};
       uniform uint packingFactor;
       void sampleField${this.id} (const in isampler3D textureUnit,
                                   const in vec3 samplePointIn,
@@ -354,9 +409,9 @@ class SegmentationField extends PixelField {
                                   out float gradientMagnitude)
       {
         vec3 samplePoint = transformPoint${this.id}(samplePointIn);
-        //vec3 stpPoint = patientToPixel${this.id}(samplePoint); TODO
         vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
-
+        stpPoint /= vec3(pixelDimensions${this.id});
+        stpPoint.x /= 8.;
         if (any(lessThan(stpPoint, vec3(0.))) ||
             any(greaterThan(stpPoint,vec3(1.)))) {
           sampleValue = 0.;
@@ -380,7 +435,7 @@ class SegmentationField extends PixelField {
     super.fieldToTexture(gl);
     let byteArray;
     byteArray = new Uint8Array(this.dataset.PixelData);
-    let [w,h,d] = this.textureDimensions;
+    let [w,h,d] = this.pixelDimensions;
     gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI, w, h, d);
     gl.texSubImage3D(gl.TEXTURE_3D,
                      0, 0, 0, 0, // level, offsets

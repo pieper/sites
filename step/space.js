@@ -92,8 +92,8 @@ class Space {
     this.spaceShader.fields.forEach(field=>field.fieldToTexture(gl));
   }
 
-  requestRender() {
-    this._render();
+  requestRender(view) {
+    this._render(view);
     return;
 
     if (this.pendingRenderRequest) {
@@ -116,45 +116,49 @@ class Space {
     console.error('Could not set uniform', uniform);
   }
 
-  _render() {
+  _render(view) {
 
-    let space = this;
     if (!this.gl) {
+      console.log('skipping render - no gl context');
       return;
     }
-    space.pendingRenderRequest = false;
+    this.pendingRenderRequest = false;
 
-    let gl = space.gl;
-    gl.viewport(0, 0, space.canvas.width, space.canvas.height);
+    let gl = this.gl;
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    gl.useProgram(space.program);
+    gl.useProgram(this.program);
 
     // the coordinate attribute
-    gl.bindBuffer(gl.ARRAY_BUFFER, space.renderImageCoordinatesBuffer);
-    let coordinateLocation = gl.getAttribLocation(space.program, "coordinate");
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageCoordinatesBuffer);
+    let coordinateLocation = gl.getAttribLocation(this.program, "coordinate");
     gl.enableVertexAttribArray( coordinateLocation );
     gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
 
     // the textureCoordinate attribute
-    gl.bindBuffer(gl.ARRAY_BUFFER, space.renderImageTexureCoordinatesBuffer);
-    let textureCoordinateLocation = gl.getAttribLocation(space.program, "textureCoordinate");
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageTexureCoordinatesBuffer);
+    let textureCoordinateLocation = gl.getAttribLocation(this.program, "textureCoordinate");
     gl.enableVertexAttribArray( textureCoordinateLocation );
     gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
 
     // the overall application uniforms, and the per-field uniforms
-    Object.keys(space.uniforms).forEach(key=>{
-      space._setUniform(key, space.uniforms[key]);
+    Object.keys(this.uniforms).forEach(key=>{
+      this._setUniform(key, this.uniforms[key]);
     });
-    space.spaceShader.fields.forEach(field=>{
+    let uniforms = view.uniforms();
+    Object.keys(uniforms).forEach(key=>{
+      this._setUniform(key, uniforms[key]);
+    });
+    this.spaceShader.fields.forEach(field=>{
       let uniforms = field.uniforms();
       Object.keys(uniforms).forEach(key=>{
-        space._setUniform(key, uniforms[key]);
+        this._setUniform(key, uniforms[key]);
       });
     });
 
     // activate any field textures
-    space.spaceShader.fields.forEach(field=>{
+    this.spaceShader.fields.forEach(field=>{
       gl.activeTexture(gl.TEXTURE0+field.id);
       if (field.texture) {
         gl.bindTexture(gl.TEXTURE_3D, field.texture);
@@ -188,7 +192,7 @@ class SpaceShader {
           sampleField${field.id}(textureUnit${field.id},
                                   samplePoint, gradientSize, sampleValue, normal, gradientMagnitude);
           transferFunction${field.id}(sampleValue, gradientMagnitude, color, fieldOpacity);
-          litColor += fieldOpacity * lightingModel(samplePoint, normal, color, eyeRayOrigin);
+          litColor += fieldOpacity * lightingModel(samplePoint, normal, color, viewPoint);
           opacity += fieldOpacity;
       `;
     });
@@ -240,7 +244,7 @@ class SpaceShader {
     return (`${this.headerSource()}
 
       uniform vec3 pointLight;
-      uniform vec3 eyeRayOrigin;
+      uniform vec3 viewPoint;
       uniform vec3 viewNormal;
       uniform vec3 viewRight;
       uniform vec3 viewUp;
@@ -276,7 +280,7 @@ class SpaceShader {
           return smallest_tMax > largest_tMin;
       }
 
-      vec3 lightingModel( in vec3 samplePoint, in vec3 normal, in vec3 color, in vec3 eyeRayOrigin )
+      vec3 lightingModel( in vec3 samplePoint, in vec3 normal, in vec3 color, in vec3 viewPoint )
       {
         // Phong lighting
         // http://en.wikipedia.org/wiki/Phong_reflection_model
@@ -289,7 +293,7 @@ class SpaceShader {
         float Shininess = 10.;
 
         vec3 litColor = Kambient * Cambient;
-        vec3 pointToEye = normalize(eyeRayOrigin - samplePoint);
+        vec3 pointToEye = normalize(viewPoint - samplePoint);
 
         if (dot(pointToEye, normal) > 0.) {
           vec3 pointToLight = normalize(pointLight - samplePoint);
@@ -330,7 +334,7 @@ class SpaceShader {
 
         // find intersection with box, possibly terminate early
         float tNear, tFar;
-        bool hit = intersectBox( eyeRayOrigin, eyeRayDirection, viewBoxMin, viewBoxMax, tNear, tFar );
+        bool hit = intersectBox( viewPoint, eyeRayDirection, viewBoxMin, viewBoxMax, tNear, tFar );
         if (!hit) {
           return (backgroundRGBA);
         }
@@ -344,7 +348,7 @@ class SpaceShader {
         int rayStep;
         for(rayStep = 0; rayStep < rayMaxSteps; rayStep++) {
 
-          vec3 samplePoint = eyeRayOrigin + eyeRayDirection * tCurrent;
+          vec3 samplePoint = viewPoint + eyeRayDirection * tCurrent;
 
           // this is the code that composites together samples
           // from all the fields in the space

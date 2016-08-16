@@ -175,17 +175,11 @@ class PixelField extends Field {
     let columnStepToPatient = vec3.fromValues(...orientation.slice(0,3).map(Number));
     let rowStepToPatient = vec3.fromValues(...orientation.slice(3,6).map(Number));
     let sliceStepToPatient = vec3.create();
-    vec3.cross(sliceStepToPatient, columnStepToPatient, rowStepToPatient);
+    vec3.cross(sliceStepToPatient, rowStepToPatient, columnStepToPatient);
 
     let spacingBetweenColumns = Number(sharedGroups.PixelMeasures.PixelSpacing[0]);
     let spacingBetweenRows = Number(sharedGroups.PixelMeasures.PixelSpacing[1]);
     let spacingBetweenSlices = Number(sharedGroups.PixelMeasures.SpacingBetweenSlices);
-
-    /*
-    spacingBetweenColumns /= this.pixelDimensions[0];
-    spacingBetweenRows /= this.pixelDimensions[1];
-    spacingBetweenSlices /= this.pixelDimensions[2];
-    */
 
     vec3.scale(columnStepToPatient, columnStepToPatient, spacingBetweenColumns);
     vec3.scale(rowStepToPatient, rowStepToPatient, spacingBetweenRows);

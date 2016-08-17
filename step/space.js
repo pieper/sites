@@ -93,14 +93,12 @@ class Space {
   }
 
   requestRender(view) {
-    this._render(view);
-    return;
-
+    this.view = view;
     if (this.pendingRenderRequest) {
       console.log('skipping render');
       return;
     }
-    this.pendingRenderRequest = window.setTimeout(this._render, 0, this);
+    this.pendingRenderRequest = window.requestAnimationFrame(this._render.bind(this));
   }
 
   _setUniform(key, uniform) {
@@ -113,13 +111,17 @@ class Space {
     if (uniform.type == '1i') {gl.uniform1i(location, uniform.value); return;}
     if (uniform.type == 'Matrix3fv') {gl.uniformMatrix3fv(location, gl.FALSE, uniform.value); return;}
     if (uniform.type == 'Matrix4fv') {gl.uniformMatrix4fv(location, gl.FALSE, uniform.value); return;}
-    console.error('Could not set uniform', uniform);
+    console.error('Could not set uniform', key, uniform);
   }
 
-  _render(view) {
+  _render() {
 
     if (!this.gl) {
       console.log('skipping render - no gl context');
+      return;
+    }
+    if (!this.view) {
+      console.log('skipping render - no view');
       return;
     }
     this.pendingRenderRequest = false;
@@ -146,7 +148,7 @@ class Space {
     Object.keys(this.uniforms).forEach(key=>{
       this._setUniform(key, this.uniforms[key]);
     });
-    let uniforms = view.uniforms();
+    let uniforms = this.view.uniforms();
     Object.keys(uniforms).forEach(key=>{
       this._setUniform(key, uniforms[key]);
     });

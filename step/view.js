@@ -32,8 +32,11 @@ class View {
     return(this.vscale(v, 1./this.vlength(v)));
   }
 
+  vdistance(v1, v2) {
+    return(this.vlength(this.vminus(v2, v1)));
+  }
+
   vplus(v1, v2) {
-    console.log(v1,v2);
     return([v1[0]+v2[0],v1[1]+v2[1],v1[2]+v2[2]]);
   }
 
@@ -46,12 +49,13 @@ class View {
   }
 
   vcross(v1, v2) {
-    return([v1[1]*v2[2] + v1[2]*v2[1],
-            v1[2]*v2[0] + v1[0]*v2[2],
-            v1[0]*v2[1] + v1[1]*v2[0]]);
+    return([v1[1]*v2[2] - v1[2]*v2[1],
+            v1[2]*v2[0] - v1[0]*v2[2],
+            v1[0]*v2[1] - v1[1]*v2[0]]);
   }
 
   target() {
+    this.viewNormal = this.vnormalize(this.viewNormal);
     return(this.vplus(this.viewPoint, this.vscale(this.viewNormal, this.viewDistance)));
   }
 
@@ -63,6 +67,8 @@ class View {
     this.viewNormal = this.vnormalize(this.vminus(at, from));
     this.viewRight = this.vcross(this.viewNormal, up);
     this.viewUp = this.vcross(this.viewRight, this.viewNormal);
+    this.viewPoint = from.slice();
+    this.viewDistance = this.vdistance(at, from);
   }
 }
 

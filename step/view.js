@@ -54,6 +54,10 @@ class View {
             v1[0]*v2[1] - v1[1]*v2[0]]);
   }
 
+  vdot(v1, v2) {
+    return([v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2]]);
+  }
+
   target() {
     this.viewNormal = this.vnormalize(this.viewNormal);
     return(this.vplus(this.viewPoint, this.vscale(this.viewNormal, this.viewDistance)));

@@ -42,7 +42,6 @@ class Field {
     // unit associated with this.id in the gl context
     if (this.texture) {gl.deleteTexture(this.texture);}
     this.texture = gl.createTexture();
-    console.log('binding ', this.id);
     gl.activeTexture(gl.TEXTURE0+this.id);
     gl.bindTexture(gl.TEXTURE_3D, this.texture);
   }
@@ -336,17 +335,14 @@ class ImageField extends PixelField {
     } else {
       imageArray = new Uint16Array(this.dataset.PixelData);
     }
-    console.log('array...');
-    let imageFloat32Array = Float32Array.from(imageArray);
+    let imageFloat32Array = new Float32Array(imageArray);
 
     let [w,h,d] = this.pixelDimensions;
     gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F, w, h, d);
-    console.log('uploading...');
     gl.texSubImage3D(gl.TEXTURE_3D,
                      0, 0, 0, 0, // level, offsets
                      w, h, d,
                      gl.RED, gl.FLOAT, imageFloat32Array);
-    console.log('done');
   }
 }
 

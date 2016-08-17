@@ -108,7 +108,6 @@ let uniforms = {
   rayMaxSteps: { type: '1i', value: 10000 },
   sampleStep: { type: '1f', value: 0.005 },
 };
-console.log(uniforms);
 
 $(function () {
   // once document is loaded...
@@ -149,7 +148,6 @@ $(function () {
     step.view.viewBoxMax = segmentationField.bounds.max;
     step.view.look({at: segmentationField.center});
     uniforms.pointLight.value = step.view.viewPoint;
-    console.log(step.view);
     fiducials.push(new Fiducial({
       point: segmentationField.bounds.min,
       radius: 50.5,
@@ -176,7 +174,6 @@ function instancesField(instanceURLs) {
           window.cancelAnimationFrame(animationFrameRequestID);
           animationFrameRequestID = undefined;
         }
-        console.log(seriesDatasets);
         let dataset = Normalizer.normalizeToDataset(seriesDatasets);
         let imageField = new ImageField({dataset});
 
@@ -184,7 +181,6 @@ function instancesField(instanceURLs) {
     step.view.viewBoxMax = imageField.bounds.max;
     step.view.look({at: imageField.center});
     uniforms.pointLight.value = step.view.viewPoint;
-    console.log(step.view);
     fiducials.push(new Fiducial({
       point: imageField.bounds.min,
       radius: 80.5,

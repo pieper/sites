@@ -95,7 +95,7 @@ class Space {
   requestRender(view) {
     this.view = view;
     if (this.pendingRenderRequest) {
-      console.log('skipping render');
+      console.log('skipping render - pending request');
       return;
     }
     this.pendingRenderRequest = window.requestAnimationFrame(this._render.bind(this));
@@ -116,6 +116,7 @@ class Space {
 
   _render() {
 
+    this.pendingRenderRequest = false;
     if (!this.gl) {
       console.log('skipping render - no gl context');
       return;
@@ -124,7 +125,6 @@ class Space {
       console.log('skipping render - no view');
       return;
     }
-    this.pendingRenderRequest = false;
 
     let gl = this.gl;
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -253,6 +253,8 @@ class SpaceShader {
       uniform float halfSinViewAngle;
       uniform vec3 viewBoxMin;
       uniform vec3 viewBoxMax;
+      uniform float viewNear;
+      uniform float viewFar;
       uniform float gradientSize;
       uniform int rayMaxSteps;
       uniform float sampleStep;
@@ -341,7 +343,8 @@ class SpaceShader {
           return (backgroundRGBA);
         }
 
-        if (tNear < 0.) tNear = 0.;     // clamp to near plane
+        tNear = max(tNear, 0.);
+        tNear = max(tNear, viewNear); // near clipping plane
 
         // march along ray from front, accumulating color and opacity
         vec4 integratedPixel = vec4(0.);
@@ -367,6 +370,8 @@ class SpaceShader {
           tCurrent += sampleStep;
           if (
               tCurrent >= tFar  // stepped out of the volume
+                ||
+              tCurrent >= viewFar // far clip plane
                 ||
               integratedPixel.a >= .99  // pixel is saturated
           ) {

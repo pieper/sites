@@ -334,7 +334,7 @@ function videoSuccessCallback(stream) {
 // or error out
 function errorCallback(error){
   console.log('navigator.getUserMedia error: ', error);
-  videoLabel.innerHTML = "<p> Error Accessing video </p>";
+  videoLabel.innerHTML = "<p> Error Accessing video </p>" + error;
 }
 
 // entry point for video

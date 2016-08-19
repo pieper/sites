@@ -2,24 +2,23 @@
 <html>
 <head>
 
-  <title>Browser tracking for mobile</title>
+  <title>Browser head tracking</title>
 
   <link rel="stylesheet" href="application.css" />
   <script src='jquery-1.11.0.min.js'></script>
   <script src='gl-matrix.js'></script>
+  <script src='tracking.js'></script>
+  <script src='data/eye-min.js'></script>
+  <script src='data/face-min.js'></script>
 
 </head>
 
 <body>
 
-<img id="static2" src="apple-keyboard3.jpg" width=150></img>
-
-
 <h1>Data for tracking</h1>
 
 <h2>Be sure to approve requests for the camera(s).</h2>
 
-<span id="graphics"></span>
 <div id="canvases"></div>
 
 <script>
@@ -74,9 +73,10 @@ mat4 lookAt (vec3 eye, vec3 center, vec3 up) {
 
 void main(void) {
 
-  mat4 viewMatrix = lookAt(vec3(0, 50, 55), vec3(5, 5, 0), vec3(0, 1, 0));
+  //mat4 viewMatrix = lookAt(vec3(0, 50, 55), vec3(5, 5, 0), vec3(0, 1, 0));
+  mat4 viewMatrix = lookAt(vec3(0., 0., 60.), vec3(0, 0, 0), vec3(0, 1, 0));
 
-  mat4 perspectiveMatrix = perspective(radians(30.), 1., 1., 100.);
+  mat4 perspectiveMatrix = perspective(radians(45.), 1., 1., 100.);
 
   gl_Position = perspectiveMatrix * viewMatrix * vec4(coordinate,1.);
 
@@ -101,8 +101,8 @@ void main(void) {
   //rgba = abs(referenceRGBA - videoRGBA);
 
   rgba = referenceRGBA;
-  rgba = videoRGBA;
   rgba = 0.5 * (referenceRGBA + videoRGBA);
+  rgba = videoRGBA;
 
   rgba.a = 1.;
   gl_FragColor = rgba;
@@ -115,9 +115,14 @@ void main(void) {
 //
 
 // add a canvas for 3D
-var canvasID = "canvas3D";
-$('#canvases').append('<canvas id=canvas3D></canvas><p>Rendered View</p>');
+$('#canvases').append('<canvas id=canvas3D></canvas><p>3D View</p>');
 var canvas3D = document.querySelector('#canvas3D');
+
+// add a canvas for 2D
+$('#canvases').append('<canvas id=canvas2D></canvas><p>2D View</p>');
+var canvas2D = document.querySelector('#canvas2D');
+var context2D = canvas2D.getContext('2d');
+
 </script>
 
 <script>
@@ -134,8 +139,8 @@ gl.enable(gl.DEPTH_TEST);
 gl.depthFunc(gl.LEQUAL); // Near things obscure far things
 
 // create the keyboard vertex buffer
-var keyboardOrigin = [-100., -100.];
-var keyboardDimensions = [280., 130.];
+var keyboardOrigin = [-60., -60.];
+var keyboardDimensions = [120., 120.];
 //var keyboardOrigin = [-1., -1.];
 //var keyboardDimensions = [2., 2.];
 var keyboardVertices = [
@@ -159,7 +164,7 @@ var referenceTextureImage = new Image();
 var referenceTexture = gl.createTexture();
 var setupReferenceTexture = function() {
   gl.bindTexture(gl.TEXTURE_2D, referenceTexture);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, referenceTextureImage);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -171,7 +176,7 @@ var setupReferenceTexture = function() {
 var videoTexture = gl.createTexture();
 var setupVideoTexture = function() {
   gl.bindTexture(gl.TEXTURE_2D, videoTexture);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -315,7 +320,7 @@ function videoSuccessCallback(stream) {
   var videoElement = document.querySelector('#video1');
   videoElement.src = window.URL.createObjectURL(stream);
   videoElement.addEventListener('canplay', function(ev){
-    var width = 200;
+    var width = 400;
     var height = videoElement.videoHeight / (videoElement.videoWidth/width);
     videoElement.setAttribute('width', width);
     videoElement.setAttribute('height', height);
@@ -353,19 +358,8 @@ function videoStart(videoSource){
 
 <script>
 
-// the render loop using static images
-var staticAnimationFrame = function() {
-  gl.bindTexture(gl.TEXTURE_2D, videoTexture);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  staticElement = document.querySelector('#static2');
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, staticElement);
-  gl.bindTexture(gl.TEXTURE_2D, null);
-  render3D();
-  requestAnimationFrame(staticAnimationFrame);
-}
-
-
 // the render loop to move the video into texture
+var objectTracker = new tracking.ObjectTracker('face');
 var videoElement = null;
 var videoAnimationFrame = function() {
   if (videoCount > 0) {
@@ -374,8 +368,24 @@ var videoAnimationFrame = function() {
       setupVideoTexture();
     } else {
       if (videoElement.videoHeight) { // only defined when loaded
+
+        canvas2D.width = canvas3D.width;
+        canvas2D.height = canvas3D.height;
+        context2D.drawImage(videoElement, 0, 0, canvas2D.width, canvas2D.height);
+        let pixels = context2D.getImageData(0, 0, canvas2D.width, canvas2D.height);
+        
+        /*
+        console.log(tracking.ViolaJones.detect(pixels, 
+                                               canvas2D.width, canvas2D.height,
+                                               objectTracker.getInitialScale(),
+                                               objectTracker.getScaleFactor(),
+                                               objectTracker.getStepSize(),
+                                               objectTracker.getEdgesDensity(),
+                                               objectTracker.getClassifiers()[0]));
+                                               */
+
         gl.bindTexture(gl.TEXTURE_2D, videoTexture);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
         gl.bindTexture(gl.TEXTURE_2D, null);
         render3D();
@@ -385,18 +395,7 @@ var videoAnimationFrame = function() {
   requestAnimationFrame(videoAnimationFrame);
 }
 
-if (useLiveVideo) {
-  requestAnimationFrame(videoAnimationFrame);
-} else {
-  staticElement = document.querySelector('#static2');
-  staticElement.onload = function () {
-    setupVideoTexture();
-    requestAnimationFrame(staticAnimationFrame);
-  };
-}
-
-
-
+requestAnimationFrame(videoAnimationFrame);
 </script>
 
 

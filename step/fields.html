@@ -106,7 +106,7 @@ let uniforms = {
   pointLight: { type: '3fv', value: [10., 30., -15.] },
   gradientSize: { type: '1f', value: .001 },
   rayMaxSteps: { type: '1i', value: 10000 },
-  sampleStep: { type: '1f', value: 0.005 },
+  sampleStep: { type: '1f', value: 0.1 },
 };
 
 $(function () {
@@ -215,16 +215,50 @@ function seriesField(seriesUID) {
   });
 }
 
+// TODO: currently the last field added, but should
+// come from a UI selection of the active tool and target image
+function selectedImageField() {
+  let fields = step.space.fields;
+  let imageField = fields[fields.length-1];
+  return (imageField);
+}
+
+let startPoint = undefined;
+let startWindow = undefined;
+function onMouseEvent(mouseEvent) {
+  let point = [-1. + (2. * mouseEvent.clientX / step.space.canvas.width),
+               -1. + (2. * mouseEvent.clientY / step.space.canvas.height)];
+  switch (mouseEvent.type) {
+    case 'mousedown': {
+      startPoint = point.slice();
+      let imageField = selectedImageField();
+      startWindow = [imageField.windowWidth, imageField.windowCenter];
+    }
+    break;
+    case 'mousemove': {
+      if (mouseEvent.buttons == 1) {
+        let delta = [0,1].map(e=>point[e]-startPoint[e]);
+        let imageField = selectedImageField();
+        // TODO: figure out a good way to automatically determine the gain
+        imageField.windowWidth = startWindow[0] + delta[0] * 500.;
+        imageField.windowWidth = Math.max(imageField.windowWidth, 0.);
+        imageField.windowCenter = startWindow[1] + delta[1] * 500.;
+        step.space.requestRender(step.view);
+      }
+    }
+    break;
+    case 'mouseup': {
+      console.log('up', point);
+      startPoint = undefined;
+    }
+  }
+}
+
 function addEventListeners() {
-  step.space.canvas.addEventListener('mousemove', moveEvent=>{
-    return;
-    let normalizedX = -90. + (180. * moveEvent.clientX / step.space.canvas.width);
-    let normalizedY = -290. + (180. * moveEvent.clientY / step.space.canvas.height);
-    let eyeDistance = step.view.viewPoint[2];
-    step.view.viewPoint = [-1.*normalizedX, 1.*normalizedY, eyeDistance];
-    step.view.viewNormal = [-1.*normalizedX/eyeDistance, normalizedY/eyeDistance, 1];
-    step.space.requestRender(step.view);
-  }, {passive:true});
+  step.space.canvas.addEventListener('mousedown', onMouseEvent, {passive:true});
+  step.space.canvas.addEventListener('mousemove', onMouseEvent, {passive:true});
+  step.space.canvas.addEventListener('mouseup', onMouseEvent, {passive:true});
+
 
   step.space.canvas.addEventListener('mousewheel', wheelEvent=>{
     let delta = 50.1;
@@ -235,6 +269,15 @@ function addEventListeners() {
     step.view.look({from: step.view.viewPoint});
     step.space.requestRender(step.view);
   }, {passive:true});
+
+  window.addEventListener('keydown', keyboardEvent=>{
+    switch (keyboardEvent.key) {
+      case "ArrowUp": {
+        console.log('ArrowUp');
+      }
+      break;
+    }
+  }, {passive: true});
 }
 
 </script>

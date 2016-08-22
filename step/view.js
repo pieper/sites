@@ -86,9 +86,8 @@ class View {
     let thickness = options.thickness || 0.;
     let bounds = options.bounds || {min: this.viewBoxMin, max: this.viewBoxMax};
     let magnification = options.magnification || 1.;
-
-    let target = this.vscale(this.vplus(bounds.min, bounds.max), offset);
-    let extent = this.vminus(bounds.max, bounds.min);
+    let target = options.target || this.vscale(this.vplus(bounds.min, bounds.max), offset);
+    let extent = options.extent || this.vminus(bounds.max, bounds.min);
 
     // TODO: doublecheck these with Slicer
     switch (plane) {
@@ -104,8 +103,8 @@ class View {
         // nose pointing left
         this.viewRight = [0, 1, 0];
         this.viewUp = [0, 0, 1];
-        this.viewNormal = [1, 0, 0];
-        this.viewPoint = [-1, 0, 0];
+        this.viewNormal = [-1, 0, 0];
+        this.viewPoint = [1, 0, 0];
       }
       break;
       case "coronal": {
@@ -121,7 +120,7 @@ class View {
     }
 
     let extentRight = this.vlength(this.vdot(extent, this.viewRight));
-    let windowRight = magnification * extentRight;
+    let windowRight = extentRight / magnification;
     this.viewDistance = windowRight / Math.tan(this.viewAngle * Math.PI/180.);
     let viewOffset = this.vscale(this.viewPoint, this.viewDistance);
     this.viewPoint = this.vplus(target, viewOffset);

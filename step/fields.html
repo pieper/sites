@@ -248,7 +248,6 @@ function onMouseEvent(mouseEvent) {
     }
     break;
     case 'mouseup': {
-      console.log('up', point);
       startPoint = undefined;
     }
   }
@@ -261,7 +260,7 @@ function addEventListeners() {
 
 
   step.space.canvas.addEventListener('mousewheel', wheelEvent=>{
-    let delta = 50.1;
+    let delta = .1;
     if (wheelEvent.wheelDelta < 0) {
       delta *= -1;
     }
@@ -273,7 +272,43 @@ function addEventListeners() {
   window.addEventListener('keydown', keyboardEvent=>{
     switch (keyboardEvent.key) {
       case "ArrowUp": {
-        console.log('ArrowUp');
+        step.view.orbit(0, 1);
+        step.space.requestRender(step.view);
+      }
+      break;
+      case "ArrowRight": {
+        step.view.orbit(1, 0);
+        step.space.requestRender(step.view);
+      }
+      break;
+      case "ArrowLeft": {
+        step.view.orbit(-1, 0);
+        step.space.requestRender(step.view);
+      }
+      break;
+      case "ArrowDown": {
+        step.view.orbit(0, -1);
+        step.space.requestRender(step.view);
+      }
+      break;
+      case "a": {
+        step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
+        step.space.requestRender(step.view);
+      }
+      break;
+      case "s": {
+        step.view.slice({plane: "sagittal", offset: 0.5, thickness: 1});
+        step.space.requestRender(step.view);
+      }
+      break;
+      case "c": {
+        step.view.slice({plane: "coronal", offset: 0.5, thickness: 1});
+        step.space.requestRender(step.view);
+      }
+      break;
+      case "v": {
+        step.view.look({viewNear: 0, viewFar: 3e38});
+        step.space.requestRender(step.view);
       }
       break;
     }

@@ -187,6 +187,15 @@ class PixelField extends Field {
     let perFrameGroups = this.dataset.PerFrameFunctionalGroups;
     let position0 = perFrameGroups[0].PlanePosition.ImagePositionPatient;
     let origin = vec3.fromValues(...position0.map(Number));
+    if (perFrameGroups.length > 1) {
+      let position1 = perFrameGroups[1].PlanePosition.ImagePositionPatient;
+      position1 = vec3.fromValues(...position1.map(Number));
+      let originToPosition1 = vec3.create();
+      vec3.subtract(originToPosition1, position1, origin);
+      if (vec3.dot(sliceStepToPatient, originToPosition1) < 0) {
+        vec3.scale(sliceStepToPatient, sliceStepToPatient, -1.);
+      }
+    }
 
     this.pixelToPatient = mat4.fromValues(...columnStepToPatient, 0,
                                           ...rowStepToPatient, 0,

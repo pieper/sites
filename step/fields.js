@@ -8,6 +8,7 @@ class Field {
     Field.nextId++;
   }
 
+
   samplingShaderSource() {
     // return a string with these functions implemented in GLSL
     return(`
@@ -48,6 +49,49 @@ class Field {
 
 }
 Field.nextId = 0; // TODO: for now this is texture unit
+
+Field.fromDataset = function(dataset) {
+  switch (dataset.SOPClass) {
+    case "CTImage":
+    case "MRImage":
+    case "EnhancedCTImage":
+    case "LegacyConvertedEnhancedCTImage":
+    case "UltrasoundMultiframeImage":
+    case "MRImage":
+    case "EnhancedMRImage":
+    case "MRSpectroscopy":
+    case "EnhancedMRColorImage":
+    case "LegacyConvertedEnhancedMRImage":
+    case "UltrasoundImage":
+    case "EnhancedUSVolume":
+    case "SecondaryCaptureImage":
+    case "Ultrasound Image":
+    case "Positron Emission Tomography Image":
+    case "Enhanced PET Image":
+    case "Legacy Converted Enhanced PET Image": {
+      return (new ImageField({dataset}));
+      }
+      break;
+    case "Segmentation": {
+      return (new SegmentationField({dataset}));
+    }
+    break;
+    default: {
+      console.warn('Cannot process this dataset type ', dataset.SOPClass);
+    }
+
+   /* TODO
+     "Raw Data",
+     "Spatial Registration",
+     "Spatial Fiducials",
+     "Deformable Spatial Registration",
+     "Real World Value Mapping",
+     "BasicTextSR",
+     "EnhancedSR",
+     "ComprehensiveSR",
+   */
+  }
+}
 
 class Fiducial {
   constructor(options={}) {
@@ -284,8 +328,8 @@ class ImageField extends PixelField {
     // TODO: need to be keyed to id (in a struct)
 
     let u = super.uniforms();
-    u.windowCenter = {type: "1f", value: this.windowCenter};
-    u.windowWidth = {type: "1f", value: this.windowWidth};
+    u['windowCenter'+this.id] = {type: "1f", value: this.windowCenter};
+    u['windowWidth'+this.id] = {type: "1f", value: this.windowWidth};
     return(u);
   }
 
@@ -298,14 +342,14 @@ class ImageField extends PixelField {
         return(samplePoint);
       }
 
-      uniform float windowCenter;
-      uniform float windowWidth;
+      uniform float windowCenter${this.id};
+      uniform float windowWidth${this.id};
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,
                                        out vec3 color,
                                        out float opacity)
       {
-        float pixelValue = clamp( (sampleValue - (windowCenter-0.5)) / (windowWidth-1.) + .5, 0., 1. );
+        float pixelValue = clamp( (sampleValue - (windowCenter${this.id}-0.5)) / (windowWidth${this.id}-1.) + .5, 0., 1. );
         color = vec3(pixelValue);
         opacity = 20. * pixelValue;
       }

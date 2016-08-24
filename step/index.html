@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+
+  <title>STEP - WebGL2 </title>
+
+  <link rel="stylesheet" type="text/css" href="./css/jquery.dataTables.min.css" media="screen" />
+  <script src="./js/jquery-2.1.4.min.js"></script>
+  <script src="./js/jquery.dataTables.min.js"></script>
+
+  <script type="text/javascript" src="./js/gl-matrix-min.js"></script>
+
+  <script src="./js/pouchdb-5.1.0.js"></script>
+  <script src="./js/pouchdb.memory.js"></script>
+
+  <script type="text/javascript" src="../dcmio/DicomMetaDictionary.js"></script>
+  <script type="text/javascript" src="../dcmio/BufferStream.js"></script>
+  <script type="text/javascript" src="../dcmio/ValueRepresentation.js"></script>
+  <script type="text/javascript" src="../dcmio/Tag.js"></script>
+  <script type="text/javascript" src="../dcmio/DicomMessage.js"></script>
+  <script type="text/javascript" src="../dcmio/normalizers.js"></script>
+
+  <script type="text/javascript" src="./fields.js"></script>
+  <script type="text/javascript" src="./view.js"></script>
+  <script type="text/javascript" src="./space.js"></script>
+
+
+  <link rel="stylesheet" href="./css/step.css" />
+  <script type="text/javascript" src="./ui.js"></script>
+  <script type="text/javascript" src="./ui.step.js"></script>
+
+</head>
+
+<body>
+
+<canvas id="renderCanvas"></canvas>
+
+<script>
+'use strict'
+
+//
+// some pretty balls for debugging...
+//
+function randomPoint() {
+  let point = [0,0,0];
+  point = point.map( element=>(-.5 + Math.random())*2. );
+  point = [-250 + Math.random()*500.,
+           -450 + Math.random()*500.,
+           -280 + Math.random()*40.];
+  return(point);
+}
+
+let fiducials = [];
+for (let index=0; index < 10; index++) {
+  fiducials.push(new Fiducial({
+    point: randomPoint(),
+    radius: 10 * Math.random(),
+  }));
+}
+
+let fiducialField = new FiducialField({
+  fiducials,
+  rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
+  opacityScale: 100.,
+});
+
+
+//
+// user interface elements
+//
+let bottomBar;
+function updateParameters() {
+  sliceOffset = bottomBar.sliceOffset;
+  render();
+}
+
+// once the data is downloaded
+function readDICOM(arrayBuffer) {
+  let dicomData = DicomMessage.readFile(arrayBuffer);
+  let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
+  return (dataset);
+}
+
+function requestInstance(url, loaded) {
+  let dataRequest = new XMLHttpRequest();
+  dataRequest.responseType = "arraybuffer";
+  dataRequest.onload = function (event) {
+    let arrayBuffer = dataRequest.response;
+    loaded(arrayBuffer);
+  };
+  dataRequest.onprogress = function () {
+    console.log('LOADING', dataRequest.status);
+  };
+  dataRequest.open("GET", url, true);
+  dataRequest.send(null);
+}
+
+let seriesDatasets = [];
+function requestSeries(instanceURLs) {
+  instanceURLs.forEach(function(instanceURL) {
+    requestInstance(instanceURL, function(arrayBuffer) {
+      let dataset = readDICOM(arrayBuffer);
+      seriesDatasets.push(dataset);
+      if (seriesDatasets.length == instanceURLs.length) {
+        let dataset = Normalizer.normalizeToDataset(seriesDatasets);
+        let field = Field.fromDataset(dataset);
+        step.space.fields.push(field);
+        step.space.updateFields();
+
+  // for debug
+  step.view.viewBoxMin = field.bounds.min;
+  step.view.viewBoxMax = field.bounds.max;
+  step.view.look({at: field.center});
+  uniforms.pointLight.value = step.view.viewPoint;
+  fiducials.push(new Fiducial({
+    point: field.bounds.min,
+    radius: 80.5,
+  }));
+  fiducials.push(new Fiducial({
+    point: field.bounds.max,
+    radius: 80.5,
+  }));
+
+        console.log(field);
+        step.space.requestRender(step.view);
+      }
+    });
+  });
+}
+
+let uniforms = {
+  pointLight: { type: '3fv', value: [10., 30., -15.] },
+  gradientSize: { type: '1f', value: .001 },
+  rayMaxSteps: { type: '1i', value: 10000 },
+  sampleStep: { type: '1f', value: 0.1 },
+};
+
+// once document is loaded...
+let chronicle;
+let step = {};
+$(function () {
+
+  step.space = new Space({
+    canvasSelector: '#renderCanvas',
+    uniforms,
+    fields: [fiducialField],
+  });
+  step.view = new View({
+    viewBoxMax : [250, 49, -240],
+    viewBoxMin : [-250, -250, -280],
+    viewPoint : [0., -100., -1500.],
+  });
+  step.space._render(step.view);
+
+  window.addEventListener('resize', resizeEvent => {
+    renderCanvas.width = window.innerWidth;
+    renderCanvas.height = window.innerHeight;
+    if (step.space) {
+      step.space.requestRender(step.view);
+    }
+  });
+  window.dispatchEvent(new Event('resize'));
+
+  chronicle = new PouchDB('http://quantome.org:5984/chronicle');
+
+  let menubar = new stepMenubar(step, {
+    requestSeries : requestSeries
+  });
+  document.body.insertBefore(menubar.dom, document.body.firstChild);
+
+  bottomBar = new stepBottomBar(step, {
+    onSliceOffetChange : updateParameters
+  });
+  document.body.appendChild(bottomBar.dom);
+
+});
+
+let onResize = function() {
+  renderCanvas.width = window.innerWidth;
+  renderCanvas.height = window.innerHeight;
+}
+onResize();
+window.onresize = onResize;
+
+</script>
+
+<p>
+This demo uses <a href='https://www.khronos.org/registry/webgl/specs/latest/2.0/'>WebGL2</a>.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.  <a href='https://www.khronos.org/webgl/wiki/Getting_a_WebGL_Implementation'>See this page for details.</a>
+</p>
+
+</body>
+</html>

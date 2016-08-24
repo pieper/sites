@@ -31,6 +31,8 @@
   <script type="text/javascript" src="./ui.js"></script>
   <script type="text/javascript" src="./ui.step.js"></script>
 
+  <script type="text/javascript" src="./controls.js"></script>
+
 </head>
 
 <body>
@@ -39,33 +41,6 @@
 
 <script>
 'use strict'
-
-//
-// some pretty balls for debugging...
-//
-function randomPoint() {
-  let point = [0,0,0];
-  point = point.map( element=>(-.5 + Math.random())*2. );
-  point = [-250 + Math.random()*500.,
-           -450 + Math.random()*500.,
-           -280 + Math.random()*40.];
-  return(point);
-}
-
-let fiducials = [];
-for (let index=0; index < 10; index++) {
-  fiducials.push(new Fiducial({
-    point: randomPoint(),
-    radius: 10 * Math.random(),
-  }));
-}
-
-let fiducialField = new FiducialField({
-  fiducials,
-  rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
-  opacityScale: 100.,
-});
-
 
 //
 // user interface elements
@@ -97,33 +72,23 @@ function requestInstance(url, loaded) {
   dataRequest.send(null);
 }
 
-let seriesDatasets = [];
 function requestSeries(instanceURLs) {
+  let seriesDatasets = [];
+  console.log('requesting', instanceURLs);
   instanceURLs.forEach(function(instanceURL) {
     requestInstance(instanceURL, function(arrayBuffer) {
       let dataset = readDICOM(arrayBuffer);
       seriesDatasets.push(dataset);
+      console.log(seriesDatasets);
+      console.log (seriesDatasets.length, instanceURLs.length);
       if (seriesDatasets.length == instanceURLs.length) {
         let dataset = Normalizer.normalizeToDataset(seriesDatasets);
         let field = Field.fromDataset(dataset);
         step.space.fields.push(field);
         step.space.updateFields();
-
-  // for debug
-  step.view.viewBoxMin = field.bounds.min;
-  step.view.viewBoxMax = field.bounds.max;
-  step.view.look({at: field.center});
-  uniforms.pointLight.value = step.view.viewPoint;
-  fiducials.push(new Fiducial({
-    point: field.bounds.min,
-    radius: 80.5,
-  }));
-  fiducials.push(new Fiducial({
-    point: field.bounds.max,
-    radius: 80.5,
-  }));
-
-        console.log(field);
+        step.view.viewBoxMin = field.bounds.min;
+        step.view.viewBoxMax = field.bounds.max;
+        step.view.look({at: field.center});
         step.space.requestRender(step.view);
       }
     });
@@ -142,10 +107,13 @@ let chronicle;
 let step = {};
 $(function () {
 
+  //
+  // space
+  //
   step.space = new Space({
     canvasSelector: '#renderCanvas',
     uniforms,
-    fields: [fiducialField],
+    fields: [],
   });
   step.view = new View({
     viewBoxMax : [250, 49, -240],
@@ -165,6 +133,9 @@ $(function () {
 
   chronicle = new PouchDB('http://quantome.org:5984/chronicle');
 
+  //
+  // user interface elements
+  //
   let menubar = new stepMenubar(step, {
     requestSeries : requestSeries
   });
@@ -175,6 +146,13 @@ $(function () {
   });
   document.body.appendChild(bottomBar.dom);
 
+  //
+  // interactive controls
+  //
+  let windowLevelControl = new WindowLevelControl();
+  windowLevelControl.activate();
+  let viewControl = new ViewControl();
+  viewControl.activate();
 });
 
 let onResize = function() {

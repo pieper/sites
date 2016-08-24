@@ -65,10 +65,10 @@ Field.fromDataset = function(dataset) {
     case "UltrasoundImage":
     case "EnhancedUSVolume":
     case "SecondaryCaptureImage":
-    case "Ultrasound Image":
-    case "Positron Emission Tomography Image":
-    case "Enhanced PET Image":
-    case "Legacy Converted Enhanced PET Image": {
+    case "USImage":
+    case "PETImage":
+    case "EnhancedPETImage":
+    case "LegacyConvertedEnhancedPETImage": {
       return (new ImageField({dataset}));
       }
       break;
@@ -416,7 +416,7 @@ class SegmentationField extends PixelField {
 
   uniforms() {
     let u = super.uniforms();
-    u.packingFactor = {type: '1ui', value: this.pixelDimensions[0]};
+    u['packingFactor'+this.id] = {type: '1ui', value: this.pixelDimensions[0]};
     return(u);
   }
 
@@ -444,7 +444,7 @@ class SegmentationField extends PixelField {
 
       uniform mat4 patientToPixel${this.id};
       uniform ivec3 pixelDimensions${this.id};
-      uniform uint packingFactor;
+      uniform uint packingFactor${this.id};
       void sampleField${this.id} (const in isampler3D textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
@@ -462,7 +462,7 @@ class SegmentationField extends PixelField {
           return;
         }
 
-        uint bitIndex = uint(floor(8.*fract(stpPoint.x*float(packingFactor))));
+        uint bitIndex = uint(floor(8.*fract(stpPoint.x*float(packingFactor${this.id}))));
         uint uintSampleValue = uint(texture(textureUnit, stpPoint).r);
         uint bitValue = (uintSampleValue >> bitIndex) & uint(1);
         sampleValue = float(bitValue);

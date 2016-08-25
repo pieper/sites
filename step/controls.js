@@ -95,11 +95,13 @@ class ViewControl extends Control {
   }
 
   onWheelEvent(wheelEvent) {
-    let delta = 1.;
+    let delta = 5.;
     if (wheelEvent.wheelDelta < 0) {
       delta *= -1;
     }
-    step.view.viewPoint[2] += delta;
+    step.view.viewPoint = [0, 1, 2].map(e=>{
+      return(step.view.viewPoint[e] - delta * step.view.viewNormal[e]);
+    });
     step.view.look({from: step.view.viewPoint});
     step.space.requestRender(step.view);
   }

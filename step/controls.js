@@ -110,44 +110,38 @@ class ViewControl extends Control {
     switch (keyboardEvent.key) {
       case "ArrowUp": {
         step.view.orbit(0, 1);
-        step.space.requestRender(step.view);
       }
       break;
       case "ArrowRight": {
         step.view.orbit(1, 0);
-        step.space.requestRender(step.view);
       }
       break;
       case "ArrowLeft": {
         step.view.orbit(-1, 0);
-        step.space.requestRender(step.view);
       }
       break;
       case "ArrowDown": {
         step.view.orbit(0, -1);
-        step.space.requestRender(step.view);
       }
       break;
       case "a": {
         step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
-        step.space.requestRender(step.view);
       }
       break;
       case "s": {
         step.view.slice({plane: "sagittal", offset: 0.5, thickness: 1});
-        step.space.requestRender(step.view);
       }
       break;
       case "c": {
         step.view.slice({plane: "coronal", offset: 0.5, thickness: 1});
-        step.space.requestRender(step.view);
       }
       break;
       case "v": {
-        step.view.look({viewNear: 0, viewFar: 3e38});
-        step.space.requestRender(step.view);
+        step.view.viewNear = 0;
+        step.view.viewFar = 3e38;
       }
       break;
     }
+    step.space.requestRender(step.view);
   }
 }

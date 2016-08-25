@@ -66,7 +66,11 @@ function requestInstance(url, loaded) {
     loaded(arrayBuffer);
   };
   dataRequest.onprogress = function () {
-    console.log('LOADING', dataRequest.status);
+    if (dataRequest.response) {
+      console.log('LOADING', dataRequest.response.bytelength);
+    } else {
+      console.log('LOADING', dataRequest.status);
+    }
   };
   dataRequest.open("GET", url, true);
   dataRequest.send(null);
@@ -74,13 +78,10 @@ function requestInstance(url, loaded) {
 
 function requestSeries(instanceURLs) {
   let seriesDatasets = [];
-  console.log('requesting', instanceURLs);
   instanceURLs.forEach(function(instanceURL) {
     requestInstance(instanceURL, function(arrayBuffer) {
       let dataset = readDICOM(arrayBuffer);
       seriesDatasets.push(dataset);
-      console.log(seriesDatasets);
-      console.log (seriesDatasets.length, instanceURLs.length);
       if (seriesDatasets.length == instanceURLs.length) {
         let dataset = Normalizer.normalizeToDataset(seriesDatasets);
         let field = Field.fromDataset(dataset);

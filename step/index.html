@@ -152,6 +152,12 @@ $(function () {
   });
   document.body.appendChild(step.ui.bottomBar.dom);
 
+  let toolSelectUI = step.ui.bottomBar.toolSelectUI;
+  toolSelectUI.dom.addEventListener('change', event => {
+    windowLevelControl.tool = toolSelectUI.getValue();
+  });
+
+
 });
 
 let onResize = function() {

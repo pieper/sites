@@ -32,6 +32,7 @@ class WindowLevelControl extends Control {
     super(options);
     this.startPoint = undefined;
     this.startWindow = undefined;
+    this.tool = 'windowLevel';
   }
 
   activate(options) {
@@ -61,6 +62,7 @@ class WindowLevelControl extends Control {
       case 'mousedown': {
         this.startPoint = point.slice();
         this.startWindow = [imageField.windowWidth, imageField.windowCenter].slice();
+        this.startViewUp = step.view.viewUp.slice();
         this.startViewPoint = step.view.viewPoint.slice();
         this.startViewTarget = step.view.target();
       }
@@ -69,11 +71,25 @@ class WindowLevelControl extends Control {
         if (this.startPoint) {
           let pointDelta = [0,1].map(e=>point[e]-this.startPoint[e]);
           if (mouseEvent.buttons == 1) {
-            // W/L
-            // TODO: figure out a good way to automatically determine the gain
-            imageField.windowWidth = this.startWindow[0] + pointDelta[0] * 500.;
-            imageField.windowWidth = Math.max(imageField.windowWidth, 1.);
-            imageField.windowCenter = this.startWindow[1] + pointDelta[1] * 500.;
+            switch (this.tool) {
+              case 'windowLevel': {
+                // W/L
+                // TODO: figure out a good way to automatically determine the gain
+                imageField.windowWidth = this.startWindow[0] + pointDelta[0] * 500.;
+                imageField.windowWidth = Math.max(imageField.windowWidth, 1.);
+                imageField.windowCenter = this.startWindow[1] + pointDelta[1] * 500.;
+              }
+              break;
+              case 'trackball': {
+                step.view.look({
+                  from: this.startViewPoint,
+                  at: this.startViewTarget,
+                  up: this.startViewUp,
+                });
+                step.view.orbit(pointDelta[0]*-90., pointDelta[1]*-90.);
+              }
+              break;
+            }
           }
           if (mouseEvent.buttons == 4) {
             // PAN
@@ -135,10 +151,11 @@ class ViewControl extends Control {
     if (wheelEvent.wheelDelta < 0) {
       gain *= -1;
     }
-    step.view.viewPoint = [0, 1, 2].map(e=>{
+    let target = step.view.target();
+    let viewPoint = [0, 1, 2].map(e=>{
       return(step.view.viewPoint[e] - gain * step.view.viewNormal[e]);
     });
-    step.view.look({from: step.view.viewPoint});
+    step.view.look({from: viewPoint, at: target});
     step.space.requestRender(step.view);
   }
 

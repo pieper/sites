@@ -254,6 +254,7 @@ class stepBottomBar extends UIItem {
     this.container = new UI.Panel();
     this.container.setId('bottomBar');
 
+    // offset number
     this.sliceOffsetUI = new UI.Number();
     this.sliceOffsetUI.value = .5;
     this.sliceOffsetUI.min = 0;
@@ -267,6 +268,30 @@ class stepBottomBar extends UIItem {
     }
 
     this.container.add( this.sliceOffsetUI );
+
+    // tool select
+    this.toolText = new UI.Text('Tool:').setWidth('50px');
+    this.toolText.dom.style.textAlign = 'right';
+    this.container.add(this.toolText);
+    this.toolSelectUI = new UI.Select().setOptions({
+      windowLevel: "Window/Level",
+      trackball: "Trackball",
+      paint: "Paint",
+    }).setValue('windowLevel');
+    this.container.add( this.toolSelectUI );
+
+    // color select
+    this.colorText = new UI.Text('Color:').setWidth('50px');
+    this.colorText.dom.style.textAlign = 'right';
+    this.container.add(this.colorText);
+    this.colorSelectUI = new UI.Select().setOptions({
+      black: "Black",
+      red: "Red",
+      green: "Green",
+      blue: "Blue",
+      white: "White",
+    }).setValue('red');
+    this.container.add( this.colorSelectUI );
   }
 
   get sliceOffset() {

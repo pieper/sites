@@ -62,6 +62,7 @@ class WindowLevelControl extends Control {
         this.startPoint = point.slice();
         this.startWindow = [imageField.windowWidth, imageField.windowCenter].slice();
         this.startViewPoint = step.view.viewPoint.slice();
+        this.startViewTarget = step.view.target();
       }
       break;
       case 'mousemove': {
@@ -71,12 +72,12 @@ class WindowLevelControl extends Control {
             // W/L
             // TODO: figure out a good way to automatically determine the gain
             imageField.windowWidth = this.startWindow[0] + pointDelta[0] * 500.;
-            imageField.windowWidth = Math.max(imageField.windowWidth, 0.);
+            imageField.windowWidth = Math.max(imageField.windowWidth, 1.);
             imageField.windowCenter = this.startWindow[1] + pointDelta[1] * 500.;
           }
           if (mouseEvent.buttons == 4) {
             // PAN
-            let gain = 5.;
+            let gain = 200.;
             let rightward = [0, 1, 2].map(e=>{
               return(-1 * gain * pointDelta[0] * step.view.viewRight[e]);
             });
@@ -84,12 +85,14 @@ class WindowLevelControl extends Control {
               return(gain * pointDelta[1] * step.view.viewUp[e]);
             });
             let viewPoint = step.view.vplus(this.startViewPoint, rightward);
-            step.view.viewPoint = step.view.vplus(viewPoint, upward);
-            step.view.look({from: viewPoint});
+            viewPoint = step.view.vplus(viewPoint, upward);
+            let target = step.view.vplus(this.startViewTarget, rightward);
+            target = step.view.vplus(target, upward);
+            step.view.look({from: viewPoint, at: target});
           }
           if (mouseEvent.buttons == 2) {
             // ZOOM
-            let gain = 5.;
+            let gain = 500.;
             let viewPoint = [0, 1, 2].map(e=>{
               return(this.startViewPoint[e] + step.view.viewNormal[e] * gain * pointDelta[1]);
             });

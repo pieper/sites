@@ -32,7 +32,7 @@ class stepMenubar extends Menubar {
   constructor(application, options) {
     super();
     this.container.add(new stepFileMenu(application,options).container);
-    this.container.add(new stepBrowserMenu(application,options).container);
+    this.container.add(new stepDatabaseMenu(application,options).container);
   }
 }
 
@@ -54,9 +54,34 @@ class MenuPanel extends UIItem {
 }
 
 class stepFileMenu extends MenuPanel {
-  constructor(application) {
+  constructor(application,options) {
     super(application, {title: 'File'});
     let option;
+
+    // demos
+    let demos = [
+      { name: "Prostate Example",
+        seriesKey: '[["UnspecifiedInstitution","QIN-PROSTATE-01-0002"],["MS2197/BD/PRO   Pelvis w&w/o","1.3.6.1.4.1.14519.5.2.1.3671.7001.267069126134560539593081476574"],["MR","AX FRFSE-XL T2","1.3.6.1.4.1.14519.5.2.1.3671.7001.311804128593572138452599822764"]]',
+      },
+      { name: "Head and Neck Example",
+        seriesKey: '[["UnspecifiedInstitution","QIN-HEADNECK-01-0003"],["Thorax^1HEAD_NECK_PETCT","1.3.6.1.4.1.14519.5.2.1.2744.7002.150059977302243314164020079415"],["CT","CT WB 5.0 B40s_CHEST","1.3.6.1.4.1.14519.5.2.1.2744.7002.248974378224961074547541151175"]]',
+      },
+    ];
+
+    demos.forEach(demo => {
+      option = new UI.Row();
+      option.setClass( 'option' );
+      option.setTextContent( demo.name );
+      option.onClick( function () {
+        options.database.seriesOperation({
+          database: options.database,
+          key: JSON.parse(demo.seriesKey),
+          operation: options.requestSeries
+        });
+      });
+      this.menuPanel.add( option );
+    });
+
     // File -> New
     option = new UI.Row();
     option.setClass( 'option' );
@@ -73,6 +98,7 @@ class stepFileMenu extends MenuPanel {
     this.menuPanel.add( option );
     // spacer
     this.menuPanel.add( new UI.HorizontalRule() );
+
     // File->Import
     let fileInput = document.createElement( 'input' );
     fileInput.type = 'file';
@@ -93,12 +119,12 @@ class stepFileMenu extends MenuPanel {
   }
 }
 
-class stepBrowserMenu extends MenuPanel {
+class stepDatabaseMenu extends MenuPanel {
   constructor(application, options) {
     options = options || {};
     options.requestSeries = options.requestSeries || function(){};
-    super(application, {title: 'Browser'});
-    this.menuPanel.setClass('browser');
+    super(application, {title: 'Database'});
+    this.menuPanel.setClass('database');
 
     let studyTableUI = new UI.Table();
     studyTableUI.setId('studyTable');
@@ -108,15 +134,13 @@ class stepBrowserMenu extends MenuPanel {
     seriesTableUI.setId('seriesTable');
     this.menuPanel.add( seriesTableUI );
 
-    let chronicle = new PouchDB('http://quantome.org:5984/chronicle');
-
     let seriesTable = null;
     let instanceTable = null;
 
     //
     // get and display series render images
     //
-    chronicle.query("instances/context", {
+    options.database.chronicle.query("instances/context", {
       reduce : true,
       group_level : 2,
       stale : 'update_after',
@@ -163,7 +187,7 @@ class stepBrowserMenu extends MenuPanel {
     function showStudy(key) {
       let endKey = key.slice(0);
       endKey.push({});
-      chronicle.query("instances/context", {
+      options.database.chronicle.query("instances/context", {
         start_key : key,
         end_key : endKey,
         reduce : true,
@@ -213,27 +237,13 @@ class stepBrowserMenu extends MenuPanel {
     };
 
     function showSeries(key) {
-      let endKey = key.slice(0);
-      endKey.push({});
-      chronicle.query("instances/context", {
-        start_key : key,
-        end_key : endKey,
-        reduce : true,
-        group_level : 4,
-        stale : 'update_after',
-      }).then(function(data) {
-        let instanceURLs = [];
-        for (let rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
-          let row = data.rows[rowIndex].key;
-          let instanceUID = row[3];
-          let instanceURL = chronicle._db_name + "/" + instanceUID + '/object.dcm';
-          instanceURLs.push(instanceURL);
-        };
-        options.requestSeries(instanceURLs);
-      }).catch(function (err) {
-        console.error(err);
+      console.log('series', JSON.stringify(key));
+      options.database.seriesOperation({
+        database: options.database,
+        key: key,
+        operation: options.requestSeries
       });
-    }
+    };
   }
 }
 

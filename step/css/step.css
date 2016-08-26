@@ -145,14 +145,14 @@ input.Number {
 			display: block;
 		}
 
-		#menubar .menu .browser {
+		#menubar .menu .database {
 			position: absolute;
 			display: none;
 			padding: 5px 0;
 			background: #111;
 		}
 
-		#menubar .menu:hover .browser {
+		#menubar .menu:hover .database {
 			display: block;
 		}
 

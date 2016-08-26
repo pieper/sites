@@ -122,7 +122,8 @@ class FiducialField extends Field {
     this.fiducials.forEach(fiducial => {
       source += `
 
-        centerToSample = samplePoint - vec3( ${fiducial.point[0]}, ${fiducial.point[1]}, ${fiducial.point[2]} );
+        centerToSample = samplePoint - vec3(
+                ${fiducial.point[0]}, ${fiducial.point[1]}, ${fiducial.point[2]} );
         distance = length(centerToSample);
         if (distance < ${fiducial.radius}) {
           sampleValue += ${this.rgba[3]};

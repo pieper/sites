@@ -21,7 +21,7 @@ class Space {
 
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // buffers for the textured plane in normalized space
+    // buffers for the textured plane in normalized (clip) space
     this.renderImageCoordinatesBuffer = gl.createBuffer();
     this.renderImageTexureCoordinatesBuffer = gl.createBuffer();
     let renderImageVertices = [ -1., -1., 0.,

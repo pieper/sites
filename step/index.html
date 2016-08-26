@@ -33,6 +33,8 @@
 
   <script type="text/javascript" src="./controls.js"></script>
 
+  <script type="text/javascript" src="./database.js"></script>
+
 </head>
 
 <body>
@@ -41,15 +43,6 @@
 
 <script>
 'use strict'
-
-//
-// user interface elements
-//
-let bottomBar;
-function updateParameters() {
-  sliceOffset = bottomBar.sliceOffset;
-  render();
-}
 
 // once the data is downloaded
 function readDICOM(arrayBuffer) {
@@ -104,7 +97,6 @@ let uniforms = {
 };
 
 // once document is loaded...
-let chronicle;
 let step = {};
 $(function () {
 
@@ -132,21 +124,6 @@ $(function () {
   });
   window.dispatchEvent(new Event('resize'));
 
-  chronicle = new PouchDB('http://quantome.org:5984/chronicle');
-
-  //
-  // user interface elements
-  //
-  let menubar = new stepMenubar(step, {
-    requestSeries : requestSeries
-  });
-  document.body.insertBefore(menubar.dom, document.body.firstChild);
-
-  bottomBar = new stepBottomBar(step, {
-    onSliceOffetChange : updateParameters
-  });
-  document.body.appendChild(bottomBar.dom);
-
   //
   // interactive controls
   //
@@ -154,6 +131,27 @@ $(function () {
   windowLevelControl.activate();
   let viewControl = new ViewControl();
   viewControl.activate();
+
+  //
+  // database
+  //
+  step.database = new Database({url: 'http://quantome.org:5984/chronicle'});
+
+  //
+  // user interface elements
+  //
+  step.ui = {};
+  step.ui.menubar = new stepMenubar(step, {
+    database : step.database,
+    requestSeries : requestSeries,
+  });
+  document.body.insertBefore(step.ui.menubar.dom, document.body.firstChild);
+
+  step.ui.bottomBar = new stepBottomBar(step, {
+    onSliceOffetChange : function(){},
+  });
+  document.body.appendChild(step.ui.bottomBar.dom);
+
 });
 
 let onResize = function() {

@@ -132,7 +132,7 @@ class View {
     let up = options.up || this.viewUp;
 
     this.viewNormal = this.vnormalize(this.vminus(at, from));
-    this.viewRight = this.vcross(this.viewNormal, up);
+    this.viewRight = this.vnormalize(this.vcross(this.viewNormal, up));
     this.viewUp = this.vcross(this.viewRight, this.viewNormal);
     this.viewPoint = from.slice();
     this.viewDistance = this.vdistance(at, from);
@@ -188,7 +188,8 @@ class View {
   }
 
   orbit (rightward, upward) {
-    let vTargetToOrigin = this.vscale(this.target(), -1);
+    let target = this.target();
+    let vTargetToOrigin = this.vscale(target, -1);
     let mTargetToOrigin = this.mtranslate(vTargetToOrigin);
     let mAboutUp = this.mrotate(this.viewUp, rightward);
     let mAboutRight = this.mrotate(this.viewRight, upward);
@@ -197,7 +198,7 @@ class View {
                     this.mmultiply(mAboutRight,
                       this.mmultiply(mAboutUp, mTargetToOrigin)));
     let newViewPoint = this.mvmultiply(rotation, [...this.viewPoint,1]).slice(0,3);
-    this.look({from: newViewPoint});
+    this.look({from: newViewPoint, at: target});
   }
 }
 

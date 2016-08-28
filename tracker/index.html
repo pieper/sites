@@ -355,15 +355,11 @@ var videoAnimationFrame = function() {
       setupVideoTexture();
     } else {
       if (videoElement.videoHeight) { // only defined when loaded
-
-          gl.bindTexture(gl.TEXTURE_2D, videoTexture);
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
-          gl.bindTexture(gl.TEXTURE_2D, null);
-          render3D();
-        for(let i = 0; i < 100; i++) {
-          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-        }
+        gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        render3D();
       }
     }
   }

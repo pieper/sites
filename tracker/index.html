@@ -6,10 +6,6 @@
 
   <link rel="stylesheet" href="application.css" />
   <script src='jquery-1.11.0.min.js'></script>
-  <script src='gl-matrix.js'></script>
-  <script src='tracking.js'></script>
-  <script src='data/eye-min.js'></script>
-  <script src='data/face-min.js'></script>
 
 </head>
 
@@ -98,13 +94,12 @@ void main(void) {
   vec4 videoRGBA = texture2D(videoTextureSampler, varyingTextureCoordinate);
 
   vec4 rgba;
-  //rgba = abs(referenceRGBA - videoRGBA);
 
   rgba = referenceRGBA;
   rgba = 0.5 * (referenceRGBA + videoRGBA);
-  rgba = videoRGBA;
-
+  rgba = abs(referenceRGBA - videoRGBA);
   rgba.a = 1.;
+
   gl_FragColor = rgba;
 }
 </script>
@@ -119,16 +114,11 @@ $('#canvases').append('<canvas id=canvas3D></canvas><p>3D View</p>');
 var canvas3D = document.querySelector('#canvas3D');
 
 // add a canvas for 2D
-$('#canvases').append('<canvas id=canvas2D></canvas><p>2D View</p>');
+$('#canvases').append('<canvas id=canvas2D></canvas><p>Reference</p>');
 var canvas2D = document.querySelector('#canvas2D');
 var context2D = canvas2D.getContext('2d');
 
-</script>
-
-<script>
 'use strict'
-
-var useLiveVideo = true;
 
 //
 // set up webgl
@@ -138,26 +128,26 @@ gl.clearColor(0.0, 0.0, 0.0, 1.0); // black, fully opaque
 gl.enable(gl.DEPTH_TEST);
 gl.depthFunc(gl.LEQUAL); // Near things obscure far things
 
-// create the keyboard vertex buffer
-var keyboardOrigin = [-60., -60.];
-var keyboardDimensions = [120., 120.];
-//var keyboardOrigin = [-1., -1.];
-//var keyboardDimensions = [2., 2.];
-var keyboardVertices = [
-  keyboardOrigin[0], keyboardOrigin[1], 0.0,
-  keyboardOrigin[0]+keyboardDimensions[0], keyboardOrigin[1], 0.0,
-  keyboardOrigin[0], keyboardOrigin[1]+keyboardDimensions[1], 0.0,
-  keyboardOrigin[0]+keyboardDimensions[0], keyboardOrigin[1]+keyboardDimensions[1], 0.0,
+// create the plane vertex buffer
+var planeOrigin = [-60., -60.];
+var planeDimensions = [120., 120.];
+//var planeOrigin = [-1., -1.];
+//var planeDimensions = [2., 2.];
+var planeVertices = [
+  planeOrigin[0], planeOrigin[1], 0.0,
+  planeOrigin[0]+planeDimensions[0], planeOrigin[1], 0.0,
+  planeOrigin[0], planeOrigin[1]+planeDimensions[1], 0.0,
+  planeOrigin[0]+planeDimensions[0], planeOrigin[1]+planeDimensions[1], 0.0,
 ];
-var keyboardCoordinatesBuffer = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, keyboardCoordinatesBuffer);
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(keyboardVertices), gl.STATIC_DRAW);
+var planeCoordinatesBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, planeCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(planeVertices), gl.STATIC_DRAW);
 
-var keyboardAspect = 1024 / 576;
-var keyboardTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
-var keyboardTexureCoordinatesBuffer = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, keyboardTexureCoordinatesBuffer);
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(keyboardTextureCoordinates), gl.STATIC_DRAW);
+var planeAspect = 1024 / 576;
+var planeTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
+var planeTexureCoordinatesBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, planeTexureCoordinatesBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(planeTextureCoordinates), gl.STATIC_DRAW);
 
 // create the reference texture and video texture
 var referenceTextureImage = new Image();
@@ -228,13 +218,13 @@ function render3D() {
   gl.uniform1i(gl.getUniformLocation(glProgram, "videoTextureSampler"), 1);
 
   // the coordinate attribute
-  gl.bindBuffer(gl.ARRAY_BUFFER, keyboardCoordinatesBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, planeCoordinatesBuffer);
   var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
   gl.enableVertexAttribArray( gl.getAttribLocation(glProgram, "coordinate") );
   gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
 
   // the textureCoordinate attribute
-  gl.bindBuffer(gl.ARRAY_BUFFER, keyboardTexureCoordinatesBuffer);
+  gl.bindBuffer(gl.ARRAY_BUFFER, planeTexureCoordinatesBuffer);
   var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
   gl.enableVertexAttribArray( gl.getAttribLocation(glProgram, "textureCoordinate") );
   gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
@@ -261,12 +251,6 @@ referenceTextureImage.onload = setupReferenceTexture;
 
 var videoLabel = document.getElementById('video');
 videoLabel.innerHTML = "<p> waiting for video events...</p>";
-
-
-// handle browser differences
-navigator.getUserMedia = navigator.getUserMedia ||
-  navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-
 
 // when sources are found
 function gotSources(sourceInfos) {
@@ -306,9 +290,7 @@ function gotSources(sourceInfos) {
 if (typeof MediaStreamTrack.getSources === 'undefined'){
   alert('This browser does not support MediaStreamTrack.\n\nTry a newer browser.');
 } else {
-  if (useLiveVideo) {
-    MediaStreamTrack.getSources(gotSources);
-  }
+  MediaStreamTrack.getSources(gotSources);
 }
 
 var videoCount = 0;
@@ -342,7 +324,6 @@ function errorCallback(error){
   videoLabel.innerHTML = "<p> Error Accessing video </p>" + error;
 }
 
-// entry point for video
 function videoStart(videoSource){
   var constraints = {
     video: {
@@ -352,14 +333,20 @@ function videoStart(videoSource){
   navigator.getUserMedia(constraints, videoSuccessCallback, errorCallback);
 }
 
-// end of video section
-</script>
+var captureReferenceImage = function() {
+  canvas2D.width = canvas3D.width;
+  canvas2D.height = canvas3D.height;
+  context2D.drawImage(videoElement, 0, 0, canvas2D.width, canvas2D.height);
+  //let pixels = context2D.getImageData(0, 0, canvas2D.width, canvas2D.height);
 
-
-<script>
+  gl.bindTexture(gl.TEXTURE_2D, referenceTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+canvas3D.addEventListener('click', captureReferenceImage);
 
 // the render loop to move the video into texture
-var objectTracker = new tracking.ObjectTracker('face');
 var videoElement = null;
 var videoAnimationFrame = function() {
   if (videoCount > 0) {
@@ -368,21 +355,6 @@ var videoAnimationFrame = function() {
       setupVideoTexture();
     } else {
       if (videoElement.videoHeight) { // only defined when loaded
-
-        canvas2D.width = canvas3D.width;
-        canvas2D.height = canvas3D.height;
-        context2D.drawImage(videoElement, 0, 0, canvas2D.width, canvas2D.height);
-        let pixels = context2D.getImageData(0, 0, canvas2D.width, canvas2D.height);
-        
-        /*
-        console.log(tracking.ViolaJones.detect(pixels, 
-                                               canvas2D.width, canvas2D.height,
-                                               objectTracker.getInitialScale(),
-                                               objectTracker.getScaleFactor(),
-                                               objectTracker.getStepSize(),
-                                               objectTracker.getEdgesDensity(),
-                                               objectTracker.getClassifiers()[0]));
-                                               */
 
         gl.bindTexture(gl.TEXTURE_2D, videoTexture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
@@ -400,7 +372,7 @@ requestAnimationFrame(videoAnimationFrame);
 
 
 <p>
-This demo uses advanced web APIs to access sensors.  Not all devices and browsers are supported.
+This demo uses advanced web APIs to access sensors.  Not all devices and browsers are supported.  If you need a compatible browser try Chrome Canary.
 </p>
 
 

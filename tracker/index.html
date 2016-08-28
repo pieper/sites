@@ -360,8 +360,9 @@ var videoAnimationFrame = function() {
           gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
           gl.bindTexture(gl.TEXTURE_2D, null);
-        for(let i = 0; i < 1000; i++) {
           render3D();
+        for(let i = 0; i < 10000; i++) {
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         }
       }
     }

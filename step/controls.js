@@ -1,21 +1,9 @@
-class Control {
+class Controls {
   constructor(options={}) {
     this.mouseEvents = ['mousedown', 'mousemove', 'mouseup'];
-  }
-
-  preventEventDefault(event) {
-    event.preventDefault();
-  }
-  activate(options) {
-    document.addEventListener("contextmenu", this.preventEventDefault);
-  }
-  deactivate() {
-    document.removeEventListener("contextmenu", this.preventEventDefault);
-  }
-
-  onMouseEvent(mouseEvent) {
-  }
-  onKeyEvent(mouseEvent) {
+    this.startPoint = undefined;
+    this.startWindow = undefined;
+    this.tool = 'windowLevel';
   }
 
   // TODO: currently the last field added, but should
@@ -25,30 +13,35 @@ class Control {
     let imageField = fields[fields.length-1];
     return (imageField);
   }
-}
 
-class WindowLevelControl extends Control {
-  constructor(options={}) {
-    super(options);
-    this.startPoint = undefined;
-    this.startWindow = undefined;
-    this.tool = 'windowLevel';
+  preventEventDefault(event) {
+    event.preventDefault();
   }
 
   activate(options) {
-    super.activate(options);
+    document.addEventListener("contextmenu", this.preventEventDefault);
+
     // TODO: step is global and defines the application that is being controlled
     this.mouseCallback = this.onMouseEvent.bind(this);
     this.mouseEvents.forEach(eventName => {
       step.space.canvas.addEventListener(eventName, this.mouseCallback, {passive:true});
     });
+
+    this.wheelCallback = this.onWheelEvent.bind(this);
+    step.space.canvas.addEventListener('mousewheel', this.wheelCallback, {passive:true});
+    this.keyboardCallback = this.onKeyboardEvent.bind(this);
+    window.addEventListener('keydown', this.keyboardCallback, {passive:true});
   }
 
   deactivate() {
-    super.deactivate(options);
+    document.removeEventListener("contextmenu", this.preventEventDefault);
+
     this.mouseEvents.forEach(eventName => {
       step.space.canvas.removeEventListener(eventName, this.mouseCallback);
     });
+
+    step.space.canvas.removeEventListener('mousewheel', this.wheelCallback);
+    window.removeEventListener('keydown', this.keyboardCallback);
   }
 
   onMouseEvent(mouseEvent) {
@@ -123,28 +116,6 @@ class WindowLevelControl extends Control {
       }
     }
   }
-}
-
-class ViewControl extends Control {
-  constructor(options={}) {
-    super(options);
-    this.startPoint = undefined;
-  }
-
-  activate(options) {
-    super.activate(options);
-    // TODO: step is global and defines the application that is being controlled
-    this.wheelCallback = this.onWheelEvent.bind(this);
-    step.space.canvas.addEventListener('mousewheel', this.wheelCallback, {passive:true});
-    this.keyboardCallback = this.onKeyboardEvent.bind(this);
-    window.addEventListener('keydown', this.keyboardCallback, {passive:true});
-  }
-
-  deactivate() {
-    super.deactivate(options);
-    step.space.canvas.removeEventListener('mousewheel', this.wheelCallback);
-    window.removeEventListener('keydown', this.keyboardCallback);
-  }
 
   onWheelEvent(wheelEvent) {
     let gain = 5.;
@@ -192,6 +163,19 @@ class ViewControl extends Control {
       case "v": {
         step.view.viewNear = 0;
         step.view.viewFar = 3e38;
+      }
+      break;
+      case "t": {
+        if (this.tool == "trackball") {
+          this.tool = "windowLevel";
+        } else {
+          this.tool = "trackball";
+        }
+      }
+      break;
+      case "f": {
+        let imageField = this.selectedImageField();
+        step.view.look({at: imageField.center, bounds: imageField.bounds});
       }
       break;
     }

@@ -130,7 +130,12 @@ class View {
     let at = options.at || this.target();
     let from = options.from || this.viewPoint;
     let up = options.up || this.viewUp;
+    let bounds = options.bounds;
 
+    if (bounds) {
+      this.viewBoxMin = bounds.min;
+      this.viewBoxMax = bounds.max;
+    }
     this.viewNormal = this.vnormalize(this.vminus(at, from));
     this.viewRight = this.vnormalize(this.vcross(this.viewNormal, up));
     this.viewUp = this.vcross(this.viewRight, this.viewNormal);

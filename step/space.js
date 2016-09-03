@@ -293,7 +293,7 @@ class SpaceShader {
         vec3 Cspecular = vec3(1.,1.,1.);
         float Kambient = .30;
         float Kdiffuse = .95;
-        float Kspecular = .80; // TODO - nonzero breaks windows, not mac
+        float Kspecular = .80;
         float Shininess = 10.;
 
         vec3 litColor = Kambient * Cambient;

@@ -80,9 +80,7 @@ function requestSeries(instanceURLs) {
         let field = Field.fromDataset(dataset);
         step.space.fields.push(field);
         step.space.updateFields();
-        step.view.viewBoxMin = field.bounds.min;
-        step.view.viewBoxMax = field.bounds.max;
-        step.view.look({at: field.center});
+        step.space.view.look({at: field.center, bounds: field.bounds});
         step.space.requestRender(step.view);
       }
     });
@@ -90,8 +88,8 @@ function requestSeries(instanceURLs) {
 }
 
 let uniforms = {
-  pointLight: { type: '3fv', value: [10., 30., -15.] },
-  gradientSize: { type: '1f', value: .001 },
+  pointLight: { type: '3fv', value: [100., -300., 150.] },
+  gradientSize: { type: '1f', value: .01 },
   rayMaxSteps: { type: '1i', value: 10000 },
   sampleStep: { type: '1f', value: 0.1 },
 };
@@ -127,10 +125,8 @@ $(function () {
   //
   // interactive controls
   //
-  let windowLevelControl = new WindowLevelControl();
-  windowLevelControl.activate();
-  let viewControl = new ViewControl();
-  viewControl.activate();
+  step.controls = new Controls();
+  step.controls.activate();
 
   //
   // database

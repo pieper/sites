@@ -253,12 +253,12 @@ class PixelField extends Field {
     // TODO:
     // the inverse transpose of the upper 3x3 of the pixelToPatient matrix,
     // which is the transpose of the upper 3x3 of the patientToPixel matrix
+    let p = this.patientToPixel;
     this.normalPixelToPatient = [
-      1., 0., 0.,
-      0., 1., 0.,
-      0., 0., 1.,
+      p[0][0], p[0][1], p[0][2],
+      p[1][0], p[1][1], p[1][2],
+      p[2][0], p[2][1], p[2][2],
     ];
-
 
     // the bounds are the outer corners of the very first and very last
     // pixels of the dataset measured in pixel space
@@ -283,16 +283,11 @@ class PixelField extends Field {
   }
 
   uniforms() {
-    // TODO: need to be keyed to id (in a struct)
-    let u = {
-      normalPixelToPatient: {type: "Matrix3fv", value: this.normalPixelToPatient},
-    };
-    let patientToPixel = 'patientToPixel'+this.id;
-    u[patientToPixel] = {type: "Matrix4fv", value: this.patientToPixel};
-    let textureUnit = 'textureUnit'+this.id;
-    u[textureUnit] = {type: '1i', value: this.id};
-    let pixelDimensions = 'pixelDimensions'+this.id;
-    u[pixelDimensions] = {type: '3iv', value: this.pixelDimensions};
+    let u = {};
+    u['normalPixelToPatient'+this.id] = {type: "Matrix3fv", value: this.normalPixelToPatient},
+    u['patientToPixel'+this.id] = {type: "Matrix4fv", value: this.patientToPixel};
+    u['textureUnit'+this.id] = {type: '1i', value: this.id};
+    u['pixelDimensions'+this.id] = {type: '3iv', value: this.pixelDimensions};
     return(u);
   }
 
@@ -356,6 +351,7 @@ class ImageField extends PixelField {
       }
 
       uniform mat4 patientToPixel${this.id};
+      uniform mat3 normalPixelToPatient${this.id};
       uniform ivec3 pixelDimensions${this.id};
       void sampleField${this.id} (const in sampler3D textureUnit,
                                   const in vec3 samplePointIn,
@@ -374,8 +370,24 @@ class ImageField extends PixelField {
 
         sampleValue = texture(textureUnit, stpPoint).r;
 
-        normal = vec3(0., 0., -1.);
-        gradientMagnitude = 0.;
+        #define S(point, offset, column) texture(textureUnit, point+offset*patientToPixel${this.id}[column].xyz).r
+        // central difference sample gradient (P is +1, N is -1)
+        float sP00 = S(stpPoint, 1. * gradientSize, 0);
+        float sN00 = S(stpPoint, -1. * gradientSize, 0);
+        float s0P0 = S(stpPoint, 1. * gradientSize, 1);
+        float s0N0 = S(stpPoint, -1. * gradientSize, 1);
+        float s00P = S(stpPoint, 1. * gradientSize, 2);
+        float s00N = S(stpPoint, -1. * gradientSize, 2);
+        #undef S
+
+        // TODO: add Sobel and/or multiscale gradients
+        vec3 gradient = vec3( (sP00-sN00),
+                              (s0P0-s0N0),
+                              (s00P-s00N) );
+        gradientMagnitude = length(gradient);
+        // https://en.wikipedia.org/wiki/Normal_(geometry)#Transforming_normals
+        vec3 localNormal = (-1. / gradientMagnitude) * gradient;
+        normal = normalize(normalPixelToPatient${this.id} * localNormal);
       }
     `);
   }
@@ -485,33 +497,7 @@ class SegmentationField extends PixelField {
                      0, 0, 0, 0, // level, offsets
                      w, h, d,
                      gl.RED_INTEGER, gl.UNSIGNED_BYTE, byteArray);
+    console.log(this.pixelDimensions);
+    console.log(byteArray);
   }
 }
-
-        /* TODO:
-         * use columns of patientToPixel to map gradient sample vectors
-         * into pixel (texture) space
-         *
-        #define S(point) texture(%(textureUnit)s(textureUnit, point)
-        // read from 3D texture
-        sample = S(stpPoint);
-        // central difference sample gradient (P is +1, N is -1)
-        float sP00 = S(stpPoint + vec3(%(mmToS)f * gradientSize,0,0));
-        float sN00 = S(stpPoint - vec3(%(mmToS)f * gradientSize,0,0));
-        float s0P0 = S(stpPoint + vec3(0,%(mmToT)f * gradientSize,0));
-        float s0N0 = S(stpPoint - vec3(0,%(mmToT)f * gradientSize,0));
-        float s00P = S(stpPoint + vec3(0,0,%(mmToP)f * gradientSize));
-        float s00N = S(stpPoint - vec3(0,0,%(mmToP)f * gradientSize));
-        #undef S
-        // TODO: add Sobel option to filter gradient
-        // https://en.wikipedia.org/wiki/Sobel_operator#Extension_to_other_dimensions
-        vec3 gradient = vec3( (sP00-sN00),
-                              (s0P0-s0N0),
-                              (s00P-s00N) );
-        gradientMagnitude = length(gradient);
-        // https://en.wikipedia.org/wiki/Normal_(geometry)#Transforming_normals
-        mat3 normalSTPToRAS = mat3(%(normalSTPToRAS)s);
-        vec3 localNormal;
-        localNormal = (-1. / gradientMagnitude) * gradient;
-        normal = normalize(normalSTPToRAS * localNormal);
-         */

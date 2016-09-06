@@ -489,6 +489,8 @@ class SegmentationField extends PixelField {
   fieldToTexture(gl) {
     super.fieldToTexture(gl);
 
+    let [w,h,d] = this.pixelDimensions;
+    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI, w, h, d);
     // Each row of the texture needs to be a mulitple of the
     // unpack size, which is typically 4 and cannot be changed
     // in webgl.  So we load the texture a row at a time
@@ -497,8 +499,6 @@ class SegmentationField extends PixelField {
     // into a new buffer of the correct size.
     //https://groups.google.com/forum/#!topic/webgl-dev-list/wuUZP7iTr9Q
     // TODO: this could be needed for any texture but it's not likely.
-    let [w,h,d] = this.pixelDimensions;
-    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI, w, h, d);
     let unpackAlignment = gl.getParameter(gl.UNPACK_ALIGNMENT);
     let paddedRowSize = Math.floor((w + unpackAlignment - 1) / unpackAlignment)
                           * unpackAlignment;

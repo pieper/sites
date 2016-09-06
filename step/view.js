@@ -2,9 +2,9 @@ class View {
   // All the parameters of the view (camera plus planes and other options)
   constructor(options={}) {
     this.viewPoint = options.viewPoint || [0., 0., -30.];
-    this.viewNormal = this.vnormalize(options.viewNormal || [0., 0., 1.5]);
-    this.viewUp = this.vnormalize(options.viewUp || [0., -1., 0.]);
-    this.viewDistance = this.vlength(this.viewPoint);
+    this.viewNormal = Linear.vnormalize(options.viewNormal || [0., 0., 1.5]);
+    this.viewUp = Linear.vnormalize(options.viewUp || [0., -1., 0.]);
+    this.viewDistance = Linear.vlength(this.viewPoint);
     this.viewBoxMin = options.viewBoxMin || [-3., -3., -3.];
     this.viewBoxMax = options.viewBoxMax || [3., 3., 3.];
     this.viewAngle = options.viewAngle || 30.;
@@ -29,101 +29,9 @@ class View {
     });
   }
 
-  vlength(v) {
-    return(Math.sqrt(v.map(e=>e*e).reduce((sum,value)=>sum+value)));
-  }
-
-  vnormalize(v) {
-    return(this.vscale(v, 1./this.vlength(v)));
-  }
-
-  vdistance(v1, v2) {
-    return(this.vlength(this.vminus(v2, v1)));
-  }
-
-  vplus(v1, v2) {
-    return([v1[0]+v2[0],v1[1]+v2[1],v1[2]+v2[2]]);
-  }
-
-  vminus(v1, v2) {
-    return([v1[0]-v2[0],v1[1]-v2[1],v1[2]-v2[2]]);
-  }
-
-  vscale(v1, scale) {
-    return([v1[0]*scale,v1[1]*scale,v1[2]*scale]);
-  }
-
-  vcross(v1, v2) {
-    return([v1[1]*v2[2] - v1[2]*v2[1],
-            v1[2]*v2[0] - v1[0]*v2[2],
-            v1[0]*v2[1] - v1[1]*v2[0]]);
-  }
-
-  vdot(v1, v2) {
-    return([v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2]]);
-  }
-
-  midentity() {
-    return ([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]);
-  }
-
-  mtranslate(v) {
-    return ([[1,0,0,0],[0,1,0,0],[0,0,1,0],[v[0],v[1],v[2],1]]);
-  }
-
-  mscale(v) {
-    return ([[v[0],0,0,0],[0,v[1],0,0],[0,0,v[2],0],[0,0,0,1]]);
-  }
-
-  // return a matrix to rotate a point around the axis by angle
-  // axis must be normalized
-  // angle is in degrees
-  // https://en.wikipedia.org/wiki/Rotation_matrix#Rotation_matrix_from_axis_and_angle
-  mrotate(u, theta) {
-    let T = theta * Math.PI/180.;
-    let cT = Math.cos(T);
-    let sT = Math.sin(T);
-    return ([
-      [cT+u[0]*u[0]*(1-cT), u[1]*u[0]*(1-cT)+u[2]*sT, u[2]*u[0]*(1-cT)-u[1]*sT, 0],
-      [u[0]*u[1]*(1-cT)-u[2]*sT, cT+u[1]*u[1]*(1-cT), u[2]*u[1]*(1-cT)+u[0]*sT, 0],
-      [u[0]*u[2]*(1-cT)+u[1]*sT, u[1]*u[2]*(1-cT)-u[0]*sT, cT+u[2]*u[2]*(1-cT), 0],
-      [0, 0, 0, 1]
-    ]);
-  }
-
-  mmultiply(m1, m2) {
-    return ([
-      [m1[0][0]*m2[0][0]+m1[1][0]*m2[0][1]+m1[2][0]*m2[0][2]+m1[3][0]*m2[0][3],
-       m1[0][1]*m2[0][0]+m1[1][1]*m2[0][1]+m1[2][1]*m2[0][2]+m1[3][1]*m2[0][3],
-       m1[0][2]*m2[0][0]+m1[1][2]*m2[0][1]+m1[2][2]*m2[0][2]+m1[3][2]*m2[0][3],
-       m1[0][3]*m2[0][0]+m1[1][3]*m2[0][1]+m1[2][3]*m2[0][2]+m1[3][3]*m2[0][3]],
-      [m1[0][0]*m2[1][0]+m1[1][0]*m2[1][1]+m1[2][0]*m2[1][2]+m1[3][0]*m2[1][3],
-       m1[0][1]*m2[1][0]+m1[1][1]*m2[1][1]+m1[2][1]*m2[1][2]+m1[3][1]*m2[1][3],
-       m1[0][2]*m2[1][0]+m1[1][2]*m2[1][1]+m1[2][2]*m2[1][2]+m1[3][2]*m2[1][3],
-       m1[0][3]*m2[1][0]+m1[1][3]*m2[1][1]+m1[2][3]*m2[1][2]+m1[3][3]*m2[1][3]],
-      [m1[0][0]*m2[2][0]+m1[1][0]*m2[2][1]+m1[2][0]*m2[2][2]+m1[3][0]*m2[2][3],
-       m1[0][1]*m2[2][0]+m1[1][1]*m2[2][1]+m1[2][1]*m2[2][2]+m1[3][1]*m2[2][3],
-       m1[0][2]*m2[2][0]+m1[1][2]*m2[2][1]+m1[2][2]*m2[2][2]+m1[3][2]*m2[2][3],
-       m1[0][3]*m2[2][0]+m1[1][3]*m2[2][1]+m1[2][3]*m2[2][2]+m1[3][3]*m2[2][3]],
-      [m1[0][0]*m2[3][0]+m1[1][0]*m2[3][1]+m1[2][0]*m2[3][2]+m1[3][0]*m2[3][3],
-       m1[0][1]*m2[3][0]+m1[1][1]*m2[3][1]+m1[2][1]*m2[3][2]+m1[3][1]*m2[3][3],
-       m1[0][2]*m2[3][0]+m1[1][2]*m2[3][1]+m1[2][2]*m2[3][2]+m1[3][2]*m2[3][3],
-       m1[0][3]*m2[3][0]+m1[1][3]*m2[3][1]+m1[2][3]*m2[3][2]+m1[3][3]*m2[3][3]]
-    ]);
-  }
-
-  mvmultiply(m, v) {
-    return ([
-      m[0][0]*v[0]+m[1][0]*v[1]+m[2][0]*v[2]+m[3][0]*v[3],
-      m[0][1]*v[0]+m[1][1]*v[1]+m[2][1]*v[2]+m[3][1]*v[3],
-      m[0][2]*v[0]+m[1][2]*v[1]+m[2][2]*v[2]+m[3][2]*v[3],
-      m[0][3]*v[0]+m[1][3]*v[1]+m[2][3]*v[2]+m[3][3]*v[3]
-    ]);
-  }
-
   target() {
-    this.viewNormal = this.vnormalize(this.viewNormal);
-    return(this.vplus(this.viewPoint, this.vscale(this.viewNormal, this.viewDistance)));
+    this.viewNormal = Linear.vnormalize(this.viewNormal);
+    return(Linear.vplus(this.viewPoint, Linear.vscale(this.viewNormal, this.viewDistance)));
   }
 
   look(options={}) {
@@ -136,11 +44,11 @@ class View {
       this.viewBoxMin = bounds.min;
       this.viewBoxMax = bounds.max;
     }
-    this.viewNormal = this.vnormalize(this.vminus(at, from));
-    this.viewRight = this.vnormalize(this.vcross(this.viewNormal, up));
-    this.viewUp = this.vcross(this.viewRight, this.viewNormal);
+    this.viewNormal = Linear.vnormalize(Linear.vminus(at, from));
+    this.viewRight = Linear.vnormalize(Linear.vcross(this.viewNormal, up));
+    this.viewUp = Linear.vcross(this.viewRight, this.viewNormal);
     this.viewPoint = from.slice();
-    this.viewDistance = this.vdistance(at, from);
+    this.viewDistance = Linear.vdistance(at, from);
   }
 
   slice(options={}) {
@@ -149,8 +57,8 @@ class View {
     let thickness = options.thickness || 0.;
     let bounds = options.bounds || {min: this.viewBoxMin, max: this.viewBoxMax};
     let magnification = options.magnification || 1.;
-    let target = options.target || this.vscale(this.vplus(bounds.min, bounds.max), offset);
-    let extent = options.extent || this.vminus(bounds.max, bounds.min);
+    let target = options.target || Linear.vscale(Linear.vplus(bounds.min, bounds.max), offset);
+    let extent = options.extent || Linear.vminus(bounds.max, bounds.min);
 
     // TODO: doublecheck these with Slicer
     switch (plane) {
@@ -182,11 +90,11 @@ class View {
       }
     }
 
-    let extentRight = this.vlength(this.vdot(extent, this.viewRight));
+    let extentRight = Linear.vlength(Linear.vdot(extent, this.viewRight));
     let windowRight = extentRight / magnification;
     this.viewDistance = windowRight / Math.tan(this.viewAngle * Math.PI/180.);
-    let viewOffset = this.vscale(this.viewPoint, this.viewDistance);
-    this.viewPoint = this.vplus(target, viewOffset);
+    let viewOffset = Linear.vscale(this.viewPoint, this.viewDistance);
+    this.viewPoint = Linear.vplus(target, viewOffset);
 
     this.viewNear = this.viewDistance - 0.5 * thickness;
     this.viewFar = this.viewDistance + 0.5 * thickness;
@@ -194,16 +102,15 @@ class View {
 
   orbit (rightward, upward) {
     let target = this.target();
-    let vTargetToOrigin = this.vscale(target, -1);
-    let mTargetToOrigin = this.mtranslate(vTargetToOrigin);
-    let mAboutUp = this.mrotate(this.viewUp, rightward);
-    let mAboutRight = this.mrotate(this.viewRight, upward);
-    let mTargetFromOrigin = this.mtranslate(this.target());
-    let rotation = this.mmultiply(mTargetFromOrigin,
-                    this.mmultiply(mAboutRight,
-                      this.mmultiply(mAboutUp, mTargetToOrigin)));
-    let newViewPoint = this.mvmultiply(rotation, [...this.viewPoint,1]).slice(0,3);
+    let vTargetToOrigin = Linear.vscale(target, -1);
+    let mTargetToOrigin = Linear.mtranslate(vTargetToOrigin);
+    let mAboutUp = Linear.mrotate(this.viewUp, rightward);
+    let mAboutRight = Linear.mrotate(this.viewRight, upward);
+    let mTargetFromOrigin = Linear.mtranslate(this.target());
+    let rotation = Linear.mmultiply(mTargetFromOrigin,
+                    Linear.mmultiply(mAboutRight,
+                      Linear.mmultiply(mAboutUp, mTargetToOrigin)));
+    let newViewPoint = Linear.mvmultiply(rotation, [...this.viewPoint,1]).slice(0,3);
     this.look({from: newViewPoint, at: target});
   }
 }
-

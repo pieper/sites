@@ -90,6 +90,20 @@ class Space {
 
     // activate any field textures
     this.spaceShader.fields.forEach(field=>field.fieldToTexture(gl));
+
+    // recalculate center and bounds
+    let large = Linear.LARGE_NUMBER;
+    this.bounds = {min: [large, large, large], max: [-large, -large, -large]};
+    this.spaceShader.fields.forEach(field => {
+      [0,1,2].forEach(e => {
+        this.bounds.min[e] = Math.min(this.bounds.min[e], field.bounds.min[e]);
+        this.bounds.max[e] = Math.max(this.bounds.max[e], field.bounds.max[e]);
+      });
+    });
+    this.center = [0,0,0];
+    [0,1,2].forEach(e => {
+      this.center[e] = (this.bounds.min[e] + this.bounds.max[e])/2;
+    });
   }
 
   requestRender(view) {

@@ -93,10 +93,10 @@ class Controls {
             let upward = [0, 1, 2].map(e=>{
               return(gain * pointDelta[1] * step.view.viewUp[e]);
             });
-            let viewPoint = step.view.vplus(this.startViewPoint, rightward);
-            viewPoint = step.view.vplus(viewPoint, upward);
-            let target = step.view.vplus(this.startViewTarget, rightward);
-            target = step.view.vplus(target, upward);
+            let viewPoint = Linear.vplus(this.startViewPoint, rightward);
+            viewPoint = Linear.vplus(viewPoint, upward);
+            let target = Linear.vplus(this.startViewTarget, rightward);
+            target = Linear.vplus(target, upward);
             step.view.look({from: viewPoint, at: target});
           }
           if (mouseEvent.buttons == 2) {
@@ -162,7 +162,7 @@ class Controls {
       break;
       case "v": {
         step.view.viewNear = 0;
-        step.view.viewFar = 3e38;
+        step.view.viewFar = Linear.LARGE_NUMBER;
       }
       break;
       case "t": {
@@ -174,8 +174,7 @@ class Controls {
       }
       break;
       case "f": {
-        let imageField = this.selectedImageField();
-        step.view.look({at: imageField.center, bounds: imageField.bounds});
+        step.view.look({at: step.space.center, bounds: step.space.bounds});
       }
       break;
     }

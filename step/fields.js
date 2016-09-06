@@ -487,17 +487,40 @@ class SegmentationField extends PixelField {
   }
 
   fieldToTexture(gl) {
-    // allocate and fill a byte texture of packed mask bits
     super.fieldToTexture(gl);
-    let byteArray;
-    byteArray = new Uint8Array(this.dataset.PixelData);
+
+    // Each row of the texture needs to be a mulitple of the
+    // unpack size, which is typically 4 and cannot be changed
+    // in webgl.  So we load the texture a row at a time
+    // using the first part of the next row as padding.
+    // For the last row we need to copy over the contents
+    // into a new buffer of the correct size.
+    //https://groups.google.com/forum/#!topic/webgl-dev-list/wuUZP7iTr9Q
+    // TODO: this could be needed for any texture but it's not likely.
     let [w,h,d] = this.pixelDimensions;
     gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI, w, h, d);
-    gl.texSubImage3D(gl.TEXTURE_3D,
-                     0, 0, 0, 0, // level, offsets
-                     w, h, d,
-                     gl.RED_INTEGER, gl.UNSIGNED_BYTE, byteArray);
-    console.log(this.pixelDimensions);
-    console.log(byteArray);
+    let unpackAlignment = gl.getParameter(gl.UNPACK_ALIGNMENT);
+    let paddedRowSize = Math.floor((w + unpackAlignment - 1) / unpackAlignment)
+                          * unpackAlignment;
+    let rowByteArray;
+    for (let slice = 0; slice < d; slice++) {
+      for (let row = 0; row < h; row++) {
+        let rowStart = slice * (w*h) + row * w;
+        if (slice == d-1 && row == h-1) {
+          let lastRow = new Uint8Array(w);
+          rowByteArray = new Uint8Array(paddedRowSize);
+          for (let column = 0; column < w; column++) {
+            rowByteArray[column] = lastRow[column];
+          }
+        } else {
+          rowByteArray = new Uint8Array(this.dataset.PixelData, rowStart, paddedRowSize);
+        }
+        gl.texSubImage3D(gl.TEXTURE_3D,
+                         0, // level, offsets
+                         0, row, slice,
+                         w, 1, 1,
+                         gl.RED_INTEGER, gl.UNSIGNED_BYTE, rowByteArray);
+      }
+    }
   }
 }

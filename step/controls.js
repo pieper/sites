@@ -20,6 +20,7 @@ class Controls {
 
   activate(options) {
     document.addEventListener("contextmenu", this.preventEventDefault);
+    this.onWindowLevel = options.onWindowLevel;
 
     // TODO: step is global and defines the application that is being controlled
     this.mouseCallback = this.onMouseEvent.bind(this);
@@ -71,6 +72,9 @@ class Controls {
                 imageField.windowWidth = this.startWindow[0] + pointDelta[0] * 500.;
                 imageField.windowWidth = Math.max(imageField.windowWidth, 1.);
                 imageField.windowCenter = this.startWindow[1] + pointDelta[1] * 500.;
+                if (this.onWindowLevel) {
+                  this.onWindowLevel();
+                }
               }
               break;
               case 'trackball': {

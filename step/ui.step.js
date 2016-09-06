@@ -90,6 +90,8 @@ class stepFileMenu extends MenuPanel {
       this.menuPanel.add( option );
     });
 
+    // spacer
+    this.menuPanel.add( new UI.HorizontalRule() );
     // File -> New
     option = new UI.Row();
     option.setClass( 'option' );
@@ -252,6 +254,68 @@ class stepDatabaseMenu extends MenuPanel {
         operation: options.requestSeries
       });
     };
+  }
+}
+
+class stepSideBar extends UIItem {
+  constructor(step, options) {
+    options = options || {};
+    super(step);
+    this.container = new UI.CollapsiblePanel();
+    this.container.setId('sideBar');
+
+    let button = new UI.Button('Calculate Histogram');
+    button.onClick(this.drawHistogram.bind(this));
+    this.container.add(button);
+
+    let histogramUI = new UI.Panel();
+    histogramUI.setId('displayPanel');
+    this.container.add( histogramUI );
+
+    let histogram = document.createElement('canvas');
+    histogram.width = 150;
+    histogram.height = 128;
+    histogram.id = 'histogram';
+    histogramUI.dom.appendChild(histogram);
+
+    let context = histogram.getContext('2d');
+    context.fillStyle = 'black';
+    context.fillRect(0, 0, histogram.width, histogram.height);
+  }
+
+  drawHistogram() {
+    let imageField = step.controls.selectedImageField();
+    if (!imageField) {
+      return;
+    }
+
+    if (imageField != this.currentImageField) {
+      this.imageStatistics = imageField.statistics();
+      this.currentImageField = imageField;
+    }
+
+    let context = histogram.getContext('2d');
+    context.fillStyle = 'black';
+    context.fillRect(0, 0, histogram.width, histogram.height);
+    context.lineWidth =1;
+    context.strokeStyle = 'rgb(128,128,128)';
+    context.beginPath();
+    let xScale = this.imageStatistics.bins / histogram.width;
+    let yScale = histogram.height * .8 / this.imageStatistics.maxBinValue;
+    for(let bin = 0; bin < this.imageStatistics.bins; bin++) {
+      context.moveTo(xScale * bin, histogram.height);
+      context.lineTo(xScale * bin,
+                     histogram.height - yScale * this.imageStatistics.histogram[bin]);
+    }
+    context.stroke();
+
+    context.fillStyle = 'rgba(128,128,0,0.7)';
+    let range = this.imageStatistics.range;
+    let valueScale = histogram.width / (range.max - range.min);
+    let halfWidth = imageField.windowWidth / 2.;
+    let x = valueScale * (imageField.windowCenter - halfWidth - range.min);
+    let width = valueScale * imageField.windowWidth;
+    context.fillRect(x, 0, width, histogram.height);
   }
 }
 

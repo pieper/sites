@@ -320,6 +320,45 @@ class ImageField extends PixelField {
     }
   }
 
+  statistics(options={}) {
+    let statistics = {};
+    statistics.bins = options.bins || 256;
+
+    let imageArray;
+    if (this.dataset.PixelRepresentation == 1) {
+      imageArray = new Int16Array(this.dataset.PixelData);
+    } else {
+      imageArray = new Uint16Array(this.dataset.PixelData);
+    }
+
+    let min = 3e38;
+    let max = -3e38;
+    for (let index = 0; index < imageArray.length; index++) {
+      min = Math.min(min, imageArray[index]);
+      max = Math.max(max, imageArray[index]);
+    }
+    statistics.range = {min, max};
+
+    let histogram = new Int32Array(statistics.bins);
+    let binScale = statistics.bins / (max - min);
+    for (let index = 0; index < imageArray.length; index++) {
+      let bin = Math.floor((imageArray[index] - min) * binScale);
+      histogram[bin] += 1;
+    }
+    statistics.histogram = histogram;
+
+    statistics.maxBin = 0;
+    statistics.maxBinValue = 0;
+    for (let bin = 0; bin < statistics.bins; bin++) {
+      if (statistics.histogram[bin] > statistics.maxBinValue) {
+        statistics.maxBin = bin;
+        statistics.maxBinValue = statistics.histogram[bin];
+      }
+    }
+
+    return(statistics);
+  }
+
   uniforms() {
     // TODO: need to be keyed to id (in a struct)
 

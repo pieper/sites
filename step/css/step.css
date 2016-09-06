@@ -226,6 +226,49 @@ input.Number {
 		margin-bottom: 10px;
 	}
 
+#sideBar {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	height: 100%;
+	width: 150px;
+	background-color: #111;
+	overflow: auto;
+  opacity: 0.25;
+}
+
+#sideBar:hover {
+  opacity: 0.75;
+}
+
+	#sideBar * {
+		vertical-align: middle;
+	}
+
+	#sideBar span,
+	#sideBar input,
+	#sideBar textarea,
+	#sideBar select {
+		background: #222;
+		border: 1px solid transparent;
+		color: #888;
+	}
+
+	#sideBar .Panel {
+		color: #888;
+		padding: 10px;
+		border-top: 1px solid #222;
+	}
+
+	#sideBar .Panel.collapsed {
+		margin-bottom: 0;
+	}
+
+	#sideBar .Row {
+		min-height: 20px;
+		margin-bottom: 10px;
+	}
+
 #tabs {
 	background-color: #1b1b1b;
 	border-top: 1px solid #222;

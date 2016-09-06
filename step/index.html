@@ -59,13 +59,6 @@ function requestInstance(url, loaded) {
     let arrayBuffer = dataRequest.response;
     loaded(arrayBuffer);
   };
-  dataRequest.onprogress = function () {
-    if (dataRequest.response) {
-      console.log('LOADING', dataRequest.response.bytelength);
-    } else {
-      console.log('LOADING', dataRequest.status);
-    }
-  };
   dataRequest.open("GET", url, true);
   dataRequest.send(null);
 }
@@ -76,6 +69,7 @@ function requestSeries(instanceURLs) {
     requestInstance(instanceURL, function(arrayBuffer) {
       let dataset = readDICOM(arrayBuffer);
       seriesDatasets.push(dataset);
+      step.ui.bottomBar.progress = `Loaded ${seriesDatasets.length} of ${instanceURLs.length}`;
       if (seriesDatasets.length == instanceURLs.length) {
         let dataset = Normalizer.normalizeToDataset(seriesDatasets);
         let field = Field.fromDataset(dataset);

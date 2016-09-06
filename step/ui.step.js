@@ -288,7 +288,7 @@ class stepBottomBar extends UIItem {
     }).setValue('windowLevel');
     this.container.add( this.toolSelectUI );
 
-    // color select
+    // TODO: color select
     this.colorText = new UI.Text('Color:').setWidth('50px');
     this.colorText.dom.style.textAlign = 'right';
     this.container.add(this.colorText);
@@ -300,6 +300,10 @@ class stepBottomBar extends UIItem {
       white: "White",
     }).setValue('red');
     this.container.add( this.colorSelectUI );
+
+    this.progressTextUI = new UI.Text('');
+    this.progressTextUI.dom.style.textAlign = 'right';
+    this.container.add(this.progressTextUI);
   }
 
   get sliceOffset() {
@@ -307,5 +311,19 @@ class stepBottomBar extends UIItem {
   }
   set sliceOffset(value) {
     this.sliceOffsetUI.setValue(value);
+  }
+
+  get progress() {
+    return this.progressTextUI.getValue();
+  }
+
+  set progress(text) {
+    this.progressTextUI.setValue(text);
+    this.dom.style.opacity = 1;
+    let restoreProgress = function() {
+      this.progressTextUI.setValue('');
+      this.dom.style.opacity = .25;
+    };
+    setTimeout(restoreProgress.bind(this), 2000);
   }
 }

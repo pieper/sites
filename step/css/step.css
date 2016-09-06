@@ -221,10 +221,6 @@ input.Number {
 		margin-bottom: 0;
 	}
 
-	#bottomBar .Panel.Material canvas {
-		border: solid 1px #5A5A5A;
-	}
-
 	#bottomBar .Row {
 		min-height: 20px;
 		margin-bottom: 10px;

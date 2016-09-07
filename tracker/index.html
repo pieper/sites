@@ -91,19 +91,11 @@ varying vec2 varyingTextureCoordinate;
 
 void main(void) {
 
-  //vec4 referenceRGBA = texture2D(referenceTextureSampler, varyingTextureCoordinate);
   vec4 referenceRGBA = texture2D(referenceTextureSampler, vec2(1.) - gl_FragCoord.st * windowSizeInverse);
   vec4 videoRGBA = texture2D(videoTextureSampler, varyingTextureCoordinate);
 
+  // alpha is high when images are similar
   vec4 rgba;
-
-  // tests
-  //rgba = referenceRGBA;
-  //rgba = 0.5 * (referenceRGBA + videoRGBA);
-  //rgba = abs(referenceRGBA - videoRGBA);
-  //rgba.a = 1.;
-
-  // mask by movement
   rgba = videoRGBA;
   rgba.a = 1. - pow(length(referenceRGBA - videoRGBA), .6);
 
@@ -157,13 +149,18 @@ var planeCoordinatesBuffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, planeCoordinatesBuffer);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(planeVertices), gl.STATIC_DRAW);
 
-var planeAspect = 1024 / 576;
 var planeTextureCoordinates = [ 0, 0,  1, 0,  0, 1,  1, 1 ];
 var planeTexureCoordinatesBuffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, planeTexureCoordinatesBuffer);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(planeTextureCoordinates), gl.STATIC_DRAW);
 
+//
 // framebuffer texture for intermediate results
+//
+// This can be bound as the current framebuffer in order to make a
+// a texture that can be the destination of a render, but then also
+// read back into a typedarray for access on the CPU.
+//
 // http://stackoverflow.com/questions/13626606/read-pixels-from-a-webgl-texture
 var scratchImage = new Image(256,256);
 scratchImage.src = canvas2D.toDataURL();
@@ -172,8 +169,8 @@ var scratchTexture = gl.createTexture();
 var scratchFramebuffer = gl.createFramebuffer();
 gl.bindTexture(gl.TEXTURE_2D, scratchTexture);
 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scratchImage);
-gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 gl.bindFramebuffer(gl.FRAMEBUFFER, scratchFramebuffer);
@@ -212,7 +209,7 @@ var setupVideoTexture = function() {
 //
 // create the program and shaders
 //
-var glProgram = gl.createProgram();
+var comparisonProgram = gl.createProgram();
 var vertexShader = gl.createShader(gl.VERTEX_SHADER);
 gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
 gl.compileShader(vertexShader);
@@ -227,11 +224,11 @@ if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
   alert('Could not compile fragmentShader');
   console.log(gl.getShaderInfoLog(fragmentShader));
 }
-gl.attachShader(glProgram, vertexShader);
+gl.attachShader(comparisonProgram, vertexShader);
 gl.deleteShader(vertexShader);
-gl.attachShader(glProgram, fragmentShader);
+gl.attachShader(comparisonProgram, fragmentShader);
 gl.deleteShader(fragmentShader);
-gl.linkProgram(glProgram);
+gl.linkProgram(comparisonProgram);
 
 // render a frame
 function renderComparisonView(options={}) {
@@ -243,39 +240,41 @@ function renderComparisonView(options={}) {
   }
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
 
-  gl.useProgram(glProgram);
+  gl.useProgram(comparisonProgram);
 
   // the referenceTexture
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, referenceTexture);
-  gl.uniform1i(gl.getUniformLocation(glProgram, "referenceTextureSampler"), 0);
+  gl.uniform1i(gl.getUniformLocation(comparisonProgram, "referenceTextureSampler"), 0);
 
   // the videoTexture
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, videoTexture);
-  gl.uniform1i(gl.getUniformLocation(glProgram, "videoTextureSampler"), 1);
-  gl.uniform2fv(gl.getUniformLocation(glProgram, "windowSizeInverse"), [1./canvas3D.width, 1./canvas3D.height]);
+  gl.uniform1i(gl.getUniformLocation(comparisonProgram, "videoTextureSampler"), 1);
+
+  gl.uniform2fv(gl.getUniformLocation(comparisonProgram, "windowSizeInverse"), [1./canvas3D.width, 1./canvas3D.height]);
 
   // the coordinate attribute
   gl.bindBuffer(gl.ARRAY_BUFFER, planeCoordinatesBuffer);
-  var coordinateLocation = gl.getAttribLocation(glProgram, "coordinate");
-  gl.enableVertexAttribArray( gl.getAttribLocation(glProgram, "coordinate") );
-  gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
+  var coordinateLocation = gl.getAttribLocation(comparisonProgram, "coordinate");
+  gl.enableVertexAttribArray(coordinateLocation);
+  gl.vertexAttribPointer(coordinateLocation, 3, gl.FLOAT, false, 0, 0);
 
   // the textureCoordinate attribute
   gl.bindBuffer(gl.ARRAY_BUFFER, planeTexureCoordinatesBuffer);
-  var textureCoordinateLocation = gl.getAttribLocation(glProgram, "textureCoordinate");
-  gl.enableVertexAttribArray( gl.getAttribLocation(glProgram, "textureCoordinate") );
-  gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
+  var textureCoordinateLocation = gl.getAttribLocation(
+                                      comparisonProgram, "textureCoordinate");
+  gl.enableVertexAttribArray(textureCoordinateLocation);
+  gl.vertexAttribPointer(textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
 
   // the view
-  gl.uniform3fv(gl.getUniformLocation(glProgram, "eye"), view.eye);
-  gl.uniform3fv(gl.getUniformLocation(glProgram, "center"), view.center);
-  gl.uniform3fv(gl.getUniformLocation(glProgram, "up"), view.up);
-  gl.uniform1f(gl.getUniformLocation(glProgram, "fovy"), view.fovy);
-  gl.uniform1f(gl.getUniformLocation(glProgram, "aspect"), view.aspect);
-  gl.uniform1f(gl.getUniformLocation(glProgram, "near"), view.near);
-  gl.uniform1f(gl.getUniformLocation(glProgram, "far"), view.far);
+  gl.uniform3fv(gl.getUniformLocation(comparisonProgram, "eye"), view.eye);
+  gl.uniform3fv(gl.getUniformLocation(comparisonProgram, "center"), view.center);
+  gl.uniform3fv(gl.getUniformLocation(comparisonProgram, "up"), view.up);
+  gl.uniform1f(gl.getUniformLocation(comparisonProgram, "fovy"), view.fovy);
+  gl.uniform1f(gl.getUniformLocation(comparisonProgram, "aspect"), view.aspect);
+  gl.uniform1f(gl.getUniformLocation(comparisonProgram, "near"), view.near);
+  gl.uniform1f(gl.getUniformLocation(comparisonProgram, "far"), view.far);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
@@ -285,78 +284,115 @@ referenceTextureImage.onload = setupReferenceTexture;
 
 </script>
 
-////////////////////////////////////////////////////////////////////////////////
-// TODO: factor out programs and texture etc into a render pass object
-// that can be reused for various calculation steps.
-/*
-  want to be able to:
-  * render a series of views under different rendering parameters into the energy texture
-  * calculate the average pixel value of the energy and store it in a known location in a results texture
-  * read back results texture with readPixels and be able to map back to know which parameter set had the max energy
-*/
+<p><b>TODO: factor out programs and texture etc into a render pass object
+that can be reused for various calculation steps.
 
-// energy calculations
-<script id="energyVertexShader" type="x-shader/x-vertex">
+<p> want to be able to:
+<ul>
+  <li>render a series of views under different rendering parameters into the energy texture</li>
+  <li>calculate the average pixel value of the energy and store it in a known location in a results texture</li>
+  <li>read back results texture with readPixels and be able to map back to know which parameter set had the max energy</li>
+</ul>
+</b>
+
+//
+// accumulation calculations
+//
+<script id="accumulationVertexShader" type="x-shader/x-vertex">
 precision highp float;
 attribute vec3 coordinate;
+attribute vec2 textureCoordinate;
+varying vec2 varyingTextureCoordinate;
 void main(void) {
-  gl_Position = vec4(coordinate,1.);
+  varyingTextureCoordinate = textureCoordinate;
+  gl_Position = vec4(-1. + 2. * coordinate.x, -1. + 2. * coordinate.y/256., 0., 1.);
 }
 </script>
 
-<script id="energyFragmentShader" type="x-shader/x-fragment">
+<script id="accumulationFragmentShader" type="x-shader/x-fragment">
 precision highp float;
-uniform sampler2D energyTextureSampler;
-uniform vec2 windowSizeInverse;
+varying vec2 varyingTextureCoordinate;
+uniform sampler2D sourceSampler;
+const float rows = 256.; // TODO: must match scratchImage.height
 void main(void) {
-  vec4 energyRGBA = texture2D(energyTextureSampler, vec2(1.) - gl_FragCoord.st * windowSizeInverse);
-  gl_FragColor = energyRGBA;
+  vec4 accumulationRGBA = vec4(0.);
+  for (float row = 0.; row < rows; row += 1.) {
+    vec2 samplePoint = vec2(varyingTextureCoordinate.s, (row+.5)/rows);
+    accumulationRGBA += texture2D(sourceSampler, samplePoint);
+  }
+  gl_FragColor = accumulationRGBA / rows;
+
 }
 </script>
 
 <script>
 'use strict'
-// create the energy program and shaders
-var energyProgram = gl.createProgram();
-var energyVertexShader = gl.createShader(gl.VERTEX_SHADER);
-gl.shaderSource(energyVertexShader, document.getElementById("energyVertexShader").innerHTML);
-gl.compileShader(energyVertexShader);
-if (!gl.getShaderParameter(energyVertexShader, gl.COMPILE_STATUS)) {
-  alert('Could not compile energyVertexShader');
-  console.log(gl.getShaderInfoLog(energyVertexShader));
-}
-var energyFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-gl.shaderSource(energyFragmentShader, document.getElementById("energyFragmentShader").innerHTML);
-gl.compileShader(energyFragmentShader);
-if (!gl.getShaderParameter(energyFragmentShader, gl.COMPILE_STATUS)) {
-  alert('Could not compile energyFragmentShader');
-  console.log(gl.getShaderInfoLog(energyFragmentShader));
-}
-gl.attachShader(energyProgram, energyVertexShader);
-gl.deleteShader(energyVertexShader);
-gl.attachShader(energyProgram, energyFragmentShader);
-gl.deleteShader(energyFragmentShader);
-gl.linkProgram(energyProgram);
 
-// render a frame
-function renderEnergy(options={}) {
+// the accumulation texture/framebuffer is a row of pixels
+// so that the comparison energy image can be reduced down
+// to a single pixel energy value.
+var accumulationImage = new Image(scratchImage.width,scratchImage.height);
+accumulationImage.src = canvas2D.toDataURL();
+var accumulationArray = new Uint8Array(accumulationImage.width * accumulationImage.height * 4);
+var accumulationTexture = gl.createTexture();
+var accumulationFramebuffer = gl.createFramebuffer();
+gl.bindTexture(gl.TEXTURE_2D, accumulationTexture);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, accumulationImage);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.bindFramebuffer(gl.FRAMEBUFFER, accumulationFramebuffer);
+gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, accumulationTexture, 0);
+if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE) {
+  console.error('Cannot read from framebuffer texture');
+}
+gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
+// create the accumulation program and shaders
+var accumulationProgram = gl.createProgram();
+var accumulationVertexShader = gl.createShader(gl.VERTEX_SHADER);
+gl.shaderSource(accumulationVertexShader,
+    document.getElementById("accumulationVertexShader").innerHTML);
+gl.compileShader(accumulationVertexShader);
+if (!gl.getShaderParameter(accumulationVertexShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile accumulationVertexShader');
+  console.log(gl.getShaderInfoLog(accumulationVertexShader));
+}
+var accumulationFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+gl.shaderSource(accumulationFragmentShader,
+    document.getElementById("accumulationFragmentShader").innerHTML);
+gl.compileShader(accumulationFragmentShader);
+if (!gl.getShaderParameter(accumulationFragmentShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile accumulationFragmentShader');
+  console.log(gl.getShaderInfoLog(accumulationFragmentShader));
+}
+gl.attachShader(accumulationProgram, accumulationVertexShader);
+gl.deleteShader(accumulationVertexShader);
+gl.attachShader(accumulationProgram, accumulationFragmentShader);
+gl.deleteShader(accumulationFragmentShader);
+gl.linkProgram(accumulationProgram);
+
+function renderAccumulation(options={}) {
+  gl.viewport(0, 0, scratchImage.width, scratchImage.height);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
 
-  gl.useProgram(energyProgram);
+  gl.useProgram(accumulationProgram);
 
-  // the energy texture
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, scratchTexture);
-  gl.uniform1i(gl.getUniformLocation(energyProgram, "energyTextureSampler"), 0);
+  gl.uniform1i(gl.getUniformLocation(accumulationProgram, "sourceSampler"), 0);
 
-  // the coordinate attribute
   gl.bindBuffer(gl.ARRAY_BUFFER, planeCoordinatesBuffer);
-  var coordinateLocation = gl.getAttribLocation(energyProgram, "coordinate");
-  gl.enableVertexAttribArray( gl.getAttribLocation(energyProgram, "coordinate") );
-  gl.vertexAttribPointer( coordinateLocation, 3, gl.FLOAT, false, 0, 0);
+  var coordinateLocation = gl.getAttribLocation(accumulationProgram, "coordinate");
+  gl.enableVertexAttribArray(coordinateLocation);
+  gl.vertexAttribPointer(coordinateLocation, 3, gl.FLOAT, false, 0, 0);
 
-  gl.uniform2fv(gl.getUniformLocation(glProgram, "windowSizeInverse"), [1./canvas3D.width, 1./canvas3D.height]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, planeTexureCoordinatesBuffer);
+  var textureCoordinateLocation = gl.getAttribLocation(
+                                    comparisonProgram, "textureCoordinate");
+  gl.enableVertexAttribArray(textureCoordinateLocation);
+  gl.vertexAttribPointer(textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
 
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
@@ -427,7 +463,7 @@ function videoSuccessCallback(stream) {
   var videoElement = document.querySelector('#video1');
   videoElement.src = window.URL.createObjectURL(stream);
   videoElement.addEventListener('canplay', function(ev){
-    var width = 300;
+    var width = 256;
     var height = videoElement.videoHeight / (videoElement.videoWidth/width);
     videoElement.setAttribute('width', width);
     videoElement.setAttribute('height', height);
@@ -496,9 +532,12 @@ var viewEnergy = function(deltaEye) {
     view.eye[i] += deltaEye[i];
   }
   renderComparisonView();
-  gl.readPixels(0, 0, scratchImage.width, scratchImage.height, gl.RGBA, gl.UNSIGNED_BYTE, scratchArray);
-  //gl.bindTexture(gl.TEXTURE_2D, scratchTexture);
-  //gl.generateMipmap(gl.TEXTURE_2D);
+  //gl.readPixels(0, 0, scratchImage.width, scratchImage.height, gl.RGBA, gl.UNSIGNED_BYTE, scratchArray);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, accumulationFramebuffer);
+  renderAccumulation();
+  gl.readPixels(0, 0, scratchImage.width, 1, gl.RGBA, gl.UNSIGNED_BYTE, scratchArray);
+
   var energy = 0.;
   var samples = 0;
   var contribution;
@@ -511,7 +550,6 @@ var viewEnergy = function(deltaEye) {
   view.eye = savedEye;
   return(energy/samples);
 }
-
 
 var optimizeView = function() {
   var deltaStep = 0.01;
@@ -548,6 +586,7 @@ var optimizeView = function() {
   }
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  //renderAccumulation();
   renderComparisonView();
 }
 

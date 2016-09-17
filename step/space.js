@@ -13,7 +13,7 @@ class Space {
     // state
     this.pendingRenderRequest = false;
 
-    this.spaceShader = new SpaceShader({fields: this.fields});
+    this.spaceShader = new RayCastSpaceShader({fields: this.fields});
 
     this.canvas = document.querySelector(options.canvasSelector);
     this.gl = this.canvas.getContext('webgl2');
@@ -187,7 +187,7 @@ class Space {
   }
 }
 
-class SpaceShader {
+class RayCastSpaceShader {
   constructor(options={}) {
     this.fields = options.fields || [];
   }
@@ -403,5 +403,81 @@ class SpaceShader {
       }
 
     `);
+  }
+}
+
+class FilterSpaceShader {
+  constructor(options={}) {
+    this.fields = options.fields || [];
+  }
+
+  // TODO: move to superclass
+  perFieldSamplingShaderSource() {
+    let perFieldSamplingShaderSource = '';
+    this.fields.forEach(field=>{
+      perFieldSamplingShaderSource += field.samplingShaderSource();
+    });
+    return(perFieldSamplingShaderSource);
+  }
+
+  perFieldCompositingShaderSource() {
+    let source = '';
+    this.fields.forEach(field=>{
+      source += `
+          sampleField${field.id}(textureUnit${field.id},
+                                  samplePoint, gradientSize, sampleValue, normal, gradientMagnitude);
+      `;
+    });
+    return(source);
+  }
+
+  fieldCompositingShaderSource() {
+    let fieldCompositingShaderSource = `
+          vec3 normal;
+          float gradientMagnitude;
+
+          ${this.perFieldCompositingShaderSource()}
+
+    `;
+
+    return(fieldCompositingShaderSource);
+  }
+
+  headerSource() {
+    return(`#version 300 es
+      precision highp float;
+      precision highp int;
+      precision highp sampler3D;
+      precision highp isampler3D;
+    `);
+  }
+
+  vertexShaderSource() {
+    return (`${this.headerSource()}
+      in vec3 coordinate;
+      in vec2 textureCoordinate;
+      out vec3 interpolatedTextureCoordinate;
+      void main()
+      {
+        interpolatedTextureCoordinate = vec3(textureCoordinate, .5);
+        gl_Position = vec4(coordinate, 1.);
+      }
+    `);
+  }
+
+  fragmentShaderSource() {
+    return (`${this.headerSource()}
+
+      in vec3 interpolatedTextureCoordinate;
+      out vec4 fragmentColor;
+      void main()
+      {
+        fragmentColor = vec4(1);
+      }
+
+    `);
+  }
+
+  filter() {
   }
 }

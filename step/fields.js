@@ -73,11 +73,11 @@ Field.fromDataset = function(dataset) {
       }
       break;
     case "Segmentation": {
-      return (new SegmentationField({dataset}));
+      return (SegmentationField.fieldsFromDataset({dataset}));
     }
     break;
     default: {
-      console.warn('Cannot process this dataset type ', dataset.SOPClass);
+      console.error('Cannot process this dataset type ', dataset.SOPClass);
     }
 
    /* TODO
@@ -221,9 +221,10 @@ class PixelField extends Field {
     let sliceStepToPatient = vec3.create();
     vec3.cross(sliceStepToPatient, rowStepToPatient, columnStepToPatient);
 
-    let spacingBetweenColumns = Number(sharedGroups.PixelMeasures.PixelSpacing[0]);
-    let spacingBetweenRows = Number(sharedGroups.PixelMeasures.PixelSpacing[1]);
-    let spacingBetweenSlices = Number(sharedGroups.PixelMeasures.SpacingBetweenSlices);
+    let pixelMeasures = sharedGroups.PixelMeasures;
+    let spacingBetweenColumns = Number(pixelMeasures.PixelSpacing[0]);
+    let spacingBetweenRows = Number(pixelMeasures.PixelSpacing[1]);
+    let spacingBetweenSlices = Number(pixelMeasures.SpacingBetweenSlices);
 
     vec3.scale(columnStepToPatient, columnStepToPatient, spacingBetweenColumns);
     vec3.scale(rowStepToPatient, rowStepToPatient, spacingBetweenRows);
@@ -323,6 +324,7 @@ class ImageField extends PixelField {
   statistics(options={}) {
     let statistics = {};
     statistics.bins = options.bins || 256;
+    let samples = options.samples || 1000;
 
     let imageArray;
     if (this.dataset.PixelRepresentation == 1) {
@@ -333,16 +335,18 @@ class ImageField extends PixelField {
 
     let min = 3e38;
     let max = -3e38;
-    for (let index = 0; index < imageArray.length; index++) {
-      min = Math.min(min, imageArray[index]);
-      max = Math.max(max, imageArray[index]);
+    for (let index = 0; index < samples; index++) {
+      let sampleIndex = Math.floor(imageArray.length * Math.random());
+      min = Math.min(min, imageArray[sampleIndex]);
+      max = Math.max(max, imageArray[sampleIndex]);
     }
     statistics.range = {min, max};
 
     let histogram = new Int32Array(statistics.bins);
     let binScale = statistics.bins / (max - min);
-    for (let index = 0; index < imageArray.length; index++) {
-      let bin = Math.floor((imageArray[index] - min) * binScale);
+    for (let index = 0; index < samples; index++) {
+      let sampleIndex = Math.floor(imageArray.length * Math.random());
+      let bin = Math.floor((imageArray[sampleIndex] - min) * binScale);
       histogram[bin] += 1;
     }
     statistics.histogram = histogram;
@@ -463,7 +467,14 @@ class SegmentationField extends PixelField {
     if (this.dataset.BitsAllocated != 1) {
       console.warn(this, 'Can only render 1 bit data');
     }
+    let sharedGroups = this.dataset.SharedFunctionalGroups;
+    let pixelMeasures = sharedGroups.PixelMeasures;
+    if (pixelMeasures.SpacingBetweenSlices != pixelMeasures.SliceThickness) {
+      console.warn('SpacingBetweenSlices and SliceThickness should be equal for SEG');
+      console.warn(pixelMeasures.SpacingBetweenSlices + ' != ' + pixelMeasures.SliceThickness);
+    }
     this.pixelDimensions[0] /= 8; // the array size is smaller due to packing
+    //this.rgb = Colors().dicomlab2rgb()
   }
 
   uniforms() {
@@ -562,4 +573,14 @@ class SegmentationField extends PixelField {
       }
     }
   }
+}
+
+SegmentationField.fieldsFromDataset = function(options) {
+  if (!options.dataset) {
+    return [];
+  }
+  let fields = [];
+  fields.push(new SegmentationField(options));
+  fields.push(new SegmentationField(options));
+  return (fields);
 }

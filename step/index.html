@@ -22,6 +22,7 @@
   <script type="text/javascript" src="../dcmio/DicomMessage.js"></script>
   <script type="text/javascript" src="../dcmio/normalizers.js"></script>
 
+  <script type="text/javascript" src="./colors.js"></script>
   <script type="text/javascript" src="./linear.js"></script>
   <script type="text/javascript" src="./fields.js"></script>
   <script type="text/javascript" src="./view.js"></script>
@@ -72,8 +73,15 @@ function requestSeries(instanceURLs) {
       step.ui.bottomBar.progress = `Loaded ${seriesDatasets.length} of ${instanceURLs.length}`;
       if (seriesDatasets.length == instanceURLs.length) {
         let dataset = Normalizer.normalizeToDataset(seriesDatasets);
-        let field = Field.fromDataset(dataset);
-        step.space.fields.push(field);
+        let fields = Field.fromDataset(dataset);
+        let field;
+        if (fields.length > 0) {
+          step.space.fields.push(...fields);
+          field = fields[0];
+        } else {
+          field = fields;
+          step.space.fields.push(field);
+        }
         step.space.updateFields();
         step.space.view.look({at: field.center, bounds: field.bounds});
         step.space.requestRender(step.view);

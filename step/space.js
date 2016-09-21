@@ -120,6 +120,7 @@ class Space {
     let location = gl.getUniformLocation(this.program, key);
     if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
     if (uniform.type == '3iv') {gl.uniform3iv(location, uniform.value); return;}
+    if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
     if (uniform.type == '1f') {gl.uniform1f(location, uniform.value); return;}
     if (uniform.type == '1ui') {gl.uniform1ui(location, uniform.value); return;}
     if (uniform.type == '1i') {gl.uniform1i(location, uniform.value); return;}

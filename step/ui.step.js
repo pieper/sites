@@ -388,6 +388,7 @@ class stepBottomBar extends UIItem {
       this.progressTextUI.setValue('');
       this.dom.style.opacity = .25;
     };
-    setTimeout(restoreProgress.bind(this), 2000);
+    clearTimeout(this.progressTimeout);
+    this.progressTimeout = setTimeout(restoreProgress.bind(this), 2000);
   }
 }

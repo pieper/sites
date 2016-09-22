@@ -590,7 +590,11 @@ SegmentationField.fieldsFromDataset = function(options) {
   // first, make a new dataset per segment
   let segmentDatasets = ["Empty Dataset 0"];
   let jsonDataset = JSON.stringify(options.dataset);
-  options.dataset.Segment.forEach(segment => {
+  let segments = options.dataset.Segment;
+  if (!(segments.length > 0)) {
+    segments = [options.dataset.Segment];
+  }
+  segments.forEach(segment => {
     let segmentDataset = JSON.parse(jsonDataset);
     segmentDataset.Segment = [segment];
     segmentDatasets.push(segmentDataset);

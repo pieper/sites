@@ -315,6 +315,8 @@ class ImageField extends PixelField {
     super.analyze();
     this.windowCenter = Number(this.dataset.WindowCenter[0]);
     this.windowWidth = Number(this.dataset.WindowWidth[0]);
+    this.rescaleIntercept = Number(this.dataset.RescaleIntercept);
+    this.rescaleSlope = Number(this.dataset.RescaleSlope);
 
     if (this.dataset.BitsAllocated != 16) {
       console.error('Can only render 16 bit data');
@@ -369,6 +371,8 @@ class ImageField extends PixelField {
     let u = super.uniforms();
     u['windowCenter'+this.id] = {type: "1f", value: this.windowCenter};
     u['windowWidth'+this.id] = {type: "1f", value: this.windowWidth};
+    u['rescaleSlope'+this.id] = {type: "1f", value: this.rescaleSlope};
+    u['rescaleIntercept'+this.id] = {type: "1f", value: this.rescaleIntercept};
     return(u);
   }
 
@@ -393,6 +397,8 @@ class ImageField extends PixelField {
         opacity = 20. * pixelValue;
       }
 
+      uniform float rescaleIntercept${this.id};
+      uniform float rescaleSlope${this.id};
       uniform mat4 patientToPixel${this.id};
       uniform mat3 normalPixelToPatient${this.id};
       uniform ivec3 pixelDimensions${this.id};
@@ -412,8 +418,9 @@ class ImageField extends PixelField {
         }
 
         sampleValue = texture(textureUnit, stpPoint).r;
+        sampleValue = rescaleSlope${this.id} * sampleValue + rescaleIntercept${this.id};
 
-        #define S(point, offset, column) texture(textureUnit, point+offset*patientToPixel${this.id}[column].xyz).r
+        #define S(point, offset, column) rescaleSlope${this.id} * texture(textureUnit, point+offset*patientToPixel${this.id}[column].xyz).r + rescaleIntercept${this.id};
         // central difference sample gradient (P is +1, N is -1)
         float sP00 = S(stpPoint, 1. * gradientSize, 0);
         float sN00 = S(stpPoint, -1. * gradientSize, 0);

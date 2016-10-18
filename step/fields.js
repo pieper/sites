@@ -2,12 +2,29 @@ class Field {
   constructor(options={}) {
     this.id = Field.nextId;
     this.texture = undefined;
+    this.modifiedTime = Number.MAX_VALUE;
+    this.updatedTime = 0;
     this.bounds = undefined; // the spatial extent of the field.
                              // undefined means there is no bound, otherwise
                              // an object with min and max
+    this.visible = true;
+    this.generator = undefined;
     Field.nextId++;
   }
 
+  // user of this class is responsible for calling modified
+  // after making changes that require updating the gl representation
+  modified() {
+    this.modifiedTime = performance.now(); // TODO: maybe use incrementing Number
+  }
+
+  updated() {
+    this.updatedTime = performance.now();
+  }
+
+  needsUpdate() {
+    return this.updatedTime < this.modifiedTime;
+  }
 
   samplingShaderSource() {
     // return a string with these functions implemented in GLSL
@@ -41,10 +58,18 @@ class Field {
   fieldToTexture(gl) {
     // ensure the field data is stored in the texture
     // unit associated with this.id in the gl context
-    if (this.texture) {gl.deleteTexture(this.texture);}
-    this.texture = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE0+this.id);
-    gl.bindTexture(gl.TEXTURE_3D, this.texture);
+    // returns true if subclass also needs to update.
+    // Final child class should call this.updated().
+    let needsUpdate = this.needsUpdate();
+    if (needsUpdate) {
+      if (this.texture) {
+        gl.deleteTexture(this.texture);
+      }
+      this.texture = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0+this.id);
+      gl.bindTexture(gl.TEXTURE_3D, this.texture);
+    }
+    return needsUpdate;
   }
 
 }
@@ -77,7 +102,7 @@ Field.fromDataset = function(dataset) {
     }
     break;
     default: {
-      console.error('Cannot process this dataset type ', dataset.SOPClass);
+      console.error('Cannot process this dataset type ', dataset);
     }
 
    /* TODO
@@ -186,15 +211,19 @@ class FiducialField extends Field {
 
   fieldToTexture(gl) {
     // allocate and fill a dummy texture
-    super.fieldToTexture(gl);
-    let imageFloat32Array = Float32Array.from([0]);
+    let needsUpdate = super.fieldToTexture(gl);
 
-    let [w,h,d] = [1,1,1];
-    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F, w, h, d);
-    gl.texSubImage3D(gl.TEXTURE_3D,
-                     0, 0, 0, 0, // level, offsets
-                     w, h, d,
-                     gl.RED, gl.FLOAT, imageFloat32Array);
+    if (needsUpdate) {
+      let imageFloat32Array = Float32Array.from([0]);
+
+      let [w,h,d] = [1,1,1];
+      gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F, w, h, d);
+      gl.texSubImage3D(gl.TEXTURE_3D,
+                       0, 0, 0, 0, // level, offsets
+                       w, h, d,
+                       gl.RED, gl.FLOAT, imageFloat32Array);
+      this.updated();
+    }
   }
 }
 
@@ -294,14 +323,17 @@ class PixelField extends Field {
 
   fieldToTexture(gl) {
     // common texture operations for all pixel-based fields
-    super.fieldToTexture(gl);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_BASE_LEVEL, 0);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAX_LEVEL, 0);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    let needsUpdate = super.fieldToTexture(gl);
+    if (needsUpdate) {
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_BASE_LEVEL, 0);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAX_LEVEL, 0);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    }
+    return needsUpdate;
   }
 }
 
@@ -378,7 +410,7 @@ class ImageField extends PixelField {
 
   samplingShaderSource() {
     return(`
-      uniform highp sampler3D textureUnit${this.id};
+      uniform highp isampler3D textureUnit${this.id};
 
       vec3 transformPoint${this.id}(const in vec3 samplePoint)
       {
@@ -402,7 +434,7 @@ class ImageField extends PixelField {
       uniform mat4 patientToPixel${this.id};
       uniform mat3 normalPixelToPatient${this.id};
       uniform ivec3 pixelDimensions${this.id};
-      void sampleField${this.id} (const in sampler3D textureUnit,
+      void sampleField${this.id} (const in isampler3D textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
                                   out float sampleValue, out vec3 normal,
@@ -417,10 +449,10 @@ class ImageField extends PixelField {
             return;
         }
 
-        sampleValue = texture(textureUnit, stpPoint).r;
+        sampleValue = float(texture(textureUnit, stpPoint).r);
         sampleValue = rescaleSlope${this.id} * sampleValue + rescaleIntercept${this.id};
 
-        #define S(point, offset, column) rescaleSlope${this.id} * texture(textureUnit, point+offset*patientToPixel${this.id}[column].xyz).r + rescaleIntercept${this.id};
+        #define S(point, offset, column) rescaleSlope${this.id} * float(texture(textureUnit, point+offset*patientToPixel${this.id}[column].xyz).r) + rescaleIntercept${this.id};
         // central difference sample gradient (P is +1, N is -1)
         float sP00 = S(stpPoint, 1. * gradientSize, 0);
         float sN00 = S(stpPoint, -1. * gradientSize, 0);
@@ -443,22 +475,30 @@ class ImageField extends PixelField {
   }
 
   fieldToTexture(gl) {
-    // allocate and fill a float 3D texture for the image data
-    super.fieldToTexture(gl);
-    let imageArray;
-    if (this.dataset.PixelRepresentation == 1) {
-      imageArray = new Int16Array(this.dataset.PixelData);
-    } else {
-      imageArray = new Uint16Array(this.dataset.PixelData);
-    }
-    let imageFloat32Array = new Float32Array(imageArray);
+    // allocate and fill a float 3D texture for the image data.
+    // cannot be subclassed.
+    let needsUpdate = super.fieldToTexture(gl);
+    if (needsUpdate) {
+      let imageArray;
+      if (this.dataset.PixelRepresentation == 1) {
+        imageArray = new Int16Array(this.dataset.PixelData);
+      } else {
+        imageArray = new Uint16Array(this.dataset.PixelData);
+      }
+      //let imageFloat32Array = new Float32Array(imageArray);
+      let imageInt16Array = new Int16Array(imageArray);
 
-    let [w,h,d] = this.pixelDimensions;
-    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R32F, w, h, d);
-    gl.texSubImage3D(gl.TEXTURE_3D,
-                     0, 0, 0, 0, // level, offsets
-                     w, h, d,
-                     gl.RED, gl.FLOAT, imageFloat32Array);
+      let [w,h,d] = this.pixelDimensions;
+      gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R16I, w, h, d);
+      if (!this.generator) {
+        // only transfer the data if there's no generator that will fill it in
+        gl.texSubImage3D(gl.TEXTURE_3D,
+                         0, 0, 0, 0, // level, offsets
+                         w, h, d,
+                         gl.RED_INTEGER, gl.SHORT, imageInt16Array);
+      }
+      this.updated();
+    }
   }
 }
 
@@ -546,40 +586,44 @@ class SegmentationField extends PixelField {
   }
 
   fieldToTexture(gl) {
-    super.fieldToTexture(gl);
+    // cannot be subclassed.
+    let needsUpdate = super.fieldToTexture(gl);
 
-    let [w,h,d] = this.pixelDimensions;
-    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI, w, h, d);
-    // Each row of the texture needs to be a mulitple of the
-    // unpack size, which is typically 4 and cannot be changed
-    // in webgl.  So we load the texture a row at a time
-    // using the first part of the next row as padding.
-    // For the last row we need to copy over the contents
-    // into a new buffer of the correct size.
-    //https://groups.google.com/forum/#!topic/webgl-dev-list/wuUZP7iTr9Q
-    // TODO: this could be needed for any texture but it's not likely.
-    let unpackAlignment = gl.getParameter(gl.UNPACK_ALIGNMENT);
-    let paddedRowSize = Math.floor((w + unpackAlignment - 1) / unpackAlignment)
-                          * unpackAlignment;
-    let rowByteArray;
-    for (let slice = 0; slice < d; slice++) {
-      for (let row = 0; row < h; row++) {
-        let rowStart = slice * (w*h) + row * w;
-        if (slice == d-1 && row == h-1) {
-          let lastRow = new Uint8Array(w);
-          rowByteArray = new Uint8Array(paddedRowSize);
-          for (let column = 0; column < w; column++) {
-            rowByteArray[column] = lastRow[column];
+    if (needsUpdate) {
+      let [w,h,d] = this.pixelDimensions;
+      gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI, w, h, d);
+      // Each row of the texture needs to be a mulitple of the
+      // unpack size, which is typically 4 and cannot be changed
+      // in webgl.  So we load the texture a row at a time
+      // using the first part of the next row as padding.
+      // For the last row we need to copy over the contents
+      // into a new buffer of the correct size.
+      //https://groups.google.com/forum/#!topic/webgl-dev-list/wuUZP7iTr9Q
+      // TODO: this could be needed for any texture but it's not likely.
+      let unpackAlignment = gl.getParameter(gl.UNPACK_ALIGNMENT);
+      let paddedRowSize = Math.floor((w + unpackAlignment - 1) / unpackAlignment)
+                            * unpackAlignment;
+      let rowByteArray;
+      for (let slice = 0; slice < d; slice++) {
+        for (let row = 0; row < h; row++) {
+          let rowStart = slice * (w*h) + row * w;
+          if (slice == d-1 && row == h-1) {
+            let lastRow = new Uint8Array(w);
+            rowByteArray = new Uint8Array(paddedRowSize);
+            for (let column = 0; column < w; column++) {
+              rowByteArray[column] = lastRow[column];
+            }
+          } else {
+            rowByteArray = new Uint8Array(this.dataset.PixelData, rowStart, paddedRowSize);
           }
-        } else {
-          rowByteArray = new Uint8Array(this.dataset.PixelData, rowStart, paddedRowSize);
+          gl.texSubImage3D(gl.TEXTURE_3D,
+                           0, // level, offsets
+                           0, row, slice,
+                           w, 1, 1,
+                           gl.RED_INTEGER, gl.UNSIGNED_BYTE, rowByteArray);
         }
-        gl.texSubImage3D(gl.TEXTURE_3D,
-                         0, // level, offsets
-                         0, row, slice,
-                         w, 1, 1,
-                         gl.RED_INTEGER, gl.UNSIGNED_BYTE, rowByteArray);
       }
+      this.updated();
     }
   }
 }
@@ -629,6 +673,7 @@ SegmentationField.fieldsFromDataset = function(options) {
     segmentSizes.push(frameSize * numberOfFrames);
   });
   // Now make new per-frame functional groups and pixel data for each dataset
+  // (skipping the first known-to-be-empty segment)
   // TODO: assumes frames are sorted and first frame is origin WRT slice direction
   let segmentNumber = 1;
   segmentGroupLists.slice(1).forEach(segmentGroupList => {

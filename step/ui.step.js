@@ -33,6 +33,7 @@ class stepMenubar extends Menubar {
     super();
     this.container.add(new stepFileMenu(application,options).container);
     this.container.add(new stepDatabaseMenu(application,options).container);
+    this.container.add(new stepOperationMenu(application,options).container);
   }
 }
 
@@ -254,6 +255,25 @@ class stepDatabaseMenu extends MenuPanel {
         operation: options.requestSeries
       });
     };
+  }
+}
+
+class stepOperationMenu extends MenuPanel {
+  constructor(application, options) {
+    options = options || {};
+    options.performFilter = options.performFilter || function(){};
+    super(application, {title: 'Operations'});
+
+    let option;
+    // Operations -> Filter
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Filter' );
+    option.onClick( function () {
+      options.performFilter();
+    } );
+    this.menuPanel.add( option );
+
   }
 }
 

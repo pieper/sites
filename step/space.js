@@ -12,6 +12,7 @@ class Space {
 
     // state
     this.pendingRenderRequest = false;
+    this.program = undefined;
 
     this.spaceShader = new RayCastSpaceShader({fields: this.fields});
 
@@ -80,6 +81,10 @@ class Space {
     gl.deleteShader(this.vertexShader);
     gl.attachShader(this.program, this.fragmentShader);
     gl.deleteShader(this.fragmentShader);
+
+    gl.bindAttribLocation(this.program, 0, "coordinate");
+    gl.bindAttribLocation(this.program, 1, "textureCoordinate");
+
     gl.linkProgram(this.program);
     if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
       this.logWithLineNumbers(this.fragmentShaderSource);
@@ -89,12 +94,16 @@ class Space {
     }
 
     // activate any field textures
-    this.spaceShader.fields.forEach(field=>field.fieldToTexture(gl));
+    this.fields.forEach(field => {
+      if (field.needsUpdate()) {
+        field.fieldToTexture(gl)
+      }
+    });
 
     // recalculate center and bounds
     let large = Linear.LARGE_NUMBER;
     this.bounds = {min: [large, large, large], max: [-large, -large, -large]};
-    this.spaceShader.fields.forEach(field => {
+    this.fields.forEach(field => {
       [0,1,2].forEach(e => {
         this.bounds.min[e] = Math.min(this.bounds.min[e], field.bounds.min[e]);
         this.bounds.max[e] = Math.max(this.bounds.max[e], field.bounds.max[e]);
@@ -142,6 +151,8 @@ class Space {
     }
 
     let gl = this.gl;
+    // draw to the main framebuffer!
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -182,8 +193,6 @@ class Space {
       }
     });
 
-    // draw to the main framebuffer!
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 }
@@ -204,14 +213,16 @@ class RayCastSpaceShader {
   perFieldCompositingShaderSource() {
     let source = '';
     this.fields.forEach(field=>{
-      source += `
-          // accumulate per-field opacities and lit colors
-          sampleField${field.id}(textureUnit${field.id},
-                                  samplePoint, gradientSize, sampleValue, normal, gradientMagnitude);
-          transferFunction${field.id}(sampleValue, gradientMagnitude, color, fieldOpacity);
-          litColor += fieldOpacity * lightingModel(samplePoint, normal, color, viewPoint);
-          opacity += fieldOpacity;
-      `;
+      if (field.visible) {
+        source += `
+            // accumulate per-field opacities and lit colors
+            sampleField${field.id}(textureUnit${field.id},
+                                    samplePoint, gradientSize, sampleValue, normal, gradientMagnitude);
+            transferFunction${field.id}(sampleValue, gradientMagnitude, color, fieldOpacity);
+            litColor += fieldOpacity * lightingModel(samplePoint, normal, color, viewPoint);
+            opacity += fieldOpacity;
+        `;
+      }
     });
     return(source);
   }
@@ -404,81 +415,5 @@ class RayCastSpaceShader {
       }
 
     `);
-  }
-}
-
-class FilterSpaceShader {
-  constructor(options={}) {
-    this.fields = options.fields || [];
-  }
-
-  // TODO: move to superclass
-  perFieldSamplingShaderSource() {
-    let perFieldSamplingShaderSource = '';
-    this.fields.forEach(field=>{
-      perFieldSamplingShaderSource += field.samplingShaderSource();
-    });
-    return(perFieldSamplingShaderSource);
-  }
-
-  perFieldCompositingShaderSource() {
-    let source = '';
-    this.fields.forEach(field=>{
-      source += `
-          sampleField${field.id}(textureUnit${field.id},
-                                  samplePoint, gradientSize, sampleValue, normal, gradientMagnitude);
-      `;
-    });
-    return(source);
-  }
-
-  fieldCompositingShaderSource() {
-    let fieldCompositingShaderSource = `
-          vec3 normal;
-          float gradientMagnitude;
-
-          ${this.perFieldCompositingShaderSource()}
-
-    `;
-
-    return(fieldCompositingShaderSource);
-  }
-
-  headerSource() {
-    return(`#version 300 es
-      precision highp float;
-      precision highp int;
-      precision highp sampler3D;
-      precision highp isampler3D;
-    `);
-  }
-
-  vertexShaderSource() {
-    return (`${this.headerSource()}
-      in vec3 coordinate;
-      in vec2 textureCoordinate;
-      out vec3 interpolatedTextureCoordinate;
-      void main()
-      {
-        interpolatedTextureCoordinate = vec3(textureCoordinate, .5);
-        gl_Position = vec4(coordinate, 1.);
-      }
-    `);
-  }
-
-  fragmentShaderSource() {
-    return (`${this.headerSource()}
-
-      in vec3 interpolatedTextureCoordinate;
-      out vec4 fragmentColor;
-      void main()
-      {
-        fragmentColor = vec4(1);
-      }
-
-    `);
-  }
-
-  filter() {
   }
 }

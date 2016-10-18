@@ -28,6 +28,7 @@
   <script type="text/javascript" src="./fields.js"></script>
   <script type="text/javascript" src="./view.js"></script>
   <script type="text/javascript" src="./space.js"></script>
+  <script type="text/javascript" src="./generators.js"></script>
 
 
   <link rel="stylesheet" href="./css/step.css" />
@@ -91,6 +92,45 @@ function requestSeries(instanceURLs) {
   });
 }
 
+function performFilter() {
+  let filterField = step.space.fields[step.space.fields.length-1];
+  if (!filterField || filterField.constructor.name != "ImageField") {
+    alert('Need to load an image field');
+    return;
+  }
+
+  let derivedImage = new DerivedImage([filterField.dataset]);
+  let derivedField = Field.fromDataset(derivedImage.dataset);
+
+  step.space.fields.push(derivedField);
+  filterField.visible = false;
+  step.space.updateFields();
+
+  step.generator = new ProgrammaticGenerator({
+    gl: step.space.gl,
+    inputFields: [filterField],
+    outputFields: [derivedField],
+  });
+
+  let previous = performance.now();
+  let iterations = 200;
+  let iteration = 0;
+  let animationFrame = function() {
+    step.generator.uniforms.squiggle.value = iteration;
+    step.generator.generate();
+    step.space._render();
+    console.log(performance.now()-previous);
+    previous = performance.now();
+    iteration++;
+    if (iteration < iterations) {
+      requestAnimationFrame(animationFrame);
+    }
+  }
+  requestAnimationFrame(animationFrame);
+
+  step.space.requestRender(step.view);
+}
+
 let uniforms = {
   pointLight: { type: '3fv', value: [100., -300., 150.] },
   gradientSize: { type: '1f', value: .01 },
@@ -139,6 +179,7 @@ $(function () {
   step.ui.menubar = new stepMenubar(step, {
     database : step.database,
     requestSeries : requestSeries,
+    performFilter : performFilter,
   });
   document.body.insertBefore(step.ui.menubar.dom, document.body.firstChild);
 

@@ -9,7 +9,7 @@ class Controls {
   // TODO: currently the last field added, but should
   // come from a UI selection of the active tool and target image
   selectedImageField() {
-    let fields = step.space.fields;
+    let fields = step.renderer.inputFields;
     let imageField = fields[fields.length-1];
     return (imageField);
   }
@@ -25,11 +25,11 @@ class Controls {
     // TODO: step is global and defines the application that is being controlled
     this.mouseCallback = this.onMouseEvent.bind(this);
     this.mouseEvents.forEach(eventName => {
-      step.space.canvas.addEventListener(eventName, this.mouseCallback, {passive:true});
+      step.renderer.canvas.addEventListener(eventName, this.mouseCallback, {passive:true});
     });
 
     this.wheelCallback = this.onWheelEvent.bind(this);
-    step.space.canvas.addEventListener('mousewheel', this.wheelCallback, {passive:true});
+    step.renderer.canvas.addEventListener('mousewheel', this.wheelCallback, {passive:true});
     this.keyboardCallback = this.onKeyboardEvent.bind(this);
     window.addEventListener('keydown', this.keyboardCallback, {passive:true});
   }
@@ -38,10 +38,10 @@ class Controls {
     document.removeEventListener("contextmenu", this.preventEventDefault);
 
     this.mouseEvents.forEach(eventName => {
-      step.space.canvas.removeEventListener(eventName, this.mouseCallback);
+      step.renderer.canvas.removeEventListener(eventName, this.mouseCallback);
     });
 
-    step.space.canvas.removeEventListener('mousewheel', this.wheelCallback);
+    step.renderer.canvas.removeEventListener('mousewheel', this.wheelCallback);
     window.removeEventListener('keydown', this.keyboardCallback);
   }
 
@@ -50,8 +50,8 @@ class Controls {
     if (!imageField) {
       return;
     }
-    let point = [-1. + (2. * mouseEvent.clientX / step.space.canvas.width),
-                 -1. + (2. * mouseEvent.clientY / step.space.canvas.height)];
+    let point = [-1. + (2. * mouseEvent.clientX / step.renderer.canvas.width),
+                 -1. + (2. * mouseEvent.clientY / step.renderer.canvas.height)];
     switch (mouseEvent.type) {
       case 'mousedown': {
         this.startPoint = point.slice();
@@ -111,7 +111,7 @@ class Controls {
             });
             step.view.look({from: viewPoint});
           }
-          step.space.requestRender(step.view);
+          step.renderer.requestRender(step.view);
         }
       }
       break;
@@ -131,7 +131,7 @@ class Controls {
       return(step.view.viewPoint[e] - gain * step.view.viewNormal[e]);
     });
     step.view.look({from: viewPoint, at: target});
-    step.space.requestRender(step.view);
+    step.renderer.requestRender(step.view);
   }
 
   onKeyboardEvent(keyboardEvent) {
@@ -178,10 +178,10 @@ class Controls {
       }
       break;
       case "f": {
-        step.view.look({at: step.space.center, bounds: step.space.bounds});
+        step.view.look({at: step.renderer.center, bounds: step.renderer.bounds});
       }
       break;
     }
-    step.space.requestRender(step.view);
+    step.renderer.requestRender(step.view);
   }
 }

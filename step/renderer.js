@@ -1,109 +1,22 @@
-class Space {
+class RayCastRenderer extends ProgrammaticGenerator {
+  // Last link in a chain, renders to the default frame buffer
+  // using ray cast shader program
   constructor(options={}) {
-
-    // required
-    this.canvasSelector = options.canvasSelector;
-
-    // optional
-    this.uniforms = options.uniforms || [];
-    this.fields = options.fields || [];
-    this.clearColor = options.clearColor || [0., 0., 0., 1.];
+    super(options);
+    this.canvas = options.canvas;
     this.renderRequestTimeout = options.renderRequestTimeout || 100.;
-
-    // state
     this.pendingRenderRequest = false;
-    this.program = undefined;
-
-    this.spaceShader = new RayCastSpaceShader({fields: this.fields});
-
-    this.canvas = document.querySelector(options.canvasSelector);
-    this.gl = this.canvas.getContext('webgl2');
-    let gl = this.gl;
-
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    // buffers for the textured plane in normalized (clip) space
-    this.renderImageCoordinatesBuffer = gl.createBuffer();
-    this.renderImageTexureCoordinatesBuffer = gl.createBuffer();
-    let renderImageVertices = [ -1., -1., 0.,
-                                 1., -1., 0.,
-                                -1.,  1., 0.,
-                                 1.,  1., 0., ];
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageCoordinatesBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageVertices), gl.STATIC_DRAW);
-    let renderImageTextureCoordinates = [ 0, 0,
-                                          1, 0,
-                                          0, 1,
-                                          1, 1 ];
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageTexureCoordinatesBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(renderImageTextureCoordinates), gl.STATIC_DRAW);
-
-    this.updateFields();
   }
 
-  logWithLineNumbers(string) {
-    let lineNumber = 1;
-    string.split("\n").forEach(line=>{
-      console.log(lineNumber, line);
-      lineNumber += 1;
-    });
-  }
-
-  updateFields() {
+  updateProgram() {
     // recreate the program and textures for the current field list
+    super.updateProgram();
     let gl = this.gl;
-    if (this.program) {gl.deleteProgram(this.program);}
-
-    this.vertexShaderSource = this.spaceShader.vertexShaderSource();
-    this.fragmentShaderSource = this.spaceShader.fragmentShaderSource();
-
-    // the program and shaders
-    this.program = gl.createProgram();
-    this.vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(this.vertexShader, this.vertexShaderSource);
-    gl.compileShader(this.vertexShader);
-    if (!gl.getShaderParameter(this.vertexShader, gl.COMPILE_STATUS)) {
-      this.logWithLineNumbers(this.vertexShaderSource);
-      console.error('Could not compile vertexShader');
-      console.log(gl.getShaderInfoLog(this.vertexShader));
-      return;
-    }
-    this.fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(this.fragmentShader, this.fragmentShaderSource);
-    gl.compileShader(this.fragmentShader);
-    if (!gl.getShaderParameter(this.fragmentShader, gl.COMPILE_STATUS)) {
-      this.logWithLineNumbers(this.fragmentShaderSource);
-      console.error('Could not compile fragmentShader');
-      console.log(gl.getShaderInfoLog(this.fragmentShader));
-      return;
-    }
-    gl.attachShader(this.program, this.vertexShader);
-    gl.deleteShader(this.vertexShader);
-    gl.attachShader(this.program, this.fragmentShader);
-    gl.deleteShader(this.fragmentShader);
-
-    gl.bindAttribLocation(this.program, 0, "coordinate");
-    gl.bindAttribLocation(this.program, 1, "textureCoordinate");
-
-    gl.linkProgram(this.program);
-    if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
-      this.logWithLineNumbers(this.fragmentShaderSource);
-      console.error('Could not link program');
-      console.log(gl.getProgramInfoLog(this.program));
-      return;
-    }
-
-    // activate any field textures
-    this.fields.forEach(field => {
-      if (field.needsUpdate()) {
-        field.fieldToTexture(gl)
-      }
-    });
 
     // recalculate center and bounds
     let large = Linear.LARGE_NUMBER;
     this.bounds = {min: [large, large, large], max: [-large, -large, -large]};
-    this.fields.forEach(field => {
+    this.inputFields.forEach(field => {
       [0,1,2].forEach(e => {
         this.bounds.min[e] = Math.min(this.bounds.min[e], field.bounds.min[e]);
         this.bounds.max[e] = Math.max(this.bounds.max[e], field.bounds.max[e]);
@@ -124,22 +37,7 @@ class Space {
     this.pendingRenderRequest = window.requestAnimationFrame(this._render.bind(this));
   }
 
-  _setUniform(key, uniform) {
-    let gl = this.gl;
-    let location = gl.getUniformLocation(this.program, key);
-    if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
-    if (uniform.type == '3iv') {gl.uniform3iv(location, uniform.value); return;}
-    if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
-    if (uniform.type == '1f') {gl.uniform1f(location, uniform.value); return;}
-    if (uniform.type == '1ui') {gl.uniform1ui(location, uniform.value); return;}
-    if (uniform.type == '1i') {gl.uniform1i(location, uniform.value); return;}
-    if (uniform.type == 'Matrix3fv') {gl.uniformMatrix3fv(location, gl.FALSE, uniform.value); return;}
-    if (uniform.type == 'Matrix4fv') {gl.uniformMatrix4fv(location, gl.FALSE, uniform.value); return;}
-    console.error('Could not set uniform', key, uniform);
-  }
-
   _render() {
-
     this.pendingRenderRequest = false;
     if (!this.gl) {
       console.log('skipping render - no gl context');
@@ -151,8 +49,7 @@ class Space {
     }
 
     let gl = this.gl;
-    // draw to the main framebuffer!
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); // draw to the main framebuffer!
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -178,7 +75,7 @@ class Space {
     Object.keys(uniforms).forEach(key=>{
       this._setUniform(key, uniforms[key]);
     });
-    this.spaceShader.fields.forEach(field=>{
+    this.inputFields.forEach(field=>{
       let uniforms = field.uniforms();
       Object.keys(uniforms).forEach(key=>{
         this._setUniform(key, uniforms[key]);
@@ -186,7 +83,7 @@ class Space {
     });
 
     // activate any field textures
-    this.spaceShader.fields.forEach(field=>{
+    this.inputFields.forEach(field=>{
       gl.activeTexture(gl.TEXTURE0+field.id);
       if (field.texture) {
         gl.bindTexture(gl.TEXTURE_3D, field.texture);
@@ -195,16 +92,10 @@ class Space {
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
-}
-
-class RayCastSpaceShader {
-  constructor(options={}) {
-    this.fields = options.fields || [];
-  }
 
   perFieldSamplingShaderSource() {
     let perFieldSamplingShaderSource = '';
-    this.fields.forEach(field=>{
+    this.inputFields.forEach(field=>{
       perFieldSamplingShaderSource += field.samplingShaderSource();
     });
     return(perFieldSamplingShaderSource);
@@ -212,7 +103,7 @@ class RayCastSpaceShader {
 
   perFieldCompositingShaderSource() {
     let source = '';
-    this.fields.forEach(field=>{
+    this.inputFields.forEach(field=>{
       if (field.visible) {
         source += `
             // accumulate per-field opacities and lit colors
@@ -239,23 +130,14 @@ class RayCastSpaceShader {
 
           ${this.perFieldCompositingShaderSource()}
 
-          // normalize back so that litColor is mean of all fields weighted by opacity
+          // normalize back so that litColor is mean of all inputFields weighted by opacity
           litColor /= opacity;
     `;
 
     return(fieldCompositingShaderSource);
   }
 
-  headerSource() {
-    return(`#version 300 es
-      precision highp float;
-      precision highp int;
-      precision highp sampler3D;
-      precision highp isampler3D;
-    `);
-  }
-
-  vertexShaderSource() {
+  _vertexShaderSource() {
     return (`${this.headerSource()}
       in vec3 coordinate;
       in vec2 textureCoordinate;
@@ -268,7 +150,7 @@ class RayCastSpaceShader {
     `);
   }
 
-  fragmentShaderSource() {
+  _fragmentShaderSource() {
     return (`${this.headerSource()}
 
       uniform vec3 pointLight;
@@ -382,7 +264,7 @@ class RayCastSpaceShader {
           vec3 samplePoint = viewPoint + eyeRayDirection * tCurrent;
 
           // this is the code that composites together samples
-          // from all the fields in the space
+          // from all the inputFields in the space
           ${this.fieldCompositingShaderSource()}
 
           // http://graphicsrunner.blogspot.com/2009/01/volume-rendering-101.html

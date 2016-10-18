@@ -27,8 +27,8 @@
   <script type="text/javascript" src="./linear.js"></script>
   <script type="text/javascript" src="./fields.js"></script>
   <script type="text/javascript" src="./view.js"></script>
-  <script type="text/javascript" src="./space.js"></script>
   <script type="text/javascript" src="./generators.js"></script>
+  <script type="text/javascript" src="./renderer.js"></script>
 
 
   <link rel="stylesheet" href="./css/step.css" />
@@ -78,22 +78,22 @@ function requestSeries(instanceURLs) {
         let fields = Field.fromDataset(dataset);
         let field;
         if (fields.length > 0) {
-          step.space.fields.push(...fields);
+          step.renderer.inputFields.push(...fields);
           field = fields[0];
         } else {
           field = fields;
-          step.space.fields.push(field);
+          step.renderer.inputFields.push(field);
         }
-        step.space.updateFields();
-        step.space.view.look({at: field.center, bounds: field.bounds});
-        step.space.requestRender(step.view);
+        step.renderer.updateProgram();
+        step.renderer.view.look({at: field.center, bounds: field.bounds});
+        step.renderer.requestRender(step.view);
       }
     });
   });
 }
 
 function performFilter() {
-  let filterField = step.space.fields[step.space.fields.length-1];
+  let filterField = step.renderer.inputFields[step.renderer.inputFields.length-1];
   if (!filterField || filterField.constructor.name != "ImageField") {
     alert('Need to load an image field');
     return;
@@ -102,12 +102,12 @@ function performFilter() {
   let derivedImage = new DerivedImage([filterField.dataset]);
   let derivedField = Field.fromDataset(derivedImage.dataset);
 
-  step.space.fields.push(derivedField);
+  step.renderer.inputFields.push(derivedField);
   filterField.visible = false;
-  step.space.updateFields();
+  step.renderer.updateProgram();
 
   step.generator = new ProgrammaticGenerator({
-    gl: step.space.gl,
+    gl: step.renderer.gl,
     inputFields: [filterField],
     outputFields: [derivedField],
   });
@@ -118,7 +118,7 @@ function performFilter() {
   let animationFrame = function() {
     step.generator.uniforms.squiggle.value = iteration;
     step.generator.generate();
-    step.space._render();
+    step.renderer._render();
     console.log(performance.now()-previous);
     previous = performance.now();
     iteration++;
@@ -128,7 +128,7 @@ function performFilter() {
   }
   requestAnimationFrame(animationFrame);
 
-  step.space.requestRender(step.view);
+  step.renderer.requestRender(step.view);
 }
 
 let uniforms = {
@@ -143,25 +143,28 @@ let step = {};
 $(function () {
 
   //
-  // space
+  // renderer
   //
-  step.space = new Space({
-    canvasSelector: '#renderCanvas',
+  let canvas = document.querySelector('#renderCanvas');
+  let gl = canvas.getContext('webgl2');
+  step.renderer = new RayCastRenderer({
+    gl,
+    canvas,
     uniforms,
-    fields: [],
+    inputFields: [],
   });
   step.view = new View({
     viewBoxMax : [250, 49, -240],
     viewBoxMin : [-250, -250, -280],
     viewPoint : [0., -100., -1500.],
   });
-  step.space._render(step.view);
+  step.renderer._render(step.view);
 
   window.addEventListener('resize', resizeEvent => {
     renderCanvas.width = window.innerWidth;
     renderCanvas.height = window.innerHeight;
-    if (step.space) {
-      step.space.requestRender(step.view);
+    if (step.renderer) {
+      step.renderer.requestRender(step.view);
     }
   });
   window.dispatchEvent(new Event('resize'));

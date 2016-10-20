@@ -29,6 +29,7 @@
   <script type="text/javascript" src="./view.js"></script>
   <script type="text/javascript" src="./generators.js"></script>
   <script type="text/javascript" src="./renderer.js"></script>
+  <script type="text/javascript" src="./growcut.js"></script>
 
 
   <link rel="stylesheet" href="./css/step.css" />
@@ -102,6 +103,10 @@ function performFilter() {
   let derivedImage = new DerivedImage([filterField.dataset]);
   let derivedField = Field.fromDataset(derivedImage.dataset);
 
+  // override default calculation
+  derivedField.windowCenter = filterField.windowCenter;
+  derivedField.windowWidth = filterField.windowWidth;
+
   step.renderer.inputFields.push(derivedField);
   filterField.visible = false;
   step.renderer.updateProgram();
@@ -112,18 +117,69 @@ function performFilter() {
     outputFields: [derivedField],
   });
 
-  let previous = performance.now();
+  let start = performance.now();
+  let previous = start;
   let iterations = 200;
   let iteration = 0;
   let animationFrame = function() {
     step.generator.uniforms.squiggle.value = iteration;
     step.generator.generate();
-    step.renderer._render();
-    console.log(performance.now()-previous);
+    if (iteration % 10 == 0) {
+      step.renderer._render();
+    }
+    //console.log(performance.now()-previous);
     previous = performance.now();
     iteration++;
     if (iteration < iterations) {
       requestAnimationFrame(animationFrame);
+    } else {
+      step.renderer.requestRender(step.view);
+      console.log(performance.now()-start);
+    }
+  }
+  requestAnimationFrame(animationFrame);
+
+  step.renderer.requestRender(step.view);
+}
+
+function performGrowCut() {
+  let backgroundField = step.renderer.inputFields[step.renderer.inputFields.length-1];
+  if (!backgroundField || backgroundField.constructor.name != "ImageField") {
+    alert('Need to have a background image field');
+    return;
+  }
+
+  let labelFields = [];
+  let strengthFields = [];
+  [0,1].forEach(index=>{
+    let derivedImage = new DerivedImage([backgroundField.dataset]);
+    labelFields.push(Field.fromDataset(derivedImage.dataset));
+    step.renderer.inputFields.push(labelFields[index]);
+    labelFields[index].visible = false;
+    strengthFields.push(Field.fromDataset(derivedImage.dataset));
+  });
+  step.renderer.updateProgram();
+
+  step.growcut = new GrowCutGenerator({ gl: step.renderer.gl, });
+
+  let iterations = 200;
+  let iteration = 0;
+  let animationFrame = function() {
+    step.growcut.uniforms.iteration.value = iteration;
+    let inBuffer = iteration%2;
+    let outBuffer = (iteration+1)%2;
+    step.growcut.inputFields = [backgroundField,
+                                labelFields[inBuffer],
+                                strengthFields[inBuffer]];
+    step.growcut.outputFields = [labelFields[outBuffer], strengthFields[outBuffer]];
+    step.growcut.updateProgram();
+    step.growcut.generate();
+    step.renderer._render();
+    iteration++;
+    if (iteration < iterations) {
+      requestAnimationFrame(animationFrame);
+    } else {
+      step.renderer.requestRender(step.view);
     }
   }
   requestAnimationFrame(animationFrame);
@@ -183,6 +239,7 @@ $(function () {
     database : step.database,
     requestSeries : requestSeries,
     performFilter : performFilter,
+    performGrowCut : performGrowCut,
   });
   document.body.insertBefore(step.ui.menubar.dom, document.body.firstChild);
 

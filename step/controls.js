@@ -64,6 +64,12 @@ class Controls {
       case 'mousemove': {
         if (this.startPoint) {
           let pointDelta = [0,1].map(e=>point[e]-this.startPoint[e]);
+          /* TODO: geared control
+          pointDelta = [0,1].map(e=>{
+            let sign = pointDelta[e] > 0 ? 1 : -1;
+            return (sign * Math.pow(Math.abs(pointDelta[e]), .1));
+          });
+          */
           if (mouseEvent.buttons == 1) {
             switch (this.tool) {
               case 'windowLevel': {

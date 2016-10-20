@@ -80,23 +80,19 @@ class ProgrammaticGenerator extends Generator {
   _fragmentShaderSource() {
     return (`${this.headerSource()}
 
-      uniform int iteration;
-      uniform int iterations;
-
-      // these are the function definitions for sampleVolume* and transferFunction*
-      // that define a field at a sample point in space
       ${function() {
-          let perFieldSamplingShaderSource = '';
+          let textureDeclarations = '';
           this.inputFields.forEach(field=>{
-            perFieldSamplingShaderSource += field.samplingShaderSource();
+            textureDeclarations += "uniform highp isampler3D textureUnit"+String(field.id)+";\n";
           });
-          return(perFieldSamplingShaderSource);
+          return(textureDeclarations);
         }.bind(this)()
       }
 
       in vec3 interpolatedTextureCoordinate;
       out int fragmentColor;
 
+      uniform float slice;
       uniform float gradientSize;
       uniform float squiggle;
       uniform isampler3D inputTexture;
@@ -107,8 +103,9 @@ class ProgrammaticGenerator extends Generator {
 
       void main()
       {
-        fragmentColor = texture(textureUnit${this.inputFields[0].id}, interpolatedTextureCoordinate).r;
-        fragmentColor *= int(squiggle * (sin(20.*interpolatedTextureCoordinate.s) + cos(20.*interpolatedTextureCoordinate.t)));
+        vec3 tc = interpolatedTextureCoordinate;
+        fragmentColor = texture(textureUnit${this.inputFields[0].id}, tc).r;
+        fragmentColor += int(10.*squiggle*slice * (sin(20.*interpolatedTextureCoordinate.s) + cos(20.*interpolatedTextureCoordinate.t)));
       }
     `);
   }
@@ -177,8 +174,12 @@ class ProgrammaticGenerator extends Generator {
 
   generate() {
     let gl = this.gl;
+    let outputField0 = this.outputFields[0];
+    let outputDataset = outputField0.dataset;
 
     gl.useProgram(this.program);
+
+    gl.viewport(0, 0, outputDataset.Columns, outputDataset.Rows);
 
     // the coordinate attribute
     gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageCoordinatesBuffer);
@@ -189,7 +190,6 @@ class ProgrammaticGenerator extends Generator {
     // the textureCoordinate attribute
     gl.bindBuffer(gl.ARRAY_BUFFER, this.renderImageTexureCoordinatesBuffer);
     let textureCoordinateLocation = gl.getAttribLocation(this.program, "textureCoordinate");
-  textureCoordinateLocation = 1; // TODO
     gl.enableVertexAttribArray( textureCoordinateLocation );
     gl.vertexAttribPointer( textureCoordinateLocation, 2, gl.FLOAT, false, 0, 0);
 
@@ -215,8 +215,6 @@ class ProgrammaticGenerator extends Generator {
     // generate the output by invoking the program once per slice
     let mipmapLevel = 0;
     let sliceUniformLocation = gl.getUniformLocation(this.program, "slice");
-    let outputField = this.outputFields[0];
-    let outputDataset = outputField.dataset;
     let sharedGroups = outputDataset.SharedFunctionalGroups;
     let sliceSpacing = sharedGroups.PixelMeasures.SpacingBetweenSlices;
     let slice = 0.5 * sliceSpacing;
@@ -224,8 +222,12 @@ class ProgrammaticGenerator extends Generator {
       slice = sliceIndex / outputDataset.NumberOfFrames;
       gl.uniform1f(sliceUniformLocation, slice);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
-                                 outputField.texture, mipmapLevel, sliceIndex);
+      let attachement = 0;
+      this.outputFields.forEach(outputField=>{
+        gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+attachement,
+                                   outputField.texture, mipmapLevel, sliceIndex);
+        attachement++;
+      });
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       slice += sliceSpacing;
     }

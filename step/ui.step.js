@@ -262,15 +262,26 @@ class stepOperationMenu extends MenuPanel {
   constructor(application, options) {
     options = options || {};
     options.performFilter = options.performFilter || function(){};
+    options.performGrowCut = options.performGrowCut || function(){};
     super(application, {title: 'Operations'});
 
     let option;
-    // Operations -> Filter
+
+    // Operations -> FilterTest
     option = new UI.Row();
     option.setClass( 'option' );
-    option.setTextContent( 'Filter' );
+    option.setTextContent( 'FilterTest' );
     option.onClick( function () {
       options.performFilter();
+    } );
+    this.menuPanel.add( option );
+
+    // Operations -> GrowCut
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'GrowCut' );
+    option.onClick( function () {
+      options.performGrowCut();
     } );
     this.menuPanel.add( option );
 

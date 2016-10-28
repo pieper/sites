@@ -7,7 +7,7 @@ class Field {
     this.bounds = undefined; // the spatial extent of the field.
                              // undefined means there is no bound, otherwise
                              // an object with min and max
-    this.visible = true;
+    this.visible = 1;
     this.generator = undefined;
     Field.nextId++;
   }
@@ -52,7 +52,10 @@ class Field {
 
   uniforms() {
     // return an object of the current uniform values
-    return({});
+    let u = {};
+    u['visible'+this.id] = {type: '1i', value: this.visible};
+    u['textureUnit'+this.id] = {type: '1i', value: this.id};
+    return(u);
   }
 
   fieldToTexture(gl) {
@@ -136,9 +139,7 @@ class FiducialField extends Field {
   }
 
   uniforms() {
-    let textureUnit = 'textureUnit'+this.id;
-    let u = {};
-    u[textureUnit] = {type: '1i', value: this.id};
+    let u = super.uniforms();
     return(u);
   }
 
@@ -313,10 +314,9 @@ class PixelField extends Field {
   }
 
   uniforms() {
-    let u = {};
+    let u = super.uniforms();
     u['normalPixelToPatient'+this.id] = {type: "Matrix3fv", value: this.normalPixelToPatient},
     u['patientToPixel'+this.id] = {type: "Matrix4fv", value: this.patientToPixel};
-    u['textureUnit'+this.id] = {type: '1i', value: this.id};
     u['pixelDimensions'+this.id] = {type: '3iv', value: this.pixelDimensions};
     return(u);
   }
@@ -429,6 +429,7 @@ class ImageField extends PixelField {
         opacity = 20. * pixelValue;
       }
 
+      uniform int visible${this.id};
       uniform float rescaleIntercept${this.id};
       uniform float rescaleSlope${this.id};
       uniform mat4 patientToPixel${this.id};
@@ -554,6 +555,7 @@ class SegmentationField extends PixelField {
         }
       }
 
+      uniform int visible${this.id};
       uniform mat4 patientToPixel${this.id};
       uniform ivec3 pixelDimensions${this.id};
       uniform uint packingFactor${this.id};

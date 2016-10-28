@@ -104,16 +104,16 @@ class RayCastRenderer extends ProgrammaticGenerator {
   perFieldCompositingShaderSource() {
     let source = '';
     this.inputFields.forEach(field=>{
-      if (field.visible) {
-        source += `
+      source += `
+          if (visible${field.id} > 0) {
             // accumulate per-field opacities and lit colors
             sampleField${field.id}(textureUnit${field.id},
                                     samplePoint, gradientSize, sampleValue, normal, gradientMagnitude);
             transferFunction${field.id}(sampleValue, gradientMagnitude, color, fieldOpacity);
             litColor += fieldOpacity * lightingModel(samplePoint, normal, color, viewPoint);
             opacity += fieldOpacity;
-        `;
-      }
+          }
+      `;
     });
     return(source);
   }

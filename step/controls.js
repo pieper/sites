@@ -9,9 +9,12 @@ class Controls {
   // TODO: currently the last field added, but should
   // come from a UI selection of the active tool and target image
   selectedImageField() {
-    let fields = step.renderer.inputFields;
-    let imageField = fields[fields.length-1];
-    return (imageField);
+    let fields = step.renderer.inputFields.map(field=>{
+      if(field.visible) {
+        return (field);
+      }
+    });
+    return (fields[0]);
   }
 
   preventEventDefault(event) {
@@ -64,20 +67,14 @@ class Controls {
       case 'mousemove': {
         if (this.startPoint) {
           let pointDelta = [0,1].map(e=>point[e]-this.startPoint[e]);
-          /* TODO: geared control
-          pointDelta = [0,1].map(e=>{
-            let sign = pointDelta[e] > 0 ? 1 : -1;
-            return (sign * Math.pow(Math.abs(pointDelta[e]), .1));
-          });
-          */
           if (mouseEvent.buttons == 1) {
             switch (this.tool) {
               case 'windowLevel': {
                 // W/L
                 // TODO: figure out a good way to automatically determine the gain
-                imageField.windowWidth = this.startWindow[0] + pointDelta[0] * 500.;
+                imageField.windowWidth = this.startWindow[0] + pointDelta[0] * 1500.;
                 imageField.windowWidth = Math.max(imageField.windowWidth, 1.);
-                imageField.windowCenter = this.startWindow[1] + pointDelta[1] * 500.;
+                imageField.windowCenter = this.startWindow[1] + pointDelta[1] * 1500.;
                 if (this.onWindowLevel) {
                   this.onWindowLevel();
                 }

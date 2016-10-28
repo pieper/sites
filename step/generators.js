@@ -24,7 +24,8 @@ class Generator {  // TODO: unify with Space
 class ProgrammaticGenerator extends Generator {
   constructor(options={}) {
     super(options);
-    this.uniforms.squiggle = { type: '1f', value: 1. };
+    this.uniforms.amplitude = { type: '1f', value: 1. };
+    this.uniforms.frequency = { type: '1f', value: 1. };
     let gl = this.gl;
 
     this.outputFields.forEach(outputField=>{
@@ -50,8 +51,6 @@ class ProgrammaticGenerator extends Generator {
 
     // framebuffer to attach texture layer for generating a slice
     this.framebuffer = gl.createFramebuffer();
-    
-    this.updateProgram();
   }
 
   headerSource() {
@@ -90,22 +89,28 @@ class ProgrammaticGenerator extends Generator {
       }
 
       in vec3 interpolatedTextureCoordinate;
-      out int fragmentColor;
+      layout(location = 0) out int fragmentColor;
+      layout(location = 1) out int altFragmentColor;
 
       uniform float slice;
       uniform float gradientSize;
-      uniform float squiggle;
-      uniform isampler3D inputTexture;
+      uniform float amplitude;
+      uniform float frequency;
+      uniform isampler3D inputTexture0;
 
-      float sampleValue;
-      float gradientMagnitude;
-      vec3 normal;
+      int sampleValue;
+      int perturbation;
 
       void main()
       {
+        perturbation = int(10. * amplitude * slice * 
+                          (sin(frequency*interpolatedTextureCoordinate.s) 
+                           + cos(frequency*interpolatedTextureCoordinate.t))
+                        );
         vec3 tc = interpolatedTextureCoordinate;
-        fragmentColor = texture(textureUnit${this.inputFields[0].id}, tc).r;
-        fragmentColor += int(10.*squiggle*slice * (sin(20.*interpolatedTextureCoordinate.s) + cos(20.*interpolatedTextureCoordinate.t)));
+        sampleValue = texture(inputTexture0, tc).r;
+        fragmentColor = sampleValue + perturbation;
+        altFragmentColor = sampleValue - perturbation;
       }
     `);
   }
@@ -161,6 +166,9 @@ class ProgrammaticGenerator extends Generator {
   _setUniform(key, uniform) {
     let gl = this.gl;
     let location = gl.getUniformLocation(this.program, key);
+
+    //console.log('setting ' + key + ' to ' + uniform.value);
+
     if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
     if (uniform.type == '3iv') {gl.uniform3iv(location, uniform.value); return;}
     if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
@@ -205,11 +213,16 @@ class ProgrammaticGenerator extends Generator {
     });
 
     // activate any field textures
+    let textureIndex = 0;
     this.inputFields.forEach(field=>{
-      gl.activeTexture(gl.TEXTURE0+field.id);
+      gl.activeTexture(gl.TEXTURE0+textureIndex);
       if (field.texture) {
         gl.bindTexture(gl.TEXTURE_3D, field.texture);
       }
+      let textureSymbol = "inputTexture"+textureIndex;
+      let samplerLocation = gl.getUniformLocation(this.program, textureSymbol);
+      gl.uniform1i(samplerLocation, textureIndex);
+      textureIndex++;
     });
 
     // generate the output by invoking the program once per slice
@@ -218,16 +231,26 @@ class ProgrammaticGenerator extends Generator {
     let sharedGroups = outputDataset.SharedFunctionalGroups;
     let sliceSpacing = sharedGroups.PixelMeasures.SpacingBetweenSlices;
     let slice = 0.5 * sliceSpacing;
-    for (let sliceIndex = 0; sliceIndex < outputDataset.NumberOfFrames; sliceIndex++) {
+    let frames = outputDataset.NumberOfFrames;
+    for (let sliceIndex = 0; sliceIndex < frames; sliceIndex++) {
       slice = sliceIndex / outputDataset.NumberOfFrames;
       gl.uniform1f(sliceUniformLocation, slice);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-      let attachement = 0;
+      let drawBuffers = [];
+      let attachment = 0;
       this.outputFields.forEach(outputField=>{
-        gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0+attachement,
-                                   outputField.texture, mipmapLevel, sliceIndex);
-        attachement++;
+        gl.framebufferTextureLayer(gl.FRAMEBUFFER, 
+                                   gl.COLOR_ATTACHMENT0+attachment,
+                                   outputField.texture, 
+                                   mipmapLevel, sliceIndex);
+        drawBuffers.push(gl.COLOR_ATTACHMENT0+attachment);
+        attachment++;
       });
+      gl.drawBuffers(drawBuffers);
+      let status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+      if (status != gl.FRAMEBUFFER_COMPLETE) {
+        console.error("Incomplete framebuffer: " + status);
+      }
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       slice += sliceSpacing;
     }

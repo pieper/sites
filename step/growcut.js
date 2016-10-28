@@ -9,6 +9,8 @@ class GrowCutGenerator extends ProgrammaticGenerator {
   // - 1 new strength image
   constructor(options={}) {
     super(options);
+    this.uniforms.iteration = { type: '1i', value: 0 };
+    this.uniforms.iterations = { type: '1i', value: 0 };
   }
 
   updateProgram() {
@@ -20,6 +22,7 @@ class GrowCutGenerator extends ProgrammaticGenerator {
   _fragmentShaderSource() {
     return (`${this.headerSource()}
       uniform int iterations;
+      uniform int iteration;
 
       // these are the function definitions for sampleVolume* and transferFunction*
       // that define a field at a sample point in space
@@ -33,20 +36,18 @@ class GrowCutGenerator extends ProgrammaticGenerator {
       }
 
       in vec3 interpolatedTextureCoordinate;
-      out int fragmentColor;
+      layout(location = 0) out int label;
+      layout(location = 1) out int strength;
 
-      uniform float gradientSize;
-      uniform float squiggle;
-      uniform isampler3D inputTexture;
-
-      float sampleValue;
-      float gradientMagnitude;
-      vec3 normal;
+      uniform isampler3D inputTexture0;
+      uniform isampler3D inputTexture1;
 
       void main()
       {
-        fragmentColor = texture(textureUnit${this.inputFields[0].id}, interpolatedTextureCoordinate).r;
-        fragmentColor *= int(squiggle * (sin(20.*interpolatedTextureCoordinate.s) + cos(20.*interpolatedTextureCoordinate.t)));
+        vec3 labelSource = interpolatedTextureCoordinate - 
+                              float(iteration)*vec3(0., .01, -.01);
+        strength = texture(inputTexture0, interpolatedTextureCoordinate).r;
+        label = strength + texture(inputTexture1, labelSource).r;
       }
     `);
   }

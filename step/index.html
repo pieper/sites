@@ -101,44 +101,64 @@ function performFilter() {
   }
 
   let derivedImage = new DerivedImage([filterField.dataset]);
-  let derivedField = Field.fromDataset(derivedImage.dataset);
+  let derivedField0 = Field.fromDataset(derivedImage.dataset);
+  let derivedField1 = Field.fromDataset(derivedImage.dataset);
 
   // override default calculation
-  derivedField.windowCenter = filterField.windowCenter;
-  derivedField.windowWidth = filterField.windowWidth;
+  derivedField0.windowCenter = filterField.windowCenter;
+  derivedField0.windowWidth = filterField.windowWidth;
+  derivedField1.windowCenter = filterField.windowCenter;
+  derivedField1.windowWidth = filterField.windowWidth;
 
-  step.renderer.inputFields.push(derivedField);
-  filterField.visible = false;
+  step.renderer.inputFields = [derivedField0, derivedField1];
   step.renderer.updateProgram();
 
   step.generator = new ProgrammaticGenerator({
     gl: step.renderer.gl,
     inputFields: [filterField],
-    outputFields: [derivedField],
+    outputFields: [derivedField0, derivedField1],
   });
+  step.generator.updateProgram();
 
-  let start = performance.now();
-  let previous = start;
   let iterations = 200;
   let iteration = 0;
+  let renderRate = 1;
   let animationFrame = function() {
-    step.generator.uniforms.squiggle.value = iteration;
+    step.generator.uniforms.amplitude.value = iteration;
+    step.generator.uniforms.frequency.value = 30.;
     step.generator.generate();
-    if (iteration % 10 == 0) {
+    if (iteration % renderRate == 0) {
       step.renderer._render();
     }
-    //console.log(performance.now()-previous);
-    previous = performance.now();
     iteration++;
     if (iteration < iterations) {
+      derivedField0.visible = (iteration+1) % 2;
+      derivedField1.visible = iteration % 2;
       requestAnimationFrame(animationFrame);
     } else {
+      derivedField0.visible = 1;
+      derivedField1.visible = 1;
       step.renderer.requestRender(step.view);
-      console.log(performance.now()-start);
     }
   }
   requestAnimationFrame(animationFrame);
 
+  step.renderer.requestRender(step.view);
+}
+
+let displayIndex = 0;
+function r(indexToDisplay) {
+  if (!indexToDisplay) {
+    indexToDisplay = displayIndex;
+    displayIndex++
+    displayIndex = displayIndex % step.renderer.inputFields.length;
+  }
+  console.log("display: " + indexToDisplay);
+  let index = 0;
+  step.renderer.inputFields.forEach(inputField => {
+    inputField.visible = Number(index == indexToDisplay);
+    index++;
+  });
   step.renderer.requestRender(step.view);
 }
 
@@ -154,32 +174,64 @@ function performGrowCut() {
   [0,1].forEach(index=>{
     let derivedImage = new DerivedImage([backgroundField.dataset]);
     labelFields.push(Field.fromDataset(derivedImage.dataset));
-    step.renderer.inputFields.push(labelFields[index]);
-    labelFields[index].visible = false;
     strengthFields.push(Field.fromDataset(derivedImage.dataset));
   });
   step.renderer.updateProgram();
 
-  step.growcut = new GrowCutGenerator({ gl: step.renderer.gl, });
 
-  let iterations = 200;
+  backgroundField.visible = 0;
+  let iterations = 40;
   let iteration = 0;
   let animationFrame = function() {
-    step.growcut.uniforms.iteration.value = iteration;
+
     let inBuffer = iteration%2;
     let outBuffer = (iteration+1)%2;
+
+    if (!step.growcut) {
+      step.growcut = new GrowCutGenerator({ gl: step.renderer.gl, });
+      step.growcut.uniforms.iterations.value = iterations;
+      step.growcut.inputFields = [backgroundField,
+                                  labelFields[inBuffer],
+                                  strengthFields[inBuffer]];
+      step.growcut.outputFields = [labelFields[outBuffer],
+                                   strengthFields[outBuffer]];
+      step.growcut.updateProgram();
+    }
+
+    step.growcut.uniforms.iteration.value = iteration;
+
+    step.renderer.inputFields = [strengthFields[outBuffer],
+                                 labelFields[outBuffer]];
+    labelFields[inBuffer].visible = 0;
+    strengthFields[inBuffer].visible = 0;
+    labelFields[outBuffer].visible = 1;
+    strengthFields[outBuffer].visible = 0;
+    step.renderer.updateProgram();
+
+    console.log(iteration,'generating');
     step.growcut.inputFields = [backgroundField,
                                 labelFields[inBuffer],
                                 strengthFields[inBuffer]];
-    step.growcut.outputFields = [labelFields[outBuffer], strengthFields[outBuffer]];
-    step.growcut.updateProgram();
+    step.growcut.outputFields = [labelFields[outBuffer],
+                                 strengthFields[outBuffer]];
     step.growcut.generate();
+
+    console.log(iteration,'rendering');
     step.renderer._render();
+
     iteration++;
+
     if (iteration < iterations) {
+      step.ui.bottomBar.progress = `Iteration ${iteration} of ${iterations}`;
       requestAnimationFrame(animationFrame);
     } else {
-      step.renderer.requestRender(step.view);
+      [0,1].forEach(index=>{
+        labelFields[index].visible = 0;
+        strengthFields[index].visible = 0;
+      });
+      backgroundField.visible = 0;
+      labelFields[0].visible = 1;
+      step.renderer._render();
     }
   }
   requestAnimationFrame(animationFrame);
@@ -214,6 +266,7 @@ $(function () {
     viewBoxMin : [-250, -250, -280],
     viewPoint : [0., -100., -1500.],
   });
+  step.renderer.updateProgram();
   step.renderer._render(step.view);
 
   window.addEventListener('resize', resizeEvent => {

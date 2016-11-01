@@ -173,14 +173,19 @@ function performGrowCut() {
   let strengthFields = [];
   [0,1].forEach(index=>{
     let derivedImage = new DerivedImage([backgroundField.dataset]);
-    labelFields.push(Field.fromDataset(derivedImage.dataset));
-    strengthFields.push(Field.fromDataset(derivedImage.dataset));
+    let labelField = Field.fromDataset(derivedImage.dataset);
+    let strengthField = Field.fromDataset(derivedImage.dataset);
+    labelFields.push(labelField);
+    strengthFields.push(strengthField);
+    step.renderer.inputFields.push(labelField);
+    step.renderer.inputFields.push(strengthField);
+    step.renderer.updateProgram();
   });
   step.renderer.updateProgram();
 
 
   backgroundField.visible = 0;
-  let iterations = 40;
+  let iterations = 400;
   let iteration = 0;
   let animationFrame = function() {
 
@@ -197,16 +202,12 @@ function performGrowCut() {
                                    strengthFields[outBuffer]];
       step.growcut.updateProgram();
     }
-
     step.growcut.uniforms.iteration.value = iteration;
 
-    step.renderer.inputFields = [strengthFields[outBuffer],
-                                 labelFields[outBuffer]];
     labelFields[inBuffer].visible = 0;
     strengthFields[inBuffer].visible = 0;
     labelFields[outBuffer].visible = 1;
     strengthFields[outBuffer].visible = 0;
-    step.renderer.updateProgram();
 
     console.log(iteration,'generating');
     step.growcut.inputFields = [backgroundField,

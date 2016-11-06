@@ -25,11 +25,12 @@
           include_docs: true
         }).on('change', function(change) {
           if (change.doc.type == 'progress') {
-            var changeString = change.doc._id + ': ' + String(change.doc.progress);
+            var changeString = 'RequestID: ' + change.doc.requestID + ' ChangeID: ' + change.doc._id + ': ' + String(change.doc.progress);
+            console.log(changeString);
             $('#progressTable').html('<p>' + changeString + '</p>');
           }
           if (change.doc.type == 'result') {
-            var changeString = change.doc._id + ': Finished';
+            var changeString = change.doc.requestID + ': Finished';
             $('#resultTable').append('<li>' + changeString + '</li>');
             $('#resultTable').append(change.doc.progress);
           }

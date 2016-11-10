@@ -49,6 +49,7 @@
 <script>
 'use strict'
 
+
 // once the data is downloaded
 function readDICOM(arrayBuffer) {
   let dicomData = DicomMessage.readFile(arrayBuffer);
@@ -67,6 +68,16 @@ function requestInstance(url, loaded) {
   dataRequest.send(null);
 }
 
+function loadDatasets(datasets) {
+  let dataset = Normalizer.normalizeToDataset(datasets);
+  let fields = Field.fromDataset(dataset);
+  step.renderer.inputFields.push(...fields);
+  step.renderer.updateProgram();
+  let field = fields[0];
+  step.renderer.view.look({at: field.center, bounds: field.bounds});
+  step.renderer.requestRender(step.view);
+}
+
 function requestSeries(instanceURLs) {
   let seriesDatasets = [];
   instanceURLs.forEach(function(instanceURL) {
@@ -75,22 +86,21 @@ function requestSeries(instanceURLs) {
       seriesDatasets.push(dataset);
       step.ui.bottomBar.progress = `Loaded ${seriesDatasets.length} of ${instanceURLs.length}`;
       if (seriesDatasets.length == instanceURLs.length) {
-        let dataset = Normalizer.normalizeToDataset(seriesDatasets);
-        let fields = Field.fromDataset(dataset);
-        let field;
-        if (fields.length > 0) {
-          step.renderer.inputFields.push(...fields);
-          field = fields[0];
-        } else {
-          field = fields;
-          step.renderer.inputFields.push(field);
-        }
-        step.renderer.updateProgram();
-        step.renderer.view.look({at: field.center, bounds: field.bounds});
-        step.renderer.requestRender(step.view);
+        loadDatasets(seriesDatasets);
       }
     });
   });
+}
+
+function requestMultiframe(url) {
+  requestInstance(url, function(arrayBuffer) {
+    loadDatasets([readDICOM(arrayBuffer)]);
+  });
+}
+
+function multiframeTest() {
+  let url = "http://slicer.kitware.com/midas3/download/item/126334/4-T2-multiframe-IPP_sorted_UID_fixed.dcm";
+  requestMultiframe(url);
 }
 
 function performFilter() {
@@ -146,21 +156,6 @@ function performFilter() {
   step.renderer.requestRender(step.view);
 }
 
-let displayIndex = 0;
-function r(indexToDisplay) {
-  if (!indexToDisplay) {
-    indexToDisplay = displayIndex;
-    displayIndex++
-    displayIndex = displayIndex % step.renderer.inputFields.length;
-  }
-  console.log("display: " + indexToDisplay);
-  let index = 0;
-  step.renderer.inputFields.forEach(inputField => {
-    inputField.visible = Number(index == indexToDisplay);
-    index++;
-  });
-  step.renderer.requestRender(step.view);
-}
 
 function performGrowCut() {
   let backgroundField = step.renderer.inputFields[step.renderer.inputFields.length-1];
@@ -185,7 +180,7 @@ function performGrowCut() {
 
 
   backgroundField.visible = 0;
-  let iterations = 400;
+  let iterations = 100;
   let iteration = 0;
   let animationFrame = function() {
 

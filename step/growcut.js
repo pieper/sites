@@ -21,10 +21,8 @@ class GrowCutGenerator extends ProgrammaticGenerator {
 
   _fragmentShaderSource() {
     return (`${this.headerSource()}
-      uniform int iterations;
-      uniform int iteration;
-
-      // these are the function definitions for sampleVolume* and transferFunction*
+      // these are the function definitions for sampleVolume*
+      // and transferFunction*
       // that define a field at a sample point in space
       ${function() {
           let perFieldSamplingShaderSource = '';
@@ -35,19 +33,61 @@ class GrowCutGenerator extends ProgrammaticGenerator {
         }.bind(this)()
       }
 
+      #define MAX_STRENGTH 10000
+
+      uniform int iterations;
+      uniform int iteration;
+      uniform ivec3 pixelDimensions;
+      uniform vec3 textureToPixel;
+
+      uniform isampler3D inputTexture0; // background
+      uniform isampler3D inputTexture1; // label
+      uniform isampler3D inputTexture2; // strength
+
       in vec3 interpolatedTextureCoordinate;
+
       layout(location = 0) out int label;
       layout(location = 1) out int strength;
 
-      uniform isampler3D inputTexture0;
-      uniform isampler3D inputTexture1;
-
       void main()
       {
-        vec3 labelSource = interpolatedTextureCoordinate - 
-                              float(iteration)*vec3(0., .01, -.01);
-        strength = texture(inputTexture0, interpolatedTextureCoordinate).r;
-        label = strength + texture(inputTexture1, labelSource).r;
+        int background =
+              texture(inputTexture0, interpolatedTextureCoordinate).r;
+        if (iteration == 0) {
+          if (background < 0) {
+            label = 100;
+            strength = MAX_STRENGTH;
+          } else if (background > 500) {
+            label = 2000;
+            strength = MAX_STRENGTH;
+          } else {
+            label = 0;
+            strength = 0;
+          }
+        } else {
+          int currentLabel =
+                texture(inputTexture1, interpolatedTextureCoordinate).r;
+          int currentStrength =
+                texture(inputTexture2, interpolatedTextureCoordinate).r;
+          for (int k = -1; k <= 1; k++) {
+            for (int j = -1; j <= 1; j++) {
+              for (int i = -1; i <= 1; i++) {
+                vec3 offset = vec3(k,j,i) * textureToPixel;
+                vec3 neighbor = interpolatedTextureCoordinate + offset;
+                int neighborStrength =
+                      texture(inputTexture2, neighbor).r;
+                int strengthCost = abs(neighborStrength - currentStrength);
+                if (neighborStrength - strengthCost > currentStrength) {
+                  strength = neighborStrength - strengthCost;
+                  label = texture(inputTexture1, neighbor).r;
+                } else {
+                  strength = currentStrength;
+                  label = currentLabel;
+                }
+              }
+            }
+          }
+        }
       }
     `);
   }

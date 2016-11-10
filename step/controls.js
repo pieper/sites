@@ -4,17 +4,35 @@ class Controls {
     this.startPoint = undefined;
     this.startWindow = undefined;
     this.tool = 'windowLevel';
+    this.imageDisplayIndex = 0;
   }
 
   // TODO: currently the last field added, but should
   // come from a UI selection of the active tool and target image
   selectedImageField() {
-    let fields = step.renderer.inputFields.map(field=>{
-      if(field.visible) {
-        return (field);
+    let field = undefined;
+    step.renderer.inputFields.forEach(inputField=>{
+      if(inputField.constructor.name == "ImageField" && inputField.visible) {
+        field = inputField;
       }
     });
-    return (fields[0]);
+    return field;
+  }
+
+  cycleImages(indexToDisplay) {
+    if (indexToDisplay == undefined) {
+      indexToDisplay = this.imageDisplayIndex;
+      this.imageDisplayIndex++
+      this.imageDisplayIndex = this.imageDisplayIndex % step.renderer.inputFields.length;
+    }
+    console.log("display: " + indexToDisplay);
+    let index = 0;
+    step.renderer.inputFields.forEach(inputField => {
+      inputField.visible = Number(index == indexToDisplay);
+      console.log(index, inputField.constructor.name, inputField.visible);
+      index++;
+    });
+    step.renderer.requestRender(step.view);
   }
 
   preventEventDefault(event) {
@@ -182,6 +200,10 @@ class Controls {
       break;
       case "f": {
         step.view.look({at: step.renderer.center, bounds: step.renderer.bounds});
+      }
+      break;
+      case "r": {
+        this.cycleImages();
       }
       break;
     }

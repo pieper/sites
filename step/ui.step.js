@@ -73,6 +73,12 @@ class stepFileMenu extends MenuPanel {
           '[["UnspecifiedInstitution","QIN-HEADNECK-01-0139"],["CT CHEST W/O CONTRAST","1.3.6.1.4.1.14519.5.2.1.2744.7002.373729467545468642229382466905"],["CT","CT HeadNeck  3.0  B30f_CHEST","1.3.6.1.4.1.14519.5.2.1.2744.7002.182837959725425690842769990419"]]',
         ],
       },
+      { name: "Liver Segmentation",
+        seriesKeys: [
+          '[["UnspecifiedInstitution","99000"],["UnspecifiedStudyDescription","1.2.392.200103.20080913.113635.0.2009.6.22.21.43.10.22941.1"],["SEG","Liver Segmentation","1.2.276.0.7230010.3.1.3.0.42154.1458337731.665795"]]',
+          '[["UnspecifiedInstitution","99000"],["UnspecifiedStudyDescription","1.2.392.200103.20080913.113635.0.2009.6.22.21.43.10.22941.1"],["CT","UnspecifiedSeriesDescription","1.2.392.200103.20080913.113635.1.2009.6.22.21.43.10.23430.1"]]',
+        ],
+      },
     ];
 
     demos.forEach(demo => {

@@ -78,6 +78,7 @@ class Field {
 }
 Field.nextId = 0; // TODO: for now this is texture unit
 
+// array of fields from dataset
 Field.fromDataset = function(dataset) {
   switch (dataset.SOPClass) {
     case "CTImage":
@@ -97,7 +98,7 @@ Field.fromDataset = function(dataset) {
     case "PETImage":
     case "EnhancedPETImage":
     case "LegacyConvertedEnhancedPETImage": {
-      return (new ImageField({dataset}));
+      return ([new ImageField({dataset})]);
       }
       break;
     case "Segmentation": {
@@ -318,6 +319,8 @@ class PixelField extends Field {
     u['normalPixelToPatient'+this.id] = {type: "Matrix3fv", value: this.normalPixelToPatient},
     u['patientToPixel'+this.id] = {type: "Matrix4fv", value: this.patientToPixel};
     u['pixelDimensions'+this.id] = {type: '3iv', value: this.pixelDimensions};
+    let textureToPixel = this.pixelDimensions.map(e=>1./e).reverse();
+    u['textureToPixel'+this.id] = {type: '3fv', value: textureToPixel};
     return(u);
   }
 

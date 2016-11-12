@@ -26,7 +26,7 @@
 // first, the shaders
 </script>
 
-<script id="vertexShader" type="x-shader/x-vertex">
+<script id="comparisonVertexShader" type="x-shader/x-vertex">
 
 precision highp float;
 
@@ -44,10 +44,10 @@ mat4 perspective (float fovy, float aspect, float near, float far) {
     return (perspectiveMatrix);
 }
 
-mat4 lookAt (vec3 eye, vec3 center, vec3 up) {
+mat4 lookAt (vec3 eye, vec3 direction, vec3 up) {
   vec3 x, y, z, w;
   float len;
-  vec3 direction = normalize(eye - center);
+  direction = normalize(direction);
   vec3 right = normalize(cross(direction,up));
   vec3 actualUp = normalize(cross(direction,right));
 
@@ -67,12 +67,12 @@ attribute vec2 textureCoordinate;
 
 varying vec2 varyingTextureCoordinate;
 
-uniform vec3 eye, center, up;
+uniform vec3 eye, direction, up;
 uniform float fovy, aspect, near, far;
 
 void main(void) {
 
-  mat4 viewMatrix = lookAt(eye, center, up);
+  mat4 viewMatrix = lookAt(eye, direction, up);
   mat4 perspectiveMatrix = perspective(radians(fovy), aspect, near, far);
   gl_Position = perspectiveMatrix * viewMatrix * vec4(coordinate,1.);
 
@@ -80,7 +80,7 @@ void main(void) {
 }
 </script>
 
-<script id="fragmentShader" type="x-shader/x-fragment">
+<script id="comparisonFragmentShader" type="x-shader/x-fragment">
 precision highp float;
 
 uniform sampler2D referenceTextureSampler;
@@ -117,16 +117,6 @@ var canvas3D = document.querySelector('#canvas3D');
 $('#canvases').append('<canvas id=canvas2D></canvas><p>Reference</p>');
 var canvas2D = document.querySelector('#canvas2D');
 var context2D = canvas2D.getContext('2d');
-
-var view = {
-  eye: [0.5, 0.5, 1.],
-  center: [0.5, 0.5, 0],
-  up: [0, 1, 0],
-  fovy: 45.,
-  aspect: 1.,
-  near: .9,
-  far: 100.,
-};
 
 //
 // set up webgl
@@ -210,24 +200,24 @@ var setupVideoTexture = function() {
 // create the program and shaders
 //
 var comparisonProgram = gl.createProgram();
-var vertexShader = gl.createShader(gl.VERTEX_SHADER);
-gl.shaderSource(vertexShader, document.getElementById("vertexShader").innerHTML);
-gl.compileShader(vertexShader);
-if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-  alert('Could not compile vertexShader');
-  console.log(gl.getShaderInfoLog(vertexShader));
+var comparisonVertexShader = gl.createShader(gl.VERTEX_SHADER);
+gl.shaderSource(comparisonVertexShader, document.getElementById("comparisonVertexShader").innerHTML);
+gl.compileShader(comparisonVertexShader);
+if (!gl.getShaderParameter(comparisonVertexShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile comparisonVertexShader');
+  console.log(gl.getShaderInfoLog(comparisonVertexShader));
 }
-var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-gl.shaderSource(fragmentShader, document.getElementById("fragmentShader").innerHTML);
-gl.compileShader(fragmentShader);
-if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-  alert('Could not compile fragmentShader');
-  console.log(gl.getShaderInfoLog(fragmentShader));
+var comparisonFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+gl.shaderSource(comparisonFragmentShader, document.getElementById("comparisonFragmentShader").innerHTML);
+gl.compileShader(comparisonFragmentShader);
+if (!gl.getShaderParameter(comparisonFragmentShader, gl.COMPILE_STATUS)) {
+  alert('Could not compile comparisonFragmentShader');
+  console.log(gl.getShaderInfoLog(comparisonFragmentShader));
 }
-gl.attachShader(comparisonProgram, vertexShader);
-gl.deleteShader(vertexShader);
-gl.attachShader(comparisonProgram, fragmentShader);
-gl.deleteShader(fragmentShader);
+gl.attachShader(comparisonProgram, comparisonVertexShader);
+gl.deleteShader(comparisonVertexShader);
+gl.attachShader(comparisonProgram, comparisonFragmentShader);
+gl.deleteShader(comparisonFragmentShader);
 gl.linkProgram(comparisonProgram);
 
 // render a frame
@@ -269,7 +259,7 @@ function renderComparisonView(options={}) {
 
   // the view
   gl.uniform3fv(gl.getUniformLocation(comparisonProgram, "eye"), view.eye);
-  gl.uniform3fv(gl.getUniformLocation(comparisonProgram, "center"), view.center);
+  gl.uniform3fv(gl.getUniformLocation(comparisonProgram, "direction"), view.direction);
   gl.uniform3fv(gl.getUniformLocation(comparisonProgram, "up"), view.up);
   gl.uniform1f(gl.getUniformLocation(comparisonProgram, "fovy"), view.fovy);
   gl.uniform1f(gl.getUniformLocation(comparisonProgram, "aspect"), view.aspect);
@@ -280,6 +270,8 @@ function renderComparisonView(options={}) {
 }
 
 referenceTextureImage.src = "apple-keyboard.jpg";
+referenceTextureImage.src = "checker.png";
+referenceTextureImage.src = "NebraskaCowPasture.jpg";
 referenceTextureImage.onload = setupReferenceTexture;
 
 </script>
@@ -463,7 +455,7 @@ function videoSuccessCallback(stream) {
   var videoElement = document.querySelector('#video1');
   videoElement.src = window.URL.createObjectURL(stream);
   videoElement.addEventListener('canplay', function(ev){
-    var width = 256;
+    var width = 512;
     var height = videoElement.videoHeight / (videoElement.videoWidth/width);
     videoElement.setAttribute('width', width);
     videoElement.setAttribute('height', height);
@@ -508,6 +500,93 @@ var captureReferenceImage = function() {
   gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
+
+/* rotation/quaternion utilities
+    See:  http://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Conversion_to_and_from_the_matrix_representation
+
+    rotation([1,0,0,0]) =>
+    [[ 1.,  0.,  0.],
+     [ 0.,  1.,  0.],
+     [ 0.,  0.,  1.]]
+*/
+
+var rotationFromQuaternion = function(quat) {
+  /* build and return a 3x3 transformation matrix from a quaternion */
+
+  var quatNorm = Math.sqrt(quat.map(e=>e*e).reduce((a,b)=>a+b))
+  var normedQuat = quat.map(e=>e/quatNorm);
+  var [a,b,c,d] = normedQuat;
+
+  var [aa, bb, cc, dd]    =  [a*a, b*b, c*c, d*d];
+  var [ab, ac, ad]        =  [a*b, a*c, a*d];
+  var [bc, bd, cd]        =  [b*c, b*d, c*d];
+
+  var rot = [
+    [ aa + bb - cc - dd,  2.0 * (-ad + bc),   2.0*(ac + bd)     ],
+    [ 2.0 * (ad + bc),    aa - bb + cc - dd,  2.0 * (-ab + cd)  ],
+    [ 2.0 * (ac + bd),    2.0 * (ab + cd),    aa - bb - cc + dd ]
+  ];
+  return(rot);
+}
+
+/* TODO
+  def quaternion(self,Rot):
+    """ extract the quaternion from a matrix (assume upper 3x3 is rotation only)
+    """
+
+    # find the permutation that is most stable (largest diagonal first)
+    xx, yy, zz = abs(Rot[0,0]), abs(Rot[1,1]), abs(Rot[2,2])
+    if xx > yy and xx > zz:
+      u, v, w = 0, 1, 2
+    else:
+      if yy > xx and yy > zz:
+        u, v, w = 1, 2, 0
+      else:
+        u, v, w = 2, 0, 1
+
+    # fill in the quat
+    r = numpy.sqrt( 1 + Rot[u,u] - Rot[v,v] - Rot[w,w] )
+    r2 = 2.*r
+
+    if r < 1e-6:
+      return numpy.array([1,0,0,0])
+
+    quat = numpy.zeros(4)
+    quat[  0] = (Rot[w,v] - Rot[v,w])/r2
+    quat[1+u] = r/2.
+    quat[1+v] = (Rot[u,v] + Rot[v,u])/r2
+    quat[1+w] = (Rot[w,u] + Rot[u,w])/r2
+
+    return quat
+*/
+
+var referenceView = {
+  eye: [0.5, 0.5, 1.],
+  direction: [0., 0., 1.], // TODO: direction is flipped
+  up: [0., 1., 0.],
+  fovy: 45.,
+  aspect: 1.,
+  near: .9,
+  far: 100.,
+};
+
+var viewCopy = function(view) {
+  return JSON.parse(JSON.stringify(view));
+}
+
+var view = viewCopy(referenceView);
+
+var viewWithDelta = function(view, deltaView) {
+  var newView = viewCopy(view);
+  for (var i = 0; i < 3; i++) {
+    newView.eye[i] += deltaView[i];
+  }
+  var quaternion = deltaView.slice(3,7);
+  var rotation = rotationFromQuaternion(quaternion);
+
+  return(newView);
+}
+
 var adjustView = function(mouseEvent) {
   var rect = canvas3D.getBoundingClientRect();
   var nx = (mouseEvent.x-rect.left) / canvas3D.width;
@@ -524,15 +603,15 @@ var wheelView = function(mouseEvent) {
   mouseEvent.preventDefault();
 }
 
-var viewEnergy = function(deltaEye) {
+var viewEnergy = function(deltaView) {
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, scratchFramebuffer);
-  var savedEye = view.eye.slice();
-  for (var i = 0; i < 3; i++) {
-    view.eye[i] += deltaEye[i];
-  }
+  var savedView = viewCopy(view);
+  view = viewWithDelta(view, deltaView);
+
   renderComparisonView();
-  //gl.readPixels(0, 0, scratchImage.width, scratchImage.height, gl.RGBA, gl.UNSIGNED_BYTE, scratchArray);
+  // before accumulation: read whole image, now accumulate and read one line
+  // gl.readPixels(0, 0, scratchImage.width, scratchImage.height, gl.RGBA, gl.UNSIGNED_BYTE, scratchArray);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, accumulationFramebuffer);
   renderAccumulation();
@@ -547,46 +626,45 @@ var viewEnergy = function(deltaEye) {
     samples++;
   }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  view.eye = savedEye;
+  view = savedView;
   return(energy/samples);
 }
 
 var optimizeView = function() {
-  var deltaStep = 0.01;
+  var viewDOFs = 7;
+  var deltaStep = 0.005;
   var optimizationStep = 0.01;
   var lineSearchStep = optimizationStep/20.;
-  var dEnergydEye = [0, 0, 0];
+  var dEnergydView = Array(viewDOFs).fill(0);
+  var deltaView = Array(viewDOFs).fill(0);
 
-  var referenceEnergy = viewEnergy([0,0,0]);
+  var referenceEnergy = viewEnergy(deltaView);
   $('#canvas3DCaption').text('Energy: ' + String(referenceEnergy));
-  for (var dof = 0; dof < 3; dof++) {
-    var deltaEye = [0,0,0];
-    deltaEye[dof] = -deltaStep;
-    var energyMinus = viewEnergy(deltaEye);
-    deltaEye[dof] = deltaStep;
-    var energyPlus = viewEnergy(deltaEye);
-    dEnergydEye[dof] = (energyPlus - energyMinus) / (2 * deltaStep);
+  for (var dof = 0; dof < viewDOFs; dof++) {
+    deltaView[dof] = -deltaStep;
+    var energyMinus = viewEnergy(deltaView);
+    deltaView[dof] = deltaStep;
+    var energyPlus = viewEnergy(deltaView);
+    dEnergydView[dof] = (energyPlus - energyMinus) / (2 * deltaStep);
+    deltaView.fill(0);
   }
 
   // stepAlongGradent
-  var maximumStep = {energy: referenceEnergy, deltaEye: [0,0,0]};
+  var maximumStep = {energy: referenceEnergy, deltaView: Array(viewDOFs).fill(0)};
   for (var step = 0; step < optimizationStep; step += lineSearchStep) {
-    var deltaEye = [0,0,0];
-    for (var dof = 0; dof < 3; dof++) {
-      deltaEye[dof] = step * dEnergydEye[dof];
+    deltaView.fill(0);
+    for (var dof = 0; dof < viewDOFs; dof++) {
+      deltaView[dof] = step * dEnergydView[dof];
     }
-    var energy = viewEnergy(deltaEye);
+    var energy = viewEnergy(deltaView);
     if (energy > maximumStep.energy) {
       maximumStep.energy = energy;
-      maximumStep.deltaEye = deltaEye.slice();
+      maximumStep.deltaView = deltaView.slice();
     }
   }
-  for (var dof = 0; dof < 3; dof++) {
-    view.eye[dof] += maximumStep.deltaEye[dof];
-  }
+  view = viewWithDelta(view, maximumStep.deltaView);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  //renderAccumulation();
   renderComparisonView();
 }
 
@@ -605,7 +683,8 @@ var videoAnimationFrame = function() {
       if (videoElement.videoHeight) { // only defined when loaded
         gl.bindTexture(gl.TEXTURE_2D, videoTexture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
+        //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, referenceTextureImage);
         gl.bindTexture(gl.TEXTURE_2D, null);
         optimizeView();
       }

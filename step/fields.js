@@ -9,6 +9,14 @@ class Field {
                              // an object with min and max
     this.visible = 1;
     this.generator = undefined;
+
+    this.intTextureSupport = false; // TODO: probe for this?
+    if (this.intTextureSupport) {
+      this.samplerType = "isampler3D";
+    } else {
+      this.samplerType = "sampler3D";
+    }
+
     Field.nextId++;
   }
 
@@ -413,7 +421,7 @@ class ImageField extends PixelField {
 
   samplingShaderSource() {
     return(`
-      uniform highp isampler3D textureUnit${this.id};
+      uniform highp ${this.samplerType} textureUnit${this.id};
 
       vec3 transformPoint${this.id}(const in vec3 samplePoint)
       {
@@ -438,7 +446,7 @@ class ImageField extends PixelField {
       uniform mat4 patientToPixel${this.id};
       uniform mat3 normalPixelToPatient${this.id};
       uniform ivec3 pixelDimensions${this.id};
-      void sampleField${this.id} (const in isampler3D textureUnit,
+      void sampleField${this.id} (const in ${this.samplerType} textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
                                   out float sampleValue, out vec3 normal,
@@ -489,17 +497,31 @@ class ImageField extends PixelField {
       } else {
         imageArray = new Uint16Array(this.dataset.PixelData);
       }
-      //let imageFloat32Array = new Float32Array(imageArray);
-      let imageInt16Array = new Int16Array(imageArray);
+
+      let imageTextureArray;
+      let pixelFormat;
+      let pixelTarget;
+      let pixelType;
+      if (this.intTextureSupport) {
+        imageTextureArray = new Int16Array(imageArray);
+        pixelFormat = gl.R16I;
+        pixelTarget = gl.RED_INTEGER;
+        pixelType = gl.SHORT;
+      } else {
+        imageTextureArray = new Float32Array(imageArray);
+        pixelFormat = gl.R32F;
+        pixelTarget = gl.RED;
+        pixelType = gl.FLOAT;
+      }
 
       let [w,h,d] = this.pixelDimensions;
-      gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R16I, w, h, d);
+      gl.texStorage3D(gl.TEXTURE_3D, 1, pixelFormat, w, h, d);
       if (!this.generator) {
         // only transfer the data if there's no generator that will fill it in
         gl.texSubImage3D(gl.TEXTURE_3D,
                          0, 0, 0, 0, // level, offsets
                          w, h, d,
-                         gl.RED_INTEGER, gl.SHORT, imageInt16Array);
+                         pixelTarget, pixelType, imageTextureArray);
       }
       this.updated();
     }
@@ -537,7 +559,7 @@ class SegmentationField extends PixelField {
 
   samplingShaderSource() {
     return(`
-      uniform highp isampler3D textureUnit${this.id};
+      uniform highp ${this.samplerType} textureUnit${this.id};
 
       vec3 transformPoint${this.id}(const in vec3 samplePoint)
       {
@@ -562,7 +584,7 @@ class SegmentationField extends PixelField {
       uniform mat4 patientToPixel${this.id};
       uniform ivec3 pixelDimensions${this.id};
       uniform uint packingFactor${this.id};
-      void sampleField${this.id} (const in isampler3D textureUnit,
+      void sampleField${this.id} (const in ${this.samplerType} textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
                                   out float sampleValue, out vec3 normal,

@@ -221,13 +221,8 @@ gl.deleteShader(comparisonFragmentShader);
 gl.linkProgram(comparisonProgram);
 
 // render a frame
-function renderComparisonView(options={}) {
-  if (options.viewport) {
-    v = options.viewport;
-    gl.viewport(v.x, v.y, v.width, v.height);
-  } else {
-    gl.viewport(0, 0, canvas3D.width, canvas3D.height);
-  }
+function renderComparisonView(view) {
+  gl.viewport(0, 0, canvas3D.width, canvas3D.height);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
 
   gl.useProgram(comparisonProgram);
@@ -462,7 +457,7 @@ function videoSuccessCallback(stream) {
     canvas3D.setAttribute('width', width);
     canvas3D.setAttribute('height', height);
 
-    renderComparisonView(); // initial render
+    renderComparisonView(optimizerView); // initial render
 
   }, false);
   var videoTime = document.getElementById('videoTime');
@@ -563,7 +558,7 @@ var rotationFromQuaternion = function(quat) {
 var referenceView = {
   eye: [0.5, 0.5, 1.],
   direction: [0., 0., 1.], // TODO: direction is flipped
-  up: [0., 1., 0.],
+  up: [0., 1, 0.],
   fovy: 45.,
   aspect: 1.,
   near: .9,
@@ -574,16 +569,18 @@ var viewCopy = function(view) {
   return JSON.parse(JSON.stringify(view));
 }
 
-var view = viewCopy(referenceView);
+var optimizerView = viewCopy(referenceView);
 
 var viewWithDelta = function(view, deltaView) {
   var newView = viewCopy(view);
+  var quaternion = deltaView.slice(3,7);
+  quaternion[0] += 1;
+  var rotation = rotationFromQuaternion(quaternion);
   for (var i = 0; i < 3; i++) {
     newView.eye[i] += deltaView[i];
+    newView.up[i] = rotation[1][i];
+    newView.direction[i] = rotation[2][i];
   }
-  var quaternion = deltaView.slice(3,7);
-  var rotation = rotationFromQuaternion(quaternion);
-
   return(newView);
 }
 
@@ -591,7 +588,7 @@ var adjustView = function(mouseEvent) {
   var rect = canvas3D.getBoundingClientRect();
   var nx = (mouseEvent.x-rect.left) / canvas3D.width;
   var ny = (mouseEvent.y-rect.top) / canvas3D.height;
-  view.eye = [nx, ny, view.eye[2]];
+  optimizerView.eye = [nx, ny, optimizerView.eye[2]];
 }
 
 var wheelView = function(mouseEvent) {
@@ -599,17 +596,15 @@ var wheelView = function(mouseEvent) {
   if (mouseEvent.deltaY < 0.) {
     delta *= -1;
   }
-  view.eye[2] += delta;
+  optimizerView.eye[2] += delta;
   mouseEvent.preventDefault();
 }
 
-var viewEnergy = function(deltaView) {
+var viewEnergy = function(view) {
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, scratchFramebuffer);
-  var savedView = viewCopy(view);
-  view = viewWithDelta(view, deltaView);
 
-  renderComparisonView();
+  renderComparisonView(view);
   // before accumulation: read whole image, now accumulate and read one line
   // gl.readPixels(0, 0, scratchImage.width, scratchImage.height, gl.RGBA, gl.UNSIGNED_BYTE, scratchArray);
 
@@ -626,46 +621,70 @@ var viewEnergy = function(deltaView) {
     samples++;
   }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  view = savedView;
   return(energy/samples);
 }
 
 var optimizeView = function() {
   var viewDOFs = 7;
-  var deltaStep = 0.005;
-  var optimizationStep = 0.01;
-  var lineSearchStep = optimizationStep/20.;
+  var translationStep = 0.05;
+  var rotationStep = 0.005;
+  var deltaSteps = Array(3).fill(translationStep).concat(Array(4).fill(rotationStep));
+  var optimizationStep = 0.005;
+  var lineSearchSteps = 50;
+  var lineSearchStepSize = optimizationStep/lineSearchSteps;
   var dEnergydView = Array(viewDOFs).fill(0);
   var deltaView = Array(viewDOFs).fill(0);
 
-  var referenceEnergy = viewEnergy(deltaView);
-  $('#canvas3DCaption').text('Energy: ' + String(referenceEnergy));
+  var savedView = viewCopy(optimizerView);
+  var iterationView;
+  var referenceEnergy = viewEnergy(optimizerView);
   for (var dof = 0; dof < viewDOFs; dof++) {
-    deltaView[dof] = -deltaStep;
-    var energyMinus = viewEnergy(deltaView);
-    deltaView[dof] = deltaStep;
-    var energyPlus = viewEnergy(deltaView);
-    dEnergydView[dof] = (energyPlus - energyMinus) / (2 * deltaStep);
+    deltaView[dof] = -deltaSteps[dof];
+    iterationView = viewWithDelta(optimizerView, deltaView);
+    var energyMinus = viewEnergy(iterationView);
+    deltaView[dof] = deltaSteps[dof];
+    iterationView = viewWithDelta(optimizerView, deltaView);
+    var energyPlus = viewEnergy(iterationView);
+    dEnergydView[dof] = (energyPlus - energyMinus) / (2 * deltaSteps[dof]);
     deltaView.fill(0);
   }
 
   // stepAlongGradent
-  var maximumStep = {energy: referenceEnergy, deltaView: Array(viewDOFs).fill(0)};
-  for (var step = 0; step < optimizationStep; step += lineSearchStep) {
-    deltaView.fill(0);
-    for (var dof = 0; dof < viewDOFs; dof++) {
-      deltaView[dof] = step * dEnergydView[dof];
-    }
-    var energy = viewEnergy(deltaView);
-    if (energy > maximumStep.energy) {
-      maximumStep.energy = energy;
+  var maximumStep = {
+    energy: referenceEnergy,
+    deltaView: Array(viewDOFs).fill(0)
+  };
+  var stepView;
+  for (var step = 0; step < lineSearchSteps; step += 1) {
+    deltaView = dEnergydView.map(e=> e * lineSearchStepSize * step);
+    stepView = viewWithDelta(optimizerView, deltaView);
+    var stepEnergy = viewEnergy(stepView);
+    if (stepEnergy > maximumStep.energy) {
+      maximumStep.energy = stepEnergy;
       maximumStep.deltaView = deltaView.slice();
+      maximumStep.step = step;
     }
   }
-  view = viewWithDelta(view, maximumStep.deltaView);
+  optimizerView = viewWithDelta(optimizerView, maximumStep.deltaView);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  renderComparisonView();
+  renderComparisonView(optimizerView);
+
+  $('#canvas3DCaption').html(`
+    <ul>
+      <li>Reference energy: ${referenceEnergy}</li>
+      <li>maximumStep.energy: ${maximumStep.energy}</li>
+      <li>step delta: ${maximumStep.energy - referenceEnergy}</li>
+      <li>maximumStep.step: ${maximumStep.step}</li>
+      <li>maximumStep.deltaView: ${maximumStep.deltaView}</li>
+      <li>savedView.eye: ${savedView.eye}</li>
+      <li>optimizerView.eye: ${optimizerView.eye}</li>
+      <li>savedView.direction: ${savedView.direction}</li>
+      <li>optimizerView.direction: ${optimizerView.direction}</li>
+      <li>savedView.up: ${savedView.up}</li>
+      <li>optimizerView.up: ${optimizerView.up}</li>
+    </ul>
+  `);
 }
 
 canvas3D.addEventListener('click', captureReferenceImage);
@@ -692,8 +711,8 @@ var videoAnimationFrame = function() {
   }
   requestAnimationFrame(videoAnimationFrame);
 }
-
 requestAnimationFrame(videoAnimationFrame);
+
 </script>
 
 

@@ -55,17 +55,31 @@
 function readDICOM(arrayBuffer) {
   let dicomData = DicomMessage.readFile(arrayBuffer);
   let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
-  dataset._meta = dicomData.meta;
+  dataset._meta = DicomMetaDictionary.namifyDataset(dicomData.meta);
   return (dataset);
 }
 
 function saveDICOM(dataset) {
-  let dicomDict = new DicomDict(dataset._meta);
+  let versionBuffer = new Uint8Array(2);
+  versionBuffer[0] = 0;
+  versionBuffer[1] = 1;
+  let meta = {
+    // TODO: construct valid version array buffer
+    //FileMetaInformationVersion: new ArrayBuffer(versionBuffer),
+    FileMetaInformationVersion: dataset._meta.FileMetaInformationVersion.Value[0],
+    MediaStorageSOPClass: dataset.SOPClass,
+    MediaStorageSOPInstance: dataset.SOPInstanceUID,
+    TransferSyntaxUID: "1.2.840.10008.1.2",
+    ImplementationClassUID: DicomMetaDictionary.uid(),
+    ImplementationVersionName: "Slicer Prototype",
+  };
+  meta = DicomMetaDictionary.denaturalizeDataset(meta);
+  let dicomDict = new DicomDict(meta);
   dicomDict.dict = DicomMetaDictionary.denaturalizeDataset(dataset);
 console.log(dicomDict);
   var buffer = dicomDict.write();
   var blob = new Blob([buffer], {type: "application/dicom"});
-  saveAs(blob, "test.dicom", true);
+  saveAs(blob, "test.dcm", true);
 }
 
 function requestInstance(url, loaded) {

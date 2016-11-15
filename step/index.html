@@ -55,11 +55,12 @@
 function readDICOM(arrayBuffer) {
   let dicomData = DicomMessage.readFile(arrayBuffer);
   let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
+  dataset._meta = dicomData.meta;
   return (dataset);
 }
 
 function saveDICOM(dataset) {
-  let dicomDict = new DicomDict({});
+  let dicomDict = new DicomDict(dataset._meta);
   dicomDict.dict = DicomMetaDictionary.denaturalizeDataset(dataset);
 console.log(dicomDict);
   var buffer = dicomDict.write();

@@ -10,7 +10,7 @@ class Field {
     this.visible = 1;
     this.generator = undefined;
 
-    this.intTextureSupport = false; // TODO: probe for this?
+    this.intTextureSupport = true; // TODO: probe for this?
     if (this.intTextureSupport) {
       this.samplerType = "isampler3D";
     } else {

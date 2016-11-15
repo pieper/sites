@@ -15,6 +15,7 @@
   <script src="./js/pouchdb-5.1.0.js"></script>
   <script src="./js/pouchdb.memory.js"></script>
 
+  <script type="text/javascript" src="../dcmio/FileSaver.min.js"></script>
   <script type="text/javascript" src="../dcmio/DicomMetaDictionary.js"></script>
   <script type="text/javascript" src="../dcmio/BufferStream.js"></script>
   <script type="text/javascript" src="../dcmio/ValueRepresentation.js"></script>
@@ -55,6 +56,15 @@ function readDICOM(arrayBuffer) {
   let dicomData = DicomMessage.readFile(arrayBuffer);
   let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
   return (dataset);
+}
+
+function saveDICOM(dataset) {
+  let dicomDict = new DicomDict({});
+  dicomDict.dict = DicomMetaDictionary.denaturalizeDataset(dataset);
+console.log(dicomDict);
+  var buffer = dicomDict.write();
+  var blob = new Blob([buffer], {type: "application/dicom"});
+  saveAs(blob, "test.dicom", true);
 }
 
 function requestInstance(url, loaded) {
@@ -111,8 +121,8 @@ function performFilter() {
   }
 
   let derivedImage = new DerivedImage([filterField.dataset]);
-  let derivedField0 = Field.fromDataset(derivedImage.dataset);
-  let derivedField1 = Field.fromDataset(derivedImage.dataset);
+  let derivedField0 = Field.fromDataset(derivedImage.dataset)[0];
+  let derivedField1 = Field.fromDataset(derivedImage.dataset)[0];
 
   // override default calculation
   derivedField0.windowCenter = filterField.windowCenter;
@@ -168,8 +178,8 @@ function performGrowCut() {
   let strengthFields = [];
   [0,1].forEach(index=>{
     let derivedImage = new DerivedImage([backgroundField.dataset]);
-    let labelField = Field.fromDataset(derivedImage.dataset);
-    let strengthField = Field.fromDataset(derivedImage.dataset);
+    let labelField = Field.fromDataset(derivedImage.dataset)[0];
+    let strengthField = Field.fromDataset(derivedImage.dataset)[0];
     labelFields.push(labelField);
     strengthFields.push(strengthField);
     step.renderer.inputFields.push(labelField);

@@ -37,9 +37,9 @@ class Colors {
 
   static lab2DICOMLAB(lab) {
     return ([
-      L * 65535.0 / 100.0        , // results in 0 <= L <= 65535
-      (a + 128) * 65535.0 / 255.0, // results in 0 <= a <= 65535
-      (b + 128) * 65535.0 / 255.0, // results in 0 <= b <= 65535
+      lab[0] * 65535.0 / 100.0        , // results in 0 <= L <= 65535
+      (lab[1] + 128) * 65535.0 / 255.0, // results in 0 <= a <= 65535
+      (lab[2] + 128) * 65535.0 / 255.0, // results in 0 <= b <= 65535
     ]);
   }
 

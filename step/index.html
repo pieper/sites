@@ -144,7 +144,7 @@ function performFilter() {
   derivedField1.windowCenter = filterField.windowCenter;
   derivedField1.windowWidth = filterField.windowWidth;
 
-  step.renderer.inputFields = [derivedField0, derivedField1];
+  step.renderer.inputFields = [filterField, derivedField0, derivedField1];
   step.renderer.updateProgram();
 
   step.generator = new ProgrammaticGenerator({
@@ -154,10 +154,11 @@ function performFilter() {
   });
   step.generator.updateProgram();
 
-  let iterations = 200;
+  let iterations = 4;
   let iteration = 0;
   let renderRate = 1;
   let animationFrame = function() {
+    console.log(`iteration ${iteration} of ${iterations}`);
     step.generator.uniforms.amplitude.value = iteration;
     step.generator.uniforms.frequency.value = 30.;
     step.generator.generate();

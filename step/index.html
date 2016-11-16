@@ -76,7 +76,6 @@ function saveDICOM(dataset) {
   meta = DicomMetaDictionary.denaturalizeDataset(meta);
   let dicomDict = new DicomDict(meta);
   dicomDict.dict = DicomMetaDictionary.denaturalizeDataset(dataset);
-console.log(dicomDict);
   var buffer = dicomDict.write();
   var blob = new Blob([buffer], {type: "application/dicom"});
   saveAs(blob, "test.dcm", true);

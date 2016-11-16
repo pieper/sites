@@ -213,7 +213,9 @@ function performGrowCut() {
     let outBuffer = (iteration+1)%2;
 
     if (!step.growcut) {
-      step.growcut = new GrowCutGenerator({ gl: step.renderer.gl, });
+      step.growcut = new GrowCutGenerator({
+        gl: step.renderer.gl,
+      });
       step.growcut.uniforms.iterations.value = iterations;
       step.growcut.inputFields = [backgroundField,
                                   labelFields[inBuffer],
@@ -267,8 +269,9 @@ let uniforms = {
   sampleStep: { type: '1f', value: 0.1 },
 };
 
-// once document is loaded...
+let INT_TEXTURE_SUPPORT = true; // TODO: odd global
 let step = {};
+// once document is loaded...
 $(function () {
 
   //
@@ -276,6 +279,7 @@ $(function () {
   //
   let canvas = document.querySelector('#renderCanvas');
   let gl = canvas.getContext('webgl2');
+  gl._step_intTextureSupport;
   step.renderer = new RayCastRenderer({
     gl,
     canvas,

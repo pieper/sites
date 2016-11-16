@@ -10,7 +10,7 @@ class Field {
     this.visible = 1;
     this.generator = undefined;
 
-    this.intTextureSupport = true; // TODO: probe for this?
+    this.intTextureSupport = INT_TEXTURE_SUPPORT; //TODO
     if (this.intTextureSupport) {
       this.samplerType = "isampler3D";
     } else {
@@ -47,7 +47,7 @@ class Field {
                                        out float opacity)
       {
       }
-      void sampleField${this.id} (const in sampler3D textureUnit,
+      void sampleField${this.id} (const in ${this.samplerType} textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
                                   out float sampleValue,
@@ -88,6 +88,7 @@ Field.nextId = 0; // TODO: for now this is texture unit
 
 // array of fields from dataset
 Field.fromDataset = function(dataset) {
+  let fields = [];
   switch (dataset.SOPClass) {
     case "CTImage":
     case "MRImage":
@@ -106,11 +107,11 @@ Field.fromDataset = function(dataset) {
     case "PETImage":
     case "EnhancedPETImage":
     case "LegacyConvertedEnhancedPETImage": {
-      return ([new ImageField({dataset})]);
+      fields = [new ImageField({dataset})];
       }
       break;
     case "Segmentation": {
-      return (SegmentationField.fieldsFromDataset({dataset}));
+      fields = SegmentationField.fieldsFromDataset({dataset});
     }
     break;
     default: {
@@ -128,6 +129,7 @@ Field.fromDataset = function(dataset) {
      "ComprehensiveSR",
    */
   }
+  return (fields);
 }
 
 class Fiducial {
@@ -188,8 +190,8 @@ class FiducialField extends Field {
           opacity = ${this.opacityScale} * sampleValue * ${this.rgba[3]};
       }
 
-      uniform sampler3D textureUnit${this.id};
-      void sampleField${this.id} (const in sampler3D textureUnit,
+      uniform ${this.samplerType} textureUnit${this.id};
+      void sampleField${this.id} (const in ${this.samplerType} textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
                                   out float sampleValue,

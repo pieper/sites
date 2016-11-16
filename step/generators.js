@@ -8,6 +8,13 @@ class Generator {  // TODO: unify with Space
     this.inputFields = options.inputFields || [];
     this.outputFields = options.outputFields || [];
     this.program = undefined;
+
+    this.intTextureSupport = INT_TEXTURE_SUPPORT; //TODO
+    if (this.intTextureSupport) {
+      this.samplerType = "isampler3D";
+    } else {
+      this.samplerType = "sampler3D";
+    }
   }
 
   // utility for printing multiline strings for debugging
@@ -82,7 +89,7 @@ class ProgrammaticGenerator extends Generator {
       ${function() {
           let textureDeclarations = '';
           this.inputFields.forEach(field=>{
-            textureDeclarations += "uniform highp isampler3D textureUnit"+String(field.id)+";\n";
+            textureDeclarations += `uniform highp ${this.samplerType} textureUnit${field.id}`+";\n";
           });
           return(textureDeclarations);
         }.bind(this)()
@@ -96,7 +103,7 @@ class ProgrammaticGenerator extends Generator {
       uniform float gradientSize;
       uniform float amplitude;
       uniform float frequency;
-      uniform isampler3D inputTexture0;
+      uniform ${this.samplerType} inputTexture0;
 
       int sampleValue;
       int perturbation;

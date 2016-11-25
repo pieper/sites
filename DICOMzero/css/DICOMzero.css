@@ -1,0 +1,309 @@
+body {
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 14px;
+	margin: 0;
+	overflow: hidden;
+}
+
+hr {
+	border: 0;
+	border-top: 1px solid #ccc;
+}
+
+button {
+	position: relative;
+}
+
+textarea {
+	tab-size: 4;
+	white-space: pre;
+	word-wrap: normal;
+}
+
+	textarea.success {
+		border-color: #8b8 !important;
+	}
+
+	textarea.fail {
+		border-color: #f00 !important;
+		background-color: rgba(255,0,0,0.05);
+	}
+
+textarea, input { outline: none; } /* osx */
+
+.Panel {
+	-moz-user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+
+	/* No support for these yet */
+	-o-user-select: none;
+	user-select: none;
+}
+
+	.Panel.Collapsible .Static {
+		margin: 0;
+	}
+
+	.Panel.Collapsible .Static .Button {
+		float: left;
+		margin-right: 6px;
+		width: 0;
+		height: 0;
+		border: 6px solid transparent;
+	}
+
+	.Panel.Collapsible.collapsed .Static .Button {
+		margin-top: 2px;
+		border-left-color: #bbb;
+	}
+
+	.Panel.Collapsible:not(.collapsed) .Static .Button {
+		margin-top: 6px;
+		border-top-color: #bbb;
+	}
+
+	.Panel.Collapsible.collapsed .Content {
+		display: none;
+	}
+
+.Panel.Collapsible.collapsed .Static .Button {
+	border-left-color: #444;
+}
+
+.Panel.Collapsible:not(.collapsed) .Static .Button {
+	border-top-color: #444;
+}
+
+input.Number {
+	color: #2A75B7!important;
+	font-size: 12px;
+	border: 0px;
+	padding: 2px;
+	cursor: col-resize;
+}
+
+#viewport {
+	position: absolute;
+	top: 32px;
+	left: 0;
+	right: 300px;
+	bottom: 32px;
+}
+
+	#viewport #info {
+		text-shadow: 1px 1px 0 rgba(0,0,0,0.25);
+		pointer-events: none;
+	}
+
+#menubar {
+  position: absolute;
+	width: 100%;
+	height: 32px;
+	background: #111;
+	padding: 0;
+	margin: 0;
+	right: 0;
+	top: 0;
+  opacity: 0.25;
+}
+
+#menubar:hover {
+  opacity: 0.90;
+}
+
+
+	#menubar .menu {
+		float: left;
+		cursor: pointer;
+		padding-right: 8px;
+	}
+
+	#menubar .menu.right {
+		float: right;
+		cursor: auto;
+		padding-right: 0;
+		text-align: right;
+	}
+
+		#menubar .menu .title {
+			display: inline-block;
+			color: #888;
+			margin: 0;
+			padding: 8px;
+		}
+
+		#menubar .menu .options {
+			position: absolute;
+			display: none;
+			padding: 5px 0;
+			background: #111;
+			width: 150px;
+		}
+
+		#menubar .menu:hover .options {
+			display: block;
+		}
+
+		#menubar .menu .database {
+			position: absolute;
+			display: none;
+			padding: 5px 0;
+			background: #111;
+		}
+
+		#menubar .menu:hover .database {
+			display: block;
+		}
+
+			#menubar .menu .options hr {
+				border-color: #222;
+			}
+
+			#menubar .menu .options .option {
+				color: #888;
+				background-color: transparent;
+				padding: 5px 10px;
+				margin: 0 !important;
+			}
+
+				#menubar .menu .options .option:hover {
+					color: #fff;
+					background-color: #08f;
+				}
+
+				#menubar .menu .options .option:active {
+					background: transparent;
+				}
+
+		#menubar .menu .options .inactive {
+			color: #444;
+			background-color: transparent;
+			padding: 5px 10px;
+			margin: 0 !important;
+		}
+
+#bottomBar {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	height: 32px;
+	width: 100%;
+	background-color: #111;
+	overflow: auto;
+  opacity: 0.25;
+}
+
+#bottomBar:hover {
+  opacity: 0.75;
+}
+
+	#bottomBar * {
+		vertical-align: middle;
+	}
+
+	#bottomBar span,
+	#bottomBar input,
+	#bottomBar textarea,
+	#bottomBar select {
+		background: #222;
+		border: 1px solid transparent;
+		color: #888;
+	}
+
+	#bottomBar .Panel {
+		color: #888;
+		padding: 10px;
+		border-top: 1px solid #222;
+	}
+
+	#bottomBar .Panel.collapsed {
+		margin-bottom: 0;
+	}
+
+	#bottomBar .Row {
+		min-height: 20px;
+		margin-bottom: 10px;
+	}
+
+#sideBar {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	height: 100%;
+	width: 150px;
+	background-color: #111;
+	overflow: auto;
+  opacity: 0.25;
+}
+
+#sideBar:hover {
+  opacity: 0.75;
+}
+
+	#sideBar * {
+		vertical-align: middle;
+	}
+
+	#sideBar span,
+	#sideBar input,
+	#sideBar textarea,
+	#sideBar select {
+		background: #222;
+		border: 1px solid transparent;
+		color: #888;
+	}
+
+	#sideBar .Panel {
+		color: #888;
+		padding: 10px;
+		border-top: 1px solid #222;
+	}
+
+	#sideBar .Panel.collapsed {
+		margin-bottom: 0;
+	}
+
+	#sideBar .Row {
+		min-height: 20px;
+		margin-bottom: 10px;
+	}
+
+#tabs {
+	background-color: #1b1b1b;
+	border-top: 1px solid #222;
+}
+
+	#tabs span {
+		color: #555;
+		border-right: 1px solid #222;
+		padding: 10px;
+	}
+
+	#tabs span.selected {
+		color: #888;
+		background-color: #111;
+	}
+
+#toolbar {
+	position: absolute;
+	left: 0;
+	right: 300px;
+	bottom: 0;
+	height: 32px;
+	background-color: #111;
+	color: #333;
+}
+
+	#toolbar * {
+		vertical-align: middle;
+	}
+
+	#toolbar .Panel {
+		padding: 4px;
+		color: #888;
+	}
+
+	#toolbar button {
+		margin-right: 6px;
+	}

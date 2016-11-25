@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+
+  <title>DICOMzero</title>
+
+  <script src="./js/jquery-2.1.4.min.js"></script>
+  <script src="./js/gl-matrix-min.js"></script>
+
+  <script src="../dcmio/FileSaver.min.js"></script>
+  <script src="../dcmio/DicomMetaDictionary.js"></script>
+  <script src="../dcmio/BufferStream.js"></script>
+  <script src="../dcmio/ValueRepresentation.js"></script>
+  <script src="../dcmio/Tag.js"></script>
+  <script src="../dcmio/DicomMessage.js"></script>
+  <script src="../dcmio/normalizers.js"></script>
+  <script src="../dcmio/derivations.js"></script>
+  <script src="../dcmio/colors.js"></script>
+
+  <link rel="stylesheet" href="./css/DICOMzero.css" />
+
+</head>
+
+<body>
+
+<script>
+'use strict'
+
+let dc0;
+
+function resetDICOMzero() {
+  dc0 = {
+    mappingLog : [],
+    dataTransfer : undefined,
+    datasets : [],
+    readers : [],
+    arrayBuffers : [],
+    files : [],
+    fileIndex : 0,
+  };
+  $('.fileButtons').attr('disabled', true);
+}
+
+function offerDownload(dataset, fileName) {
+  // create a meta dataset
+  let meta = {
+    FileMetaInformationVersion: dataset._meta.FileMetaInformationVersion.Value[0],
+    MediaStorageSOPClass: dataset.SOPClass,
+    MediaStorageSOPInstance: dataset.SOPInstanceUID,
+    TransferSyntaxUID: "1.2.840.10008.1.2",
+    ImplementationClassUID: DicomMetaDictionary.uid(),
+    ImplementationVersionName: "DICOMzero-0.0",
+  };
+  meta = DicomMetaDictionary.denaturalizeDataset(meta);
+  let dicomDict = new DicomDict(meta);
+  dicomDict.dict = DicomMetaDictionary.denaturalizeDataset(dataset);
+  var buffer = dicomDict.write();
+  var blob = new Blob([buffer], {type: "application/dicom"});
+  saveAs(blob, fileName, true);
+}
+
+// once the data is downloaded
+function readDICOM(progressEvent) {
+  let reader = progressEvent.target;
+  let arrayBuffer = reader.result;
+  dc0.arrayBuffers.push(arrayBuffer);
+  let dicomData = DicomMessage.readFile(arrayBuffer);
+  let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
+  dataset._meta = DicomMetaDictionary.namifyDataset(dicomData.meta);
+  dc0.datasets.push(dataset);
+  let readerIndex = dc0.readers.indexOf(reader);
+  if (readerIndex < 0) {
+    console.error("Logic error: Unexpected reader!");
+  } else {
+    dc0.readers.splice(readerIndex, 1); // remove the reader
+  }
+  if (dc0.fileIndex == dc0.dataTransfer.files.length) {
+    status(`Normalizing...`);
+    dc0.multiframe = Normalizer.normalizeToDataset(dc0.datasets);
+    status(`Creating segmentation...`);
+    dc0.seg = new Segmentation([dc0.multiframe]);
+    status(`Created ${dc0.multiframe.NumberOfFrames} frame multiframe object and segmentation.`);
+    offerDownload(dc0.seg.dataset, "segmentation.dcm");
+    offerDownload(dc0.multiframe, "multiframe.dcm");
+    resetDICOMzero();
+    status(`Finished, waiting for more DICOM files.`);
+  } else {
+    status(`Reading... (${dc0.fileIndex+1}).`);
+    readOneFile();
+  }
+}
+
+// Used for file selection button or drop of file list
+function readOneFile() {
+  let file = dc0.dataTransfer.files[dc0.fileIndex];
+  dc0.fileIndex++;
+  let reader = new FileReader();
+  reader.onload = readDICOM;
+  reader.readAsArrayBuffer(file);
+  dc0.files.push(file);
+  dc0.readers.push(reader);
+};
+
+// utility: todo: keep a log for optional download
+function status(s) {
+  console.log('status: ', s);
+  $('#status').text(s);
+}
+
+// Drag and Drop
+function handleFileDrop(e) {
+  let evt = e.originalEvent;
+  evt.stopPropagation();
+  evt.preventDefault();
+
+  resetDICOMzero();
+  dc0.dataTransfer = {files: []};
+  for (let fileIndex = 0; fileIndex < evt.dataTransfer.files.length; fileIndex++) {
+    dc0.dataTransfer.files[fileIndex] = evt.dataTransfer.files[fileIndex];
+  }
+  status(`Got ${dc0.dataTransfer.files.length} files, click to process...`);
+  $('.fileButtons').attr('disabled', false);
+}
+
+// once document is loaded...
+$(function () {
+
+  resetDICOMzero();
+
+  let dropZone = document.querySelector('#dropZone');
+  window.addEventListener('resize', resizeEvent => {
+    dropZone.width = window.innerWidth;
+    dropZone.height = window.innerHeight;
+    if (dc0.renderer) {
+      dc0.renderer.requestRender(dc0.view);
+    }
+  });
+  window.dispatchEvent(new Event('resize'));
+
+  //
+  // Setup the dnd listeners
+  //
+
+  function ignoreDrag(e) {
+    e.originalEvent.stopPropagation();
+    e.originalEvent.preventDefault();
+    e.originalEvent.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
+  };
+  $('#dropZone')
+    .bind('dragenter', ignoreDrag)
+    .bind('dragover', ignoreDrag)
+    .bind('drop', handleFileDrop);
+  
+  $("#deriveDICOM").click(function() {
+    readOneFile();
+  });
+
+});
+
+</script>
+
+<input type="button" class="fileButtons" id="deriveDICOM" value="Create Multiframe and Segmentation"/>
+
+<!-- Drag and Drop -->
+<p id='status'>Drag and drop DICOM files here...</p>
+<p></p>
+<canvas id="dropZone"></canvas>
+
+</body>
+</html>

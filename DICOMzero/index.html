@@ -85,7 +85,7 @@ function readDICOM(progressEvent) {
     offerDownload(dc0.seg.dataset, "segmentation.dcm");
     offerDownload(dc0.multiframe, "multiframe.dcm");
     resetDICOMzero();
-    status(`Finished, waiting for more DICOM files.`);
+    status(`Finished, waiting for more DICOM files (drop them below).`);
   } else {
     status(`Reading... (${dc0.fileIndex+1}).`);
     readOneFile();

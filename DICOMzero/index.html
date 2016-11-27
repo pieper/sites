@@ -87,7 +87,7 @@ function readDICOM(progressEvent) {
     let segBlob = datasetToBlob(dc0.seg.dataset);
     let zip = new JSZip();
     zip.file("multiframe.dcm", multiBlob);
-    zip.file("segmentation.dcm", multiBlob);
+    zip.file("segmentation.dcm", segBlob);
     zip.generateAsync({type: "blob"})
     .then(function(contents) {
       saveAs(contents, "derivedDICOM.zip", true);

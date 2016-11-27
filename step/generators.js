@@ -110,8 +110,8 @@ class ProgrammaticGenerator extends Generator {
 
       void main()
       {
-        perturbation = int(10. * amplitude * slice * 
-                          (sin(frequency*interpolatedTextureCoordinate.s) 
+        perturbation = int(10. * amplitude * slice *
+                          (sin(frequency*interpolatedTextureCoordinate.s)
                            + cos(frequency*interpolatedTextureCoordinate.t))
                         );
         vec3 tc = interpolatedTextureCoordinate;
@@ -246,9 +246,9 @@ class ProgrammaticGenerator extends Generator {
       let drawBuffers = [];
       let attachment = 0;
       this.outputFields.forEach(outputField=>{
-        gl.framebufferTextureLayer(gl.FRAMEBUFFER, 
+        gl.framebufferTextureLayer(gl.FRAMEBUFFER,
                                    gl.COLOR_ATTACHMENT0+attachment,
-                                   outputField.texture, 
+                                   outputField.texture,
                                    mipmapLevel, sliceIndex);
         drawBuffers.push(gl.COLOR_ATTACHMENT0+attachment);
         attachment++;

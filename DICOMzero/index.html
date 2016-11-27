@@ -8,6 +8,7 @@
 
   <script src="./js/jquery-2.1.4.min.js"></script>
   <script src="./js/gl-matrix-min.js"></script>
+  <script src="./js/jszip.min.js"></script>
 
   <script src="../dcmio/FileSaver.min.js"></script>
   <script src="../dcmio/DicomMetaDictionary.js"></script>
@@ -43,7 +44,7 @@ function resetDICOMzero() {
   $('.fileButtons').attr('disabled', true);
 }
 
-function offerDownload(dataset, fileName) {
+function datasetToBlob(dataset) {
   // create a meta dataset
   let meta = {
     FileMetaInformationVersion: dataset._meta.FileMetaInformationVersion.Value[0],
@@ -58,7 +59,7 @@ function offerDownload(dataset, fileName) {
   dicomDict.dict = DicomMetaDictionary.denaturalizeDataset(dataset);
   var buffer = dicomDict.write();
   var blob = new Blob([buffer], {type: "application/dicom"});
-  saveAs(blob, fileName, true);
+  return (blob);
 }
 
 // once the data is downloaded
@@ -82,10 +83,17 @@ function readDICOM(progressEvent) {
     status(`Creating segmentation...`);
     dc0.seg = new Segmentation([dc0.multiframe]);
     status(`Created ${dc0.multiframe.NumberOfFrames} frame multiframe object and segmentation.`);
-    offerDownload(dc0.seg.dataset, "segmentation.dcm");
-    offerDownload(dc0.multiframe, "multiframe.dcm");
-    resetDICOMzero();
-    status(`Finished, waiting for more DICOM files (drop them below).`);
+    let multiBlob = datasetToBlob(dc0.multiframe);
+    let segBlob = datasetToBlob(dc0.seg.dataset);
+    let zip = new JSZip();
+    zip.file("multiframe.dcm", multiBlob);
+    zip.file("segmentation.dcm", multiBlob);
+    zip.generateAsync({type: "blob"})
+    .then(function(contents) {
+      saveAs(contents, "derivedDICOM.zip", true);
+      resetDICOMzero();
+      status(`Finished, waiting for more DICOM files (drop them below).`);
+    });
   } else {
     status(`Reading... (${dc0.fileIndex+1}).`);
     readOneFile();

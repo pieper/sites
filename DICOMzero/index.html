@@ -41,7 +41,58 @@ function resetDICOMzero() {
     files : [],
     fileIndex : 0,
   };
-  $('.fileButtons').attr('disabled', true);
+  $('.dicomControls').attr('disabled', true);
+  let ctx = document.getElementById('dropZone').getContext('2d');
+  ctx.clearRect(0,0, window.innerWidth, window.innerHeight);
+}
+
+function performSegmentation() {
+  // for testing, fill with ones
+  let pixels = new Uint8Array(dc0.seg.dataset.PixelData);
+  pixels.fill(0xff);
+}
+
+function drawDatasets() {
+  let frame = Number(document.getElementById('instanceOffset').value);
+
+  let ctx = document.getElementById('dropZone').getContext('2d');
+  let [wc, ww] = [dc0.multiframe.WindowCenter[0],dc0.multiframe.WindowWidth[0]];
+  let [columns, rows] = [dc0.multiframe.Columns,dc0.multiframe.Rows];
+  let imageData = ctx.getImageData(0,0,columns,rows);
+  let data = imageData.data;
+
+  // TODO: assumes 16 bit
+  let imageArray;
+  if (dc0.multiframe.PixelRepresentation == 1) {
+    imageArray = new Int16Array(dc0.multiframe.PixelData);
+  } else {
+    imageArray = new Uint16Array(dc0.multiframe.PixelData);
+  }
+
+  let frameOffset = rows * columns * frame;
+  for (let row = 0; row < rows; ++row) {
+      for (let column = 0; column < columns; ++column) {
+          let index = (row * rows + column) * 4;
+
+          let rawValue = imageArray[frameOffset + row*columns + column];
+
+          let pixelValue = 255. * ((rawValue - (wc-0.5)) / (ww-1.) + .5);
+          pixelValue = Math.max(0, Math.min(255, pixelValue));
+
+          let segPixelValue;
+          if (rawValue > 20) {
+            segPixelValue = 255;
+          } else {
+            segPixelValue = pixelValue;
+          }
+
+          data[index]   = pixelValue;    // red
+          data[++index] = segPixelValue;    // green
+          data[++index] = pixelValue;    // blue
+          data[++index] = 255;      // alpha
+      }
+  }
+  ctx.putImageData(imageData, 0, 0);
 }
 
 function datasetToBlob(dataset) {
@@ -60,6 +111,20 @@ function datasetToBlob(dataset) {
   var buffer = dicomDict.write();
   var blob = new Blob([buffer], {type: "application/dicom"});
   return (blob);
+}
+
+function downloadDatasets() {
+  let multiBlob = datasetToBlob(dc0.multiframe);
+  let segBlob = datasetToBlob(dc0.seg.dataset);
+  let zip = new JSZip();
+  zip.file("multiframe.dcm", multiBlob);
+  zip.file("segmentation.dcm", segBlob);
+  zip.generateAsync({type: "blob"})
+  .then(function(contents) {
+    saveAs(contents, "derivedDICOM.zip", true);
+    resetDICOMzero();
+    status(`Finished, waiting for more DICOM files (drop them below).`);
+  });
 }
 
 // once the data is downloaded
@@ -83,17 +148,11 @@ function readDICOM(progressEvent) {
     status(`Creating segmentation...`);
     dc0.seg = new Segmentation([dc0.multiframe]);
     status(`Created ${dc0.multiframe.NumberOfFrames} frame multiframe object and segmentation.`);
-    let multiBlob = datasetToBlob(dc0.multiframe);
-    let segBlob = datasetToBlob(dc0.seg.dataset);
-    let zip = new JSZip();
-    zip.file("multiframe.dcm", multiBlob);
-    zip.file("segmentation.dcm", segBlob);
-    zip.generateAsync({type: "blob"})
-    .then(function(contents) {
-      saveAs(contents, "derivedDICOM.zip", true);
-      resetDICOMzero();
-      status(`Finished, waiting for more DICOM files (drop them below).`);
-    });
+    let frameMax = dc0.multiframe.NumberOfFrames-1;
+    $('#instanceOffset')[0].max = frameMax;
+    let middle = Math.floor((frameMax)/2);
+    $('#instanceOffset')[0].value = middle;
+    drawDatasets();
   } else {
     status(`Reading... (${dc0.fileIndex+1}).`);
     readOneFile();
@@ -129,7 +188,8 @@ function handleFileDrop(e) {
     dc0.dataTransfer.files[fileIndex] = evt.dataTransfer.files[fileIndex];
   }
   status(`Got ${dc0.dataTransfer.files.length} files, click to process...`);
-  $('.fileButtons').attr('disabled', false);
+  readOneFile();
+  $('.dicomControls').attr('disabled', false);
 }
 
 // once document is loaded...
@@ -160,16 +220,19 @@ $(function () {
     .bind('dragenter', ignoreDrag)
     .bind('dragover', ignoreDrag)
     .bind('drop', handleFileDrop);
-  
+
   $("#deriveDICOM").click(function() {
-    readOneFile();
+    downloadDatasets();
   });
+
+  $('#instanceOffset').on('change mousemove', drawDatasets);
 
 });
 
 </script>
 
-<input type="button" class="fileButtons" id="deriveDICOM" value="Create Multiframe and Segmentation"/>
+<input type="range" class="dicomControls" min="0" max="0" value="0" step="1" id="instanceOffset">
+<input type="button" class="dicomControls" id="deriveDICOM" value="Download Multiframe and Segmentation"/>
 
 <!-- Drag and Drop -->
 <p id='status'>Drag and drop DICOM files here...</p>

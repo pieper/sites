@@ -7,6 +7,10 @@ class Linear {
 Linear.LARGE_NUMBER = 3e38;
 Linear.SMALL_NUMBER = 2e-38;
 
+Linear.vclone = function(v) {
+  return(v.slice(0));
+}
+
 Linear.vlength = function(v) {
   return(Math.sqrt(v.map(e=>e*e).reduce((sum,value)=>sum+value)));
 }

@@ -116,17 +116,6 @@ function requestSeries(instanceURLs) {
   });
 }
 
-function requestMultiframe(url) {
-  requestInstance(url, function(arrayBuffer) {
-    loadDatasets([readDICOM(arrayBuffer)]);
-  });
-}
-
-function multiframeTest() {
-  let url = "http://slicer.kitware.com/midas3/download/item/126334/4-T2-multiframe-IPP_sorted_UID_fixed.dcm";
-  requestMultiframe(url);
-}
-
 function performFilter() {
   let filterField = step.renderer.inputFields[step.renderer.inputFields.length-1];
   if (!filterField || filterField.constructor.name != "ImageField") {
@@ -154,7 +143,7 @@ function performFilter() {
   });
   step.generator.updateProgram();
 
-  let iterations = 4;
+  let iterations = 40;
   let iteration = 0;
   let renderRate = 1;
   let animationFrame = function() {
@@ -269,7 +258,7 @@ let uniforms = {
   sampleStep: { type: '1f', value: 0.1 },
 };
 
-let INT_TEXTURE_SUPPORT = true; // TODO: odd global
+let INT_TEXTURE_SUPPORT = true; // TODO: odd global used in fields and generators
 let step = {};
 // once document is loaded...
 $(function () {

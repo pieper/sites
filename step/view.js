@@ -1,12 +1,13 @@
 class View {
   // All the parameters of the view (camera plus planes and other options)
   constructor(options={}) {
-    this.viewPoint = options.viewPoint || [0., 0., -30.];
+    let c = Linear.vclone;
+    this.viewPoint = c(options.viewPoint) || [0., 0., -30.];
     this.viewNormal = Linear.vnormalize(options.viewNormal || [0., 0., 1.5]);
     this.viewUp = Linear.vnormalize(options.viewUp || [0., -1., 0.]);
-    this.viewDistance = Linear.vlength(this.viewPoint);
-    this.viewBoxMin = options.viewBoxMin || [-3., -3., -3.];
-    this.viewBoxMax = options.viewBoxMax || [3., 3., 3.];
+    this.viewDistance = options.viewDistance || Linear.vlength(this.viewPoint);
+    this.viewBoxMin = c(options.viewBoxMin) || [-3., -3., -3.];
+    this.viewBoxMax = c(options.viewBoxMax) || [3., 3., 3.];
     this.viewAngle = options.viewAngle || 30.;
     this.viewNear = 0.;
     this.viewFar = 3e+38;  // basically float max
@@ -47,7 +48,7 @@ class View {
     this.viewNormal = Linear.vnormalize(Linear.vminus(at, from));
     this.viewRight = Linear.vnormalize(Linear.vcross(this.viewNormal, up));
     this.viewUp = Linear.vcross(this.viewRight, this.viewNormal);
-    this.viewPoint = from.slice();
+    this.viewPoint = Linear.vclone(from);
     this.viewDistance = Linear.vdistance(at, from);
   }
 

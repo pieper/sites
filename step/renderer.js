@@ -5,7 +5,14 @@ class RayCastRenderer extends ProgrammaticGenerator {
     super(options);
     this.canvas = options.canvas;
     this.renderRequestTimeout = options.renderRequestTimeout || 100.;
-    this.pendingRenderRequest = false;
+    this.pendingRenderRequest = false; // a handle to the ongoing render
+    this.requestAnotherRender = false; // trigger another when this completes
+
+    this.syncReasons = {};
+    this.syncReasons[this.gl.ALREADY_SIGNALED] = "ALREADY_SIGNALED";
+    this.syncReasons[this.gl.TIMEOUT_EXPIRED] = "TIMEOUT_EXPIRED";
+    this.syncReasons[this.gl.CONDITION_SATISFIED] = "CONDITION_SATISFIED";
+    this.syncReasons[this.gl.WAIT_FAILED] = "WAIT_FAILED";
   }
 
   updateProgram() {
@@ -29,9 +36,12 @@ class RayCastRenderer extends ProgrammaticGenerator {
   }
 
   requestRender(view) {
-    this.view = view;
+    if (view) {
+      this.view = view;
+    }
     if (this.pendingRenderRequest) {
       console.log('skipping render - pending request');
+      this.requestAnotherRender = true;
       return;
     }
     this.pendingRenderRequest = window.requestAnimationFrame(this._render.bind(this));
@@ -47,6 +57,15 @@ class RayCastRenderer extends ProgrammaticGenerator {
       console.log('skipping render - no view');
       return;
     }
+
+    // check to see if previous render is finished
+    let sync = this.gl.fenceSync(this.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    let reason = this.gl.clientWaitSync(sync, this.gl.SYNC_FLUSH_COMMANDS_BIT, 1e6);
+    if (reason == this.gl.TIMEOUT_EXPIRED) {
+      this.requestRender();
+      return;
+    }
+    console.log(this.syncReasons[String(reason)]);
 
     let gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); // draw to the main framebuffer!
@@ -91,6 +110,12 @@ class RayCastRenderer extends ProgrammaticGenerator {
     });
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // if an event requested a render while gl was working, request another
+    if (this.requestAnotherRender) {
+      this.requestAnotherRender = false;
+      this.requestRender();
+    }
   }
 
   perFieldSamplingShaderSource() {

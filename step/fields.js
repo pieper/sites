@@ -466,7 +466,8 @@ class ImageField extends PixelField {
         sampleValue = float(texture(textureUnit, stpPoint).r);
         sampleValue = rescaleSlope${this.id} * sampleValue + rescaleIntercept${this.id};
 
-        #define S(point, offset, column) rescaleSlope${this.id} * float(texture(textureUnit, point+offset*patientToPixel${this.id}[column].xyz).r) + rescaleIntercept${this.id};
+        #define V(point, offset, column) float(texture(textureUnit, point+offset*patientToPixel${this.id}[column].xyz).r)
+        #define S(point, offset, column) rescaleSlope${this.id} * V(point,offset,column) + rescaleIntercept${this.id}
         // central difference sample gradient (P is +1, N is -1)
         float sP00 = S(stpPoint, 1. * gradientSize, 0);
         float sN00 = S(stpPoint, -1. * gradientSize, 0);
@@ -474,6 +475,7 @@ class ImageField extends PixelField {
         float s0N0 = S(stpPoint, -1. * gradientSize, 1);
         float s00P = S(stpPoint, 1. * gradientSize, 2);
         float s00N = S(stpPoint, -1. * gradientSize, 2);
+        #undef V
         #undef S
 
         // TODO: add Sobel and/or multiscale gradients

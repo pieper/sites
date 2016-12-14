@@ -44,8 +44,8 @@ class RayCastRenderer extends ProgrammaticGenerator {
       this.requestAnotherRender = true;
       return;
     }
-    //this.pendingRenderRequest = window.requestAnimationFrame(this._render.bind(this));
-    this._render();
+    this.pendingRenderRequest = window.requestAnimationFrame(this._render.bind(this));
+    //this._render();
   }
 
   _render() {
@@ -60,14 +60,16 @@ class RayCastRenderer extends ProgrammaticGenerator {
     }
 
     // check to see if previous render is finished
-    let sync = this.gl.fenceSync(this.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-    let reason = this.gl.clientWaitSync(sync, this.gl.SYNC_FLUSH_COMMANDS_BIT, 1e6);
-    if (reason == this.gl.TIMEOUT_EXPIRED) {
-      // the previous render is not yet finished, so re-issue request
-      this.requestRender();
-      return;
+    if (false) {
+      let sync = this.gl.fenceSync(this.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      let reason = this.gl.clientWaitSync(sync, this.gl.SYNC_FLUSH_COMMANDS_BIT, 1e6);
+      if (reason == this.gl.TIMEOUT_EXPIRED) {
+        // the previous render is not yet finished, so re-issue request
+        this.requestRender();
+        return;
+      }
+      console.log(this.syncReasons[String(reason)]);
     }
-    console.log(this.syncReasons[String(reason)]);
 
     let gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); // draw to the main framebuffer!

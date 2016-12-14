@@ -187,7 +187,7 @@ class FiducialField extends Field {
         distance = length(centerToSample);
         if (distance < ${fiducial.radius}) {
           sampleValue += ${this.rgba[3]};
-          normal += normalize(centerToSample);
+          normal += pow(${fiducial.radius}-distance,4.) * normalize(centerToSample);
         }
 
       `;
@@ -210,7 +210,7 @@ class FiducialField extends Field {
                                        out float opacity)
       {
           color = vec3( ${this.rgba[0]}, ${this.rgba[1]}, ${this.rgba[2]} );
-          opacity = ${this.opacityScale} * sampleValue * ${this.rgba[3]};
+          opacity = ${this.opacityScale} * gradientMagnitude * sampleValue * ${this.rgba[3]};
       }
 
       uniform ${this.samplerType} textureUnit${this.id};
@@ -234,10 +234,10 @@ class FiducialField extends Field {
         // default if sampleValue is not in any fiducial
         sampleValue = 0.;
         normal = vec3(0,0,0);
-        gradientMagnitude = 1.;
 
         ${this.fiducialsSource()}
 
+        gradientMagnitude = length(normal);
         normal = normalize(normal);
 
       }
@@ -465,7 +465,7 @@ class ImageField extends PixelField {
       {
         float pixelValue = clamp( (sampleValue - (windowCenter${this.id}-0.5)) / (windowWidth${this.id}-1.) + .5, 0., 1. );
         color = vec3(pixelValue);
-        opacity = 20. * pixelValue;
+        opacity = gradientMagnitude * pixelValue / 1000.; // TODO
       }
 
       uniform int visible${this.id};
@@ -504,32 +504,35 @@ class ImageField extends PixelField {
         sampleValue = rescale(float(texture(textureUnit, stpPoint).r));
 
         // p : point in patient space
-        // o : scalar offset in patient space along dimension
-        // c : column of the patientToPixel matrix for the dimension
-        #define P(p,o,c) p + o * patientToPixel${this.id}[c].xyz * dimensionsInverse
-        #define T(p,o,c) float( texture( textureUnit, P(p,o,c) ).r )
-        #define S(p,o,c) rescale(T(p,o,c))
+        // o : offset vector in patient space along dimension
+        #define T(p,o) float( texture(textureUnit, p+o).r )
+        #define S(p,o) rescale(T(p,o))
+
         // central difference sample gradient (P is +1, N is -1)
-        float sP00 = S(stpPoint,  1. * gradientSize, 0);
-        float sN00 = S(stpPoint, -1. * gradientSize, 0);
-        float s0P0 = S(stpPoint,  1. * gradientSize, 1);
-        float s0N0 = S(stpPoint, -1. * gradientSize, 1);
-        float s00P = S(stpPoint,  1. * gradientSize, 2);
-        float s00N = S(stpPoint, -1. * gradientSize, 2);
+        vec3 sN = vec3(0.);
+        vec3 sP = vec3(0.);
+        vec3 offset = vec3(0.);
+
+        for (int i = 0; i < 3; i++) {
+          offset[i] = dimensionsInverse[i];
+          sP[i] = S(stpPoint, offset);
+          offset[i] = -dimensionsInverse[i];
+          sN[i] = S(stpPoint, offset);
+          offset[i] = 0.;
+        }
+
         #undef S
         #undef T
-        #undef P
+
         #undef rescale
 
         // TODO: add Sobel and/or multiscale gradients
-        vec3 gradient = vec3( (sP00-sN00),
-                              (s0P0-s0N0),
-                              (s00P-s00N) );
+        vec3 gradient = vec3( (sP[0]-sN[0]),
+                              (sP[1]-sN[1]),
+                              (sP[2]-sN[2]) );
         gradientMagnitude = length(gradient);
-
-        // https://en.wikipedia.org/wiki/Normal_(geometry)#Transforming_normals
-        vec3 localNormal = (-1. / gradientMagnitude) * gradient;
-        normal = normalize(normalPixelToPatient${this.id} * localNormal);
+        normal = gradient * 1./gradientMagnitude;
+        gradientMagnitude *=10.;
       }
     `);
   }

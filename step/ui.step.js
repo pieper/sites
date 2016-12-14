@@ -99,6 +99,17 @@ class stepFileMenu extends MenuPanel {
 
     // spacer
     this.menuPanel.add( new UI.HorizontalRule() );
+    // File -> Save
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Save' );
+    option.onClick( function () {
+      options.save();
+    } );
+    this.menuPanel.add( option );
+
+    // spacer
+    this.menuPanel.add( new UI.HorizontalRule() );
     // File -> New
     option = new UI.Row();
     option.setClass( 'option' );
@@ -113,6 +124,7 @@ class stepFileMenu extends MenuPanel {
 
     } );
     this.menuPanel.add( option );
+
     // spacer
     this.menuPanel.add( new UI.HorizontalRule() );
 

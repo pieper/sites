@@ -532,6 +532,7 @@ class ImageField extends PixelField {
   }
 }
 
+
 class SegmentationField extends PixelField {
   constructor(options={}) {
     super(options);

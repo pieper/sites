@@ -9,6 +9,7 @@
   <link rel="stylesheet" type="text/css" href="./css/jquery.dataTables.min.css" media="screen" />
   <script src="./js/jquery-2.1.4.min.js"></script>
   <script src="./js/jquery.dataTables.min.js"></script>
+  <script src="./js/jszip.min.js"></script>
 
   <script type="text/javascript" src="./js/gl-matrix-min.js"></script>
 
@@ -60,25 +61,26 @@ function readDICOM(arrayBuffer) {
 }
 
 function saveDICOM(dataset) {
-  let versionBuffer = new Uint8Array(2);
-  versionBuffer[0] = 0;
-  versionBuffer[1] = 1;
-  let meta = {
-    // TODO: construct valid version array buffer
-    //FileMetaInformationVersion: new ArrayBuffer(versionBuffer),
-    FileMetaInformationVersion: dataset._meta.FileMetaInformationVersion.Value[0],
-    MediaStorageSOPClass: dataset.SOPClass,
-    MediaStorageSOPInstance: dataset.SOPInstanceUID,
-    TransferSyntaxUID: "1.2.840.10008.1.2",
-    ImplementationClassUID: DicomMetaDictionary.uid(),
-    ImplementationVersionName: "Slicer Prototype",
-  };
-  meta = DicomMetaDictionary.denaturalizeDataset(meta);
-  let dicomDict = new DicomDict(meta);
-  dicomDict.dict = DicomMetaDictionary.denaturalizeDataset(dataset);
-  var buffer = dicomDict.write();
-  var blob = new Blob([buffer], {type: "application/dicom"});
+  var blob = DicomMetaDictionary.datasetToBlob(dataset);
   saveAs(blob, "test.dcm", true);
+}
+
+function saveFieldsAsDICOM() {
+  let zip = new JSZip();
+  step.renderer.inputFields.forEach(field => {
+    let fileName = `${field.dataset.SOPInstanceUID}.dcm`;
+    console.log(`zipping ${fileName}`);
+    step.ui.bottomBar.progress = `Blobbing ${fileName}`;
+    let dicomBlob = DicomMetaDictionary.datasetToBlob(field.dataset);
+    zip.file(fileName, dicomBlob);
+  });
+  console.log(`generating zip`);
+  zip.generateAsync({type: "blob"})
+    .then(contents => {
+      console.log(`saving zip`, contents, contents.size);
+      //TODO: crashes with data size 298956414
+      window.saveAs(contents, "derivedDICOM.zip", true);
+    });
 }
 
 function requestInstance(url, loaded) {
@@ -110,6 +112,7 @@ function requestSeries(instanceURLs) {
       seriesDatasets.push(dataset);
       step.ui.bottomBar.progress = `Loaded ${seriesDatasets.length} of ${instanceURLs.length}`;
       if (seriesDatasets.length == instanceURLs.length) {
+        step.ui.bottomBar.progress = `All ${instanceURLs.length} datasets retrieved`;
         loadDatasets(seriesDatasets);
       }
     });
@@ -172,6 +175,7 @@ function performFilter() {
 
 
 function performGrowCut() {
+  console.log('starting performGrowCut');
   let backgroundField = step.renderer.inputFields[step.renderer.inputFields.length-1];
   if (!backgroundField || backgroundField.constructor.name != "ImageField") {
     alert('Need to have a background image field');
@@ -188,13 +192,15 @@ function performGrowCut() {
     strengthFields.push(strengthField);
     step.renderer.inputFields.push(labelField);
     step.renderer.inputFields.push(strengthField);
-    step.renderer.updateProgram();
+    console.log('added field', index);
   });
+  // TODO: don't need to upload texture of generated fields
   step.renderer.updateProgram();
 
+  console.log('updated program');
 
   backgroundField.visible = 0;
-  let iterations = 100;
+  let iterations = 10;
   let iteration = 0;
   let animationFrame = function() {
 
@@ -226,6 +232,14 @@ function performGrowCut() {
                                 strengthFields[inBuffer]];
     step.growcut.outputFields = [labelFields[outBuffer],
                                  strengthFields[outBuffer]];
+
+    // for the final iteration, save the calculation result to CPU
+    if (iteration == iterations-1) {
+      step.growcut.outputFields.forEach(outputField => {
+        outputField.generatedPixelData = outputField.dataset.PixelData;
+      });
+    }
+
     step.growcut.generate();
 
     console.log(iteration,'rendering');
@@ -234,9 +248,11 @@ function performGrowCut() {
     iteration++;
 
     if (iteration < iterations) {
+      // not finished, trigger another itertion
       step.ui.bottomBar.progress = `Iteration ${iteration} of ${iterations}`;
       requestAnimationFrame(animationFrame);
     } else {
+      step.ui.bottomBar.progress = `Finished ${iterations} iterations`;
       [0,1].forEach(index=>{
         labelFields[index].visible = 0;
         strengthFields[index].visible = 0;
@@ -244,6 +260,7 @@ function performGrowCut() {
       backgroundField.visible = 0;
       labelFields[0].visible = 1;
       step.renderer._render();
+      console.log('finished');
     }
   }
   requestAnimationFrame(animationFrame);
@@ -307,6 +324,7 @@ $(function () {
     requestSeries : requestSeries,
     performFilter : performFilter,
     performGrowCut : performGrowCut,
+    save : saveFieldsAsDICOM,
   });
   document.body.insertBefore(step.ui.menubar.dom, document.body.firstChild);
 

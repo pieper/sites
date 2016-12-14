@@ -174,8 +174,6 @@ class ProgrammaticGenerator extends Generator {
     let gl = this.gl;
     let location = gl.getUniformLocation(this.program, key);
 
-    //console.log('setting ' + key + ' to ' + uniform.value);
-
     if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
     if (uniform.type == '3iv') {gl.uniform3iv(location, uniform.value); return;}
     if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
@@ -259,6 +257,30 @@ class ProgrammaticGenerator extends Generator {
         console.error("Incomplete framebuffer: " + status);
       }
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      // optional readback of rendered texture
+      attachment = 0;
+      this.outputFields.forEach(outputField=>{
+        if (outputField.generatedPixelData) {
+          gl.readBuffer(gl.COLOR_ATTACHMENT0+attachment);
+          let supportedFormat = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
+          let supportedType = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
+          if (supportedFormat != gl.RED_INTEGER || supportedType != gl.SHORT) {
+            console.error("Integer framebuffer read not supported");
+            console.error(`Supported type: ${supportedType}`);
+            console.error(`Supported format: ${supportedFormat}`);
+          } else {
+            let [w,h] = [outputField.dataset.Columns, outputField.dataset.Rows];
+            let sliceSize = w * h * 2;
+            let sliceStart = sliceIndex * sliceSize;
+            let sliceView = new Int16Array(outputField.generatedPixelData,
+                                            sliceStart, sliceSize/2);
+            gl.readPixels(0, 0, w, h, gl.RED_INTEGER, gl.SHORT, sliceView);
+          }
+        }
+        attachment++;
+      });
+
       slice += sliceSpacing;
     }
   }

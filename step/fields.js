@@ -20,6 +20,12 @@ class Field {
     Field.nextId++;
   }
 
+  analyze() {
+    // calculate things like bounds from the constructor input
+    // - this method is called by the final concrete subtype and
+    //   every subclass calls the superclass
+  }
+
   // user of this class is responsible for calling modified
   // after making changes that require updating the gl representation
   modified() {
@@ -147,6 +153,23 @@ class FiducialField extends Field {
     this.opacityScale = options.opacityScale || 1.;
     this.opacityScale *= 1.00001; // hack to make it floating point
     this.fiducials = options.fiducials || [];
+    this.analyze();
+  }
+
+  analyze() {
+    super.analyze();
+    let large = Linear.LARGE_NUMBER;
+    this.bounds = {min: [large, large, large], max: [-large, -large, -large]};
+    this.center = [];
+    this.fiducials.forEach(fiducial => {
+      [0,1,2].forEach(e => {
+        this.bounds.min[e] = Math.min(fiducial.point[e]-fiducial.radius,
+                                      this.bounds.min[e]);
+        this.bounds.max[e] = Math.max(fiducial.point[e]+fiducial.radius,
+                                      this.bounds.max[e]);
+        this.center[e] = 0.5 * (this.bounds.min[e] + this.bounds.max[e]);
+      });
+    });
   }
 
   uniforms() {
@@ -191,6 +214,8 @@ class FiducialField extends Field {
       }
 
       uniform ${this.samplerType} textureUnit${this.id};
+      uniform int visible${this.id};
+
       void sampleField${this.id} (const in ${this.samplerType} textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
@@ -246,6 +271,7 @@ class PixelField extends Field {
   }
 
   analyze() {
+    super.analyze();
     // examine the dataset and calculate intermediate values needed for rendering
     // TODO: patientToPixel and related matrices should be generalized to functions.
     // TODO: transfer function parameters could be textures.
@@ -451,38 +477,56 @@ class ImageField extends PixelField {
       void sampleField${this.id} (const in ${this.samplerType} textureUnit,
                                   const in vec3 samplePointIn,
                                   const in float gradientSize,
-                                  out float sampleValue, out vec3 normal,
+                                  out float sampleValue,
+                                  out vec3 normal,
                                   out float gradientMagnitude)
       {
+        // samplePoint is in patient coordinates
         vec3 samplePoint = transformPoint${this.id}(samplePointIn);
+
+        // stpPoint is in 0-1 texture coordinates, meaning that it
+        // is the patientToPixel transform scaled by the inverse
+        // pixel dimensions.
+        vec3 dimensionsInverse = vec3(1.) / vec3(pixelDimensions${this.id});
         vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
-        stpPoint /= vec3(pixelDimensions${this.id});
-        if (any(lessThan(stpPoint, vec3(0))) || any(greaterThan(stpPoint,vec3(1)))) {
+        stpPoint *= dimensionsInverse;
+
+        // trivial reject outside
+        if (any(lessThan(stpPoint, vec3(0.)))
+             || any(greaterThan(stpPoint,vec3(1.)))) {
             sampleValue = 0.;
+            normal = vec3(0.);
             gradientMagnitude = 0.;
             return;
         }
 
-        sampleValue = float(texture(textureUnit, stpPoint).r);
-        sampleValue = rescaleSlope${this.id} * sampleValue + rescaleIntercept${this.id};
+        #define rescale(value) rescaleSlope${this.id} * value + rescaleIntercept${this.id};
+        sampleValue = rescale(float(texture(textureUnit, stpPoint).r));
 
-        #define V(point, offset, column) float(texture(textureUnit, point+offset*patientToPixel${this.id}[column].xyz).r)
-        #define S(point, offset, column) rescaleSlope${this.id} * V(point,offset,column) + rescaleIntercept${this.id}
+        // p : point in patient space
+        // o : scalar offset in patient space along dimension
+        // c : column of the patientToPixel matrix for the dimension
+        #define P(p,o,c) p + o * patientToPixel${this.id}[c].xyz * dimensionsInverse
+        #define T(p,o,c) float( texture( textureUnit, P(p,o,c) ).r )
+        #define S(p,o,c) rescale(T(p,o,c))
         // central difference sample gradient (P is +1, N is -1)
-        float sP00 = S(stpPoint, 1. * gradientSize, 0);
+        float sP00 = S(stpPoint,  1. * gradientSize, 0);
         float sN00 = S(stpPoint, -1. * gradientSize, 0);
-        float s0P0 = S(stpPoint, 1. * gradientSize, 1);
+        float s0P0 = S(stpPoint,  1. * gradientSize, 1);
         float s0N0 = S(stpPoint, -1. * gradientSize, 1);
-        float s00P = S(stpPoint, 1. * gradientSize, 2);
+        float s00P = S(stpPoint,  1. * gradientSize, 2);
         float s00N = S(stpPoint, -1. * gradientSize, 2);
-        #undef V
         #undef S
+        #undef T
+        #undef P
+        #undef rescale
 
         // TODO: add Sobel and/or multiscale gradients
         vec3 gradient = vec3( (sP00-sN00),
                               (s0P0-s0N0),
                               (s00P-s00N) );
         gradientMagnitude = length(gradient);
+
         // https://en.wikipedia.org/wiki/Normal_(geometry)#Transforming_normals
         vec3 localNormal = (-1. / gradientMagnitude) * gradient;
         normal = normalize(normalPixelToPatient${this.id} * localNormal);

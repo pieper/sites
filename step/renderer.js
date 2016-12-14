@@ -44,7 +44,8 @@ class RayCastRenderer extends ProgrammaticGenerator {
       this.requestAnotherRender = true;
       return;
     }
-    this.pendingRenderRequest = window.requestAnimationFrame(this._render.bind(this));
+    //this.pendingRenderRequest = window.requestAnimationFrame(this._render.bind(this));
+    this._render();
   }
 
   _render() {
@@ -62,6 +63,7 @@ class RayCastRenderer extends ProgrammaticGenerator {
     let sync = this.gl.fenceSync(this.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     let reason = this.gl.clientWaitSync(sync, this.gl.SYNC_FLUSH_COMMANDS_BIT, 1e6);
     if (reason == this.gl.TIMEOUT_EXPIRED) {
+      // the previous render is not yet finished, so re-issue request
       this.requestRender();
       return;
     }
@@ -133,8 +135,10 @@ class RayCastRenderer extends ProgrammaticGenerator {
           if (visible${field.id} > 0) {
             // accumulate per-field opacities and lit colors
             sampleField${field.id}(textureUnit${field.id},
-                                    samplePoint, gradientSize, sampleValue, normal, gradientMagnitude);
-            transferFunction${field.id}(sampleValue, gradientMagnitude, color, fieldOpacity);
+                                    samplePoint, gradientSize,
+                                    sampleValue, normal, gradientMagnitude);
+            transferFunction${field.id}(sampleValue, gradientMagnitude,
+                                    color, fieldOpacity);
             litColor += fieldOpacity * lightingModel(samplePoint, normal, color, viewPoint);
             opacity += fieldOpacity;
           }

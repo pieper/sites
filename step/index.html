@@ -51,6 +51,45 @@
 <script>
 'use strict'
 
+function addRandomFiducials() {
+  //
+  // Initial field for rendering
+  //
+  function randomPoint(bounds) {
+    let point = [];
+    [0,1,2].forEach(e=>{
+      let range = bounds.max[e] - bounds.min[e];
+      point.push(bounds.min[e] + Math.random()*range);
+    });
+    console.log(bounds, point);
+    return(point);
+  }
+
+  let fiducials = [];
+  let bounds = {min: [-200,-200,-200], max: [200,200,200]};
+  if (step.renderer.inputFields.length > 0) {
+    bounds = step.renderer.bounds;
+  }
+  let size = 0.05 * bounds.max[0] - bounds.min[0];
+  for (let index=0; index < 3; index++) {
+    fiducials.push(new Fiducial({
+      point: randomPoint(bounds),
+      radius: size * Math.random(),
+    }));
+  }
+
+  let fiducialField = new FiducialField({
+    fiducials,
+    rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
+    opacityScale: 100.,
+  });
+
+  step.renderer.inputFields.push(fiducialField);
+  step.renderer.updateProgram();
+  console.log(fiducialField);
+  step.renderer.view.look({at: fiducialField.center, bounds: bounds});
+  step.renderer.requestRender(step.view);
+}
 
 // once the data is downloaded
 function readDICOM(arrayBuffer) {
@@ -293,9 +332,9 @@ $(function () {
     inputFields: [],
   });
   step.view = new View({
-    viewBoxMax : [250, 49, -240],
-    viewBoxMin : [-250, -250, -280],
-    viewPoint : [0., -100., -1500.],
+    viewBoxMax : [250, 250, -250],
+    viewBoxMin : [-250, -250, -200],
+    viewPoint : [0., 0., -1500.],
   });
   step.renderer.updateProgram();
   step.renderer._render(step.view);
@@ -324,6 +363,7 @@ $(function () {
     requestSeries : requestSeries,
     performFilter : performFilter,
     performGrowCut : performGrowCut,
+    addRandomFiducials : addRandomFiducials,
     save : saveFieldsAsDICOM,
   });
   document.body.insertBefore(step.ui.menubar.dom, document.body.firstChild);

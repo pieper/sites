@@ -99,6 +99,17 @@ class stepFileMenu extends MenuPanel {
 
     // spacer
     this.menuPanel.add( new UI.HorizontalRule() );
+    // File -> Add Fiducials
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Add 3 Random Fiducials' );
+    option.onClick( function () {
+      options.addRandomFiducials();
+    } );
+    this.menuPanel.add( option );
+
+    // spacer
+    this.menuPanel.add( new UI.HorizontalRule() );
     // File -> Save
     option = new UI.Row();
     option.setClass( 'option' );

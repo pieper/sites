@@ -4,7 +4,6 @@ class Generator {  // TODO: unify with Space
 
     this.gl = options.gl;
     this.uniforms = options.uniforms || {};
-    this.uniforms.gradientSize = { type: '1f', value: .01 };
     this.inputFields = options.inputFields || [];
     this.outputFields = options.outputFields || [];
     this.program = undefined;
@@ -100,7 +99,6 @@ class ProgrammaticGenerator extends Generator {
       layout(location = 1) out int altFragmentColor;
 
       uniform float slice;
-      uniform float gradientSize;
       uniform float amplitude;
       uniform float frequency;
       uniform ${this.samplerType} inputTexture0;

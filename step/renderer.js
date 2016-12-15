@@ -45,7 +45,6 @@ class RayCastRenderer extends ProgrammaticGenerator {
       return;
     }
     this.pendingRenderRequest = window.requestAnimationFrame(this._render.bind(this));
-    //this._render();
   }
 
   _render() {

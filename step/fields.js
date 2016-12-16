@@ -463,7 +463,10 @@ class ImageField extends PixelField {
                                        out vec3 color,
                                        out float opacity)
       {
-        float pixelValue = clamp( (sampleValue - (windowCenter${this.id}-0.5)) / (windowWidth${this.id}-1.) + .5, 0., 1. );
+        float pixelValue = 0.5 +
+                (sampleValue - (windowCenter${this.id}-0.5))
+                  / (windowWidth${this.id}-1.);
+        pixelValue = clamp( pixelValue, 0., 1. );
         color = vec3(pixelValue);
         opacity = gradientMagnitude * pixelValue / 1000.; // TODO
       }
@@ -487,7 +490,8 @@ class ImageField extends PixelField {
         // stpPoint is in 0-1 texture coordinates, meaning that it
         // is the patientToPixel transform scaled by the inverse
         // pixel dimensions.
-        vec3 dimensionsInverse = vec3(1.) / vec3(pixelDimensions${this.id});
+        vec3 pixelDimensions = vec3(pixelDimensions${this.id});
+        vec3 dimensionsInverse = vec3(1.) / pixelDimensions;
         vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
         stpPoint *= dimensionsInverse;
 
@@ -500,39 +504,48 @@ class ImageField extends PixelField {
             return;
         }
 
-        #define rescale(value) rescaleSlope${this.id} * value + rescaleIntercept${this.id};
-        sampleValue = rescale(float(texture(textureUnit, stpPoint).r));
-
-        // p : point in patient space
-        // o : offset vector in patient space along dimension
-        #define T(p,o) float( texture(textureUnit, p+o).r )
-        #define S(p,o) rescale(T(p,o))
+        #define RESCALE(s) rescaleSlope${this.id} * s + rescaleIntercept${this.id};
+        #define SAMPLE(p) RESCALE(float( texture(textureUnit, p).r ))
 
         // central difference sample gradient (P is +1, N is -1)
+        // p : point in patient space
+        // o : offset vector in patient space along dimension
         vec3 sN = vec3(0.);
         vec3 sP = vec3(0.);
         vec3 offset = vec3(0.);
-
         for (int i = 0; i < 3; i++) {
           offset[i] = dimensionsInverse[i];
-          sP[i] = S(stpPoint, offset);
+          sP[i] = SAMPLE(stpPoint + offset);
           offset[i] = -dimensionsInverse[i];
-          sN[i] = S(stpPoint, offset);
+          sN[i] = SAMPLE(stpPoint + offset);
           offset[i] = 0.;
         }
-
-        #undef S
-        #undef T
-
-        #undef rescale
-
-        // TODO: add Sobel and/or multiscale gradients
         vec3 gradient = vec3( (sP[0]-sN[0]),
                               (sP[1]-sN[1]),
                               (sP[2]-sN[2]) );
         gradientMagnitude = length(gradient);
         normal = gradient * 1./gradientMagnitude;
-        gradientMagnitude *=10.;
+
+        float middleValue = SAMPLE(stpPoint);
+
+        // account for within-voxel address (fractional coordinates)
+        // weight is 1. at center of voxel, 0.5 at edges
+        float smoothValue = 0.;
+        float weight;
+        for (int i = 0; i < 3; i++) {
+          float fraction = fract(stpPoint[i] * pixelDimensions[i]);
+          if (fraction < 0.5) {
+            weight = 0.5 + fraction;
+            smoothValue += weight * middleValue + (1. - weight) * sN[i];
+          } else {
+            weight = 1.5 - fraction;
+            smoothValue += weight * middleValue + (1. - weight) * sP[i];
+          }
+        }
+
+        sampleValue = smoothValue/3.;
+        #undef SAMPLE
+        #undef RESCALE
       }
     `);
   }

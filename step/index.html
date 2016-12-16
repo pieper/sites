@@ -308,7 +308,7 @@ function performGrowCut() {
 }
 
 let uniforms = {
-  pointLight: { type: '3fv', value: [100., -300., 150.] },
+  pointLight: { type: '3fv', value: [100., -400., 1500.] },
   gradientSize: { type: '1f', value: .01 },
   rayMaxSteps: { type: '1i', value: 10000 },
   sampleStep: { type: '1f', value: 0.1 },
@@ -334,7 +334,9 @@ $(function () {
   step.view = new View({
     viewBoxMax : [250, 250, -250],
     viewBoxMin : [-250, -250, -200],
-    viewPoint : [0., 0., -1500.],
+    viewPoint : [0., -400., 0.],
+    viewNormal : [0., 1., 0.],
+    viewUp : [0., 0., 1.],
   });
   step.renderer.updateProgram();
   step.renderer._render(step.view);

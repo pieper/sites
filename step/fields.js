@@ -10,8 +10,8 @@ class Field {
     this.visible = 1;
     this.generator = undefined;
 
-    this.intTextureSupport = INT_TEXTURE_SUPPORT; //TODO
-    if (this.intTextureSupport) {
+    this.useIntegerTextures = USE_INT_TEXTURES; //TODO
+    if (this.useIntegerTextures) {
       this.samplerType = "isampler3D";
     } else {
       this.samplerType = "sampler3D";
@@ -536,10 +536,10 @@ class ImageField extends PixelField {
           float fraction = fract(stpPoint[i] * pixelDimensions[i]);
           if (fraction < 0.5) {
             weight = 0.5 + fraction;
-            smoothValue += weight * middleValue + (1. - weight) * sN[i];
+            smoothValue += (1. - weight) * middleValue + weight * sN[i];
           } else {
             weight = 1.5 - fraction;
-            smoothValue += weight * middleValue + (1. - weight) * sP[i];
+            smoothValue += (1. - weight) * middleValue + weight * sP[i];
           }
         }
 
@@ -566,16 +566,19 @@ class ImageField extends PixelField {
       let pixelFormat;
       let pixelTarget;
       let pixelType;
-      if (this.intTextureSupport) {
+      let textureFilters;
+      if (this.useIntegerTextures) {
         imageTextureArray = new Int16Array(imageArray);
         pixelFormat = gl.R16I;
         pixelTarget = gl.RED_INTEGER;
         pixelType = gl.SHORT;
+        textureFilters = gl.NEAREST;
       } else {
         imageTextureArray = new Float32Array(imageArray);
         pixelFormat = gl.R32F;
         pixelTarget = gl.RED;
         pixelType = gl.FLOAT;
+        textureFilters = gl.LINEAR;
       }
 
       let [w,h,d] = this.pixelDimensions;
@@ -587,6 +590,8 @@ class ImageField extends PixelField {
                          w, h, d,
                          pixelTarget, pixelType, imageTextureArray);
       }
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, textureFilters);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, textureFilters);
       this.updated();
     }
   }

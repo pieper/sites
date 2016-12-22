@@ -314,7 +314,9 @@ let uniforms = {
   sampleStep: { type: '1f', value: 0.1 },
 };
 
-let INT_TEXTURE_SUPPORT = true; // TODO: odd global used in fields and generators
+// TODO: avoid odd global used in fields and generators
+let USE_INT_TEXTURES = true;
+
 let step = {};
 // once document is loaded...
 $(function () {
@@ -324,7 +326,13 @@ $(function () {
   //
   let canvas = document.querySelector('#renderCanvas');
   let gl = canvas.getContext('webgl2');
-  gl._step_intTextureSupport;
+
+  // TODO: presense of this extension should allow float textures
+  //USE_INT_TEXTURES = gl.getExtension('OES_texture_float_linear') == null;
+  if (USE_INT_TEXTURES) {
+    console.warn('Floating texture linear filtering not available');
+  }
+
   step.renderer = new RayCastRenderer({
     gl,
     canvas,

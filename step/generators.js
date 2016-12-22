@@ -8,8 +8,8 @@ class Generator {  // TODO: unify with Space
     this.outputFields = options.outputFields || [];
     this.program = undefined;
 
-    this.intTextureSupport = INT_TEXTURE_SUPPORT; //TODO
-    if (this.intTextureSupport) {
+    this.useIntegerTextures = USE_INT_TEXTURES; //TODO
+    if (this.useIntegerTextures) {
       this.samplerType = "isampler3D";
     } else {
       this.samplerType = "sampler3D";

@@ -315,6 +315,15 @@ class stepOperationMenu extends MenuPanel {
     } );
     this.menuPanel.add( option );
 
+    // Operations -> bilateral
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Bilateral' );
+    option.onClick( function () {
+      options.performBilateral();
+    } );
+    this.menuPanel.add( option );
+
     // Operations -> GrowCut
     option = new UI.Row();
     option.setClass( 'option' );

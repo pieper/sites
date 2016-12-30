@@ -292,6 +292,7 @@ class stepOperationMenu extends MenuPanel {
     options = options || {};
     options.performFilter = options.performFilter || function(){};
     options.performGrowCut = options.performGrowCut || function(){};
+    options.performGaussian = options.performGaussian || function(){};
     super(application, {title: 'Operations'});
 
     let option;
@@ -302,6 +303,15 @@ class stepOperationMenu extends MenuPanel {
     option.setTextContent( 'FilterTest' );
     option.onClick( function () {
       options.performFilter();
+    } );
+    this.menuPanel.add( option );
+
+    // Operations -> Gaussian
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Gaussian' );
+    option.onClick( function () {
+      options.performGaussian();
     } );
     this.menuPanel.add( option );
 

@@ -105,7 +105,7 @@ input.Number {
 	margin: 0;
 	right: 0;
 	top: 0;
-  opacity: 0.25;
+  opacity: 0.99;
 }
 
 #menubar:hover {
@@ -191,11 +191,11 @@ input.Number {
 	width: 100%;
 	background-color: #111;
 	overflow: auto;
-  opacity: 0.25;
+  opacity: 0.99;
 }
 
 #bottomBar:hover {
-  opacity: 0.75;
+  opacity: 0.99;
 }
 
 	#bottomBar * {
@@ -234,11 +234,11 @@ input.Number {
 	width: 150px;
 	background-color: #111;
 	overflow: auto;
-  opacity: 0.25;
+  opacity: 0.99;
 }
 
 #sideBar:hover {
-  opacity: 0.75;
+  opacity: 0.99;
 }
 
 	#sideBar * {

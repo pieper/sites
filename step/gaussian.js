@@ -58,18 +58,18 @@ class GaussianGenerator extends ProgrammaticGenerator {
       // Gaussian Kernel, sigma = 5
       float kernel[2*r+1] = float[]( 0.12895603354653198, 0.14251845798601478, 0.15133130724683985, 0.15438840244122673, 0.15133130724683985, 0.14251845798601478, 0.12895603354653198 );
 
-      void main()
+      void doFilter()
       {
           int background = texture(inputTexture0, interpolatedTextureCoordinate).r;
           float accumulator = 0.0;
-          for (int k = -r; k <= r; k++) {
-            float kkernel = kernel[k + r];
+          for (int i = -r; i <= r; i++) {
+            float ikernel = kernel[i + r];
             for (int j = -r; j <= r; j++) {
               float jkernel = kernel[j + r];
-              for (int i = -r; i <= r; i++) {
-                float ikernel = kernel[i + r];
+              for (int k = -r; k <= r; k++) {
+                float kkernel = kernel[k + r];
 
-                vec3 offset = vec3(k,j,i) * textureToPixel;
+                vec3 offset = vec3(i,j,k) * textureToPixel;
                 vec3 neighbor = interpolatedTextureCoordinate + offset;
                 float neighborStrength = float(texture(inputTexture0, neighbor).r);
 
@@ -77,8 +77,24 @@ class GaussianGenerator extends ProgrammaticGenerator {
             }
           }
         }
-        value = int(accumulator);
+        value = int(accumulator); 
       }
+      void doPassthrough()
+      {
+        value = texture(inputTexture0, interpolatedTextureCoordinate).r;
+      }
+      void main()
+      {
+        if ( interpolatedTextureCoordinate.x > 0.5 ) {          
+          doFilter();
+        } else {
+          value = 0;
+          if ( interpolatedTextureCoordinate.y > 0.7 ) {
+            doPassthrough();
+          }
+        }
+      }
+ 
     `);
   }
 }

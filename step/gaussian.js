@@ -1,4 +1,4 @@
-class GaussianGenerator extends ProgrammaticGenerator {
+class GaussianGenerator extends FilterGenerator {
   // Performs a gaussian filter
   // inputFields are:
   // - 0 grayscale image
@@ -53,7 +53,7 @@ class GaussianGenerator extends ProgrammaticGenerator {
       // Coordinate of input location, could be resampled elsewhere.
       in vec3 interpolatedTextureCoordinate;
 
-      // Radius
+      // Radius, must change the kernel if the radius is changed...
       const int r = 3;
       // Gaussian Kernel, sigma = 5
       float kernel[2*r+1] = float[]( 0.12895603354653198, 0.14251845798601478, 0.15133130724683985, 0.15438840244122673, 0.15133130724683985, 0.14251845798601478, 0.12895603354653198 );
@@ -85,14 +85,15 @@ class GaussianGenerator extends ProgrammaticGenerator {
       }
       void main()
       {
-        if ( interpolatedTextureCoordinate.x > 0.5 ) {          
           doFilter();
-        } else {
-          value = 0;
-          if ( interpolatedTextureCoordinate.y > 0.7 ) {
-            doPassthrough();
-          }
-        }
+        // if ( interpolatedTextureCoordinate.x > 0.5 ) {          
+        //   doFilter();
+        // } else {
+        //   value = 0;
+        //   if ( interpolatedTextureCoordinate.y > 0.7 ) {
+        //     doPassthrough();
+        //   }
+        // }
       }
  
     `);

@@ -283,3 +283,16 @@ class ProgrammaticGenerator extends Generator {
     }
   }
 }
+
+// A base class for filters
+class FilterGenerator extends ProgrammaticGenerator {
+  // Set up pixelDimensions and textureToPixels
+  constructor(options={}) {
+    super(options);
+    let u = this.uniforms
+    let pixelDimensions = this.inputFields[0].pixelDimensions
+    u['pixelDimensions'] = {type: '3iv', value: pixelDimensions};
+    let textureToPixel = pixelDimensions.map(e=>1./e);
+    u['textureToPixel'] = {type: '3fv', value: textureToPixel};
+  };
+}

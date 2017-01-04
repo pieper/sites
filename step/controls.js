@@ -156,7 +156,14 @@ class Controls {
   }
 
   onKeyboardEvent(keyboardEvent) {
-    switch (keyboardEvent.key) {
+    let key = keyboardEvent.key;
+    if (key == "") {
+      key = String.fromCharCode(keyboardEvent.keyCode);
+      if (key.length == 1) {
+        key = key.toLowerCase();
+      }
+    }
+    switch (key) {
       case "ArrowUp": {
         step.view.orbit(0, 1);
       }

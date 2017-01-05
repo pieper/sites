@@ -28,18 +28,17 @@ class Chronicle {
     });
   }
 
-  /* example:
-    step.chronicle.tagValueOperation({
-      tag: "Modality",
-      value: "SR",
-      operation: console.log,
-      })
+  /* examples:
+    step.chronicle.tagValueOperation({ tag: "Modality", value: "SR", operation: console.log, })
+    step.chronicle.tagValueOperation({ tag: "SOPClass", value: "ComprehensiveSR", operation: console.log, })
   */
   tagValueOperation(options) {
     let chronicle = this.chronicle;
-    let tagEntry = DicomMetaDictionary.nameMap[options.tag];
+    let name = DicomMetaDictionary.denaturalizeName(options.tag);
+    let tagEntry = DicomMetaDictionary.nameMap[name];
     let keyTag = DicomMetaDictionary.unpunctuateTag(tagEntry.tag);
-    let startKey = [keyTag, options.value];
+    let value = DicomMetaDictionary.denaturalizeValue(options.value)[0];
+    let startKey = [keyTag, value];
     let endKey = startKey.slice(0);
     endKey.push({});
     chronicle.query("tags/byTagAndValue", {

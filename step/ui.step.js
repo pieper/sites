@@ -87,8 +87,8 @@ class stepFileMenu extends MenuPanel {
       option.setTextContent( demo.name );
       option.onClick( function () {
         demo.seriesKeys.forEach(seriesKey => {
-          options.database.seriesOperation({
-            database: options.database,
+          options.chronicle.seriesOperation({
+            chronicle: options.chronicle,
             key: JSON.parse(seriesKey),
             operation: options.requestSeries
           });
@@ -180,7 +180,7 @@ class stepDatabaseMenu extends MenuPanel {
     //
     // get and display series render images
     //
-    options.database.chronicle.query("instances/context", {
+    options.chronicle.chronicle.query("instances/context", {
       reduce : true,
       group_level : 2,
       stale : 'update_after',
@@ -227,7 +227,7 @@ class stepDatabaseMenu extends MenuPanel {
     function showStudy(key) {
       let endKey = key.slice(0);
       endKey.push({});
-      options.database.chronicle.query("instances/context", {
+      options.chronicle.chronicle.query("instances/context", {
         start_key : key,
         end_key : endKey,
         reduce : true,
@@ -278,8 +278,8 @@ class stepDatabaseMenu extends MenuPanel {
 
     function showSeries(key) {
       console.log('series', JSON.stringify(key));
-      options.database.seriesOperation({
-        database: options.database,
+      options.chronicle.seriesOperation({
+        chronicle: options.chronicle,
         key: key,
         operation: options.requestSeries
       });

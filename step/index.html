@@ -42,7 +42,7 @@
 
   <script type="text/javascript" src="./controls.js"></script>
 
-  <script type="text/javascript" src="./database.js"></script>
+  <script type="text/javascript" src="./chronicle.js"></script>
 
 </head>
 
@@ -137,6 +137,11 @@ function requestInstance(url, loaded) {
 
 function loadDatasets(datasets) {
   let dataset = Normalizer.normalizeToDataset(datasets);
+  if (dataset == undefined) {
+    console.error('Could not form normalized dataset from datasets');
+    console.log(datasets);
+    return;
+  }
   let fields = Field.fromDataset(dataset);
   step.renderer.inputFields.push(...fields);
   step.renderer.updateProgram();
@@ -415,16 +420,16 @@ $(function () {
 
 
   //
-  // database
+  // chronicle
   //
-  step.database = new Database({url: 'http://quantome.org:5984/chronicle'});
+  step.chronicle = new Chronicle({url: 'http://quantome.org:5984/chronicle'});
 
   //
   // user interface elements
   //
   step.ui = {};
   step.ui.menubar = new stepMenubar(step, {
-    database : step.database,
+    chronicle : step.chronicle,
     requestSeries : requestSeries,
     performFilter : performFilter,
     performGrowCut : performGrowCut,

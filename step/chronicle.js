@@ -1,4 +1,4 @@
-class Database {
+class Chronicle {
   constructor(options={}) {
     this.url = options.url || 'http://quantome.org:5984/chronicle';
     this.chronicle = new PouchDB(this.url);

@@ -49,8 +49,8 @@ class Chronicle {
     }).then(function(data) {
       let instanceURLs = [];
       for (let rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
-        let row = data.rows[rowIndex].key;
-        let instanceUID = row[3];
+        let row = data.rows[rowIndex];
+        let instanceUID = row.id;
         let instanceURL = chronicle._db_name + "/" + instanceUID + '/object.dcm';
         instanceURLs.push(instanceURL);
       };

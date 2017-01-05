@@ -114,8 +114,8 @@ Field.fromDataset = function(dataset) {
     case "EnhancedPETImage":
     case "LegacyConvertedEnhancedPETImage": {
       fields = [new ImageField({dataset})];
-      }
-      break;
+    }
+    break;
     case "Segmentation": {
       fields = SegmentationField.fieldsFromDataset({dataset});
     }

@@ -147,6 +147,9 @@ function loadDatasets(datasets) {
   step.renderer.updateProgram();
   let field = fields[0];
   step.renderer.view.look({at: field.center, bounds: field.bounds});
+  if (!step.options.newVolumeThreeD) {
+    step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
+  }
   step.renderer.requestRender(step.view);
 }
 
@@ -367,17 +370,23 @@ function performGrowCut() {
   step.renderer.requestRender(step.view);
 }
 
-let uniforms = {
-  pointLight: { type: '3fv', value: [100., -400., 1500.] },
-  gradientSize: { type: '1f', value: .01 },
-  rayMaxSteps: { type: '1i', value: 10000 },
-  sampleStep: { type: '1f', value: 0.1 },
-};
-
 // TODO: avoid odd global used in fields and generators
 let USE_INT_TEXTURES = true;
 
-let step = {};
+let step = {
+  options : {
+    newVolumeThreeD : false,
+  },
+  uniforms : {
+    pointLight: { type: '3fv', value: [100., -400., 1500.] },
+    gradientSize: { type: '1f', value: .01 },
+    rayMaxSteps: { type: '1i', value: 10000 },
+    sampleStep: { type: '1f', value: 0.1 },
+    renderCanvasWidth: { type: '1f', value: 512 },
+    renderCanvasHeight: { type: '1f', value: 512 },
+    sliceMode: { type: '1i', value: 1 },
+  },
+};
 // once document is loaded...
 $(function () {
 
@@ -396,7 +405,7 @@ $(function () {
   step.renderer = new RayCastRenderer({
     gl,
     canvas,
-    uniforms,
+    uniforms: step.uniforms,
     inputFields: [],
   });
   step.view = new View({
@@ -412,6 +421,8 @@ $(function () {
   window.addEventListener('resize', resizeEvent => {
     renderCanvas.width = window.innerWidth;
     renderCanvas.height = window.innerHeight;
+    step.uniforms.renderCanvasWidth.value = renderCanvas.width;
+    step.uniforms.renderCanvasHeight.value = renderCanvas.height;
     if (step.renderer) {
       step.renderer.requestRender(step.view);
     }

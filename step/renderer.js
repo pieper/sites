@@ -140,6 +140,7 @@ class RayCastRenderer extends ProgrammaticGenerator {
                                     sampleValue, normal, gradientMagnitude);
             transferFunction${field.id}(sampleValue, gradientMagnitude,
                                     color, fieldOpacity);
+            colorSum += color;
             litColor += fieldOpacity * lightingModel(samplePoint, normal, color, viewPoint);
             opacity += fieldOpacity;
           }
@@ -157,6 +158,7 @@ class RayCastRenderer extends ProgrammaticGenerator {
           vec3 litColor = vec3(0.);
           float fieldOpacity = 0.;
           vec3 fieldLitColor = vec3(0.);
+          vec3 colorSum = vec3(0.);
 
           ${this.perFieldCompositingShaderSource()}
 
@@ -196,6 +198,9 @@ class RayCastRenderer extends ProgrammaticGenerator {
       uniform float gradientSize;
       uniform int rayMaxSteps;
       uniform float sampleStep;
+      uniform float renderCanvasWidth;
+      uniform float renderCanvasHeight;
+      uniform int sliceMode;
 
       bool intersectBox(const in vec3 rayOrigin, const in vec3 rayDirection,
                         const in vec3 boxMin, const in vec3 boxMax,
@@ -262,9 +267,9 @@ class RayCastRenderer extends ProgrammaticGenerator {
       {
         vec4 backgroundRGBA = vec4(0.2,0.,.5,1.); // TODO: mid blue background for now
 
-        // TODO aspect: float aspect = imageW / (1.0 * imageH);
-        // normalized to -1 to 1
+        float aspect = renderCanvasWidth / renderCanvasHeight;
         vec2 normalizedCoordinate = 2. * (sampleCoordinate.st -.5);
+        normalizedCoordinate.s *= aspect;
 
         // calculate eye ray in world space
         vec3 eyeRayDirection;
@@ -273,6 +278,9 @@ class RayCastRenderer extends ProgrammaticGenerator {
         eyeRayDirection = normalize ( viewNormal
                                     + viewRight * halfSinViewAngle * normalizedCoordinate.x
                                     + viewUp * halfSinViewAngle * normalizedCoordinate.y );
+
+        // should be right - TODO: doublecheck when trilinear interpolation is fixed
+        float adjustedStep = sampleStep / dot (normalize(viewNormal), eyeRayDirection);
 
         // find intersection with box, possibly terminate early
         float tNear, tFar;
@@ -299,13 +307,18 @@ class RayCastRenderer extends ProgrammaticGenerator {
 
           // http://graphicsrunner.blogspot.com/2009/01/volume-rendering-101.html
           if (opacity > 0.) {
-            opacity *= sampleStep;
+            opacity *= adjustedStep;
             integratedPixel.rgb += (1. - integratedPixel.a) * opacity * litColor;
             integratedPixel.a += (1. - integratedPixel.a) * opacity;
             integratedPixel = clamp(integratedPixel, 0.0001, 0.9999);
           }
 
-          tCurrent += sampleStep;
+          if (sliceMode == 1) {
+            integratedPixel.rgb = colorSum;
+            integratedPixel.a = 1.;
+          }
+
+          tCurrent += adjustedStep;
           if (
               tCurrent >= tFar  // stepped out of the volume
                 ||

@@ -147,9 +147,11 @@ input.Number {
 
 		#menubar .menu .database {
 			position: absolute;
+			color: #888;
 			display: none;
-			padding: 5px 0;
+			padding: 5px 10px;
 			background: #111;
+			width: 850px;
 		}
 
 		#menubar .menu:hover .database {

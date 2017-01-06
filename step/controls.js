@@ -182,19 +182,23 @@ class Controls {
       break;
       case "a": {
         step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
+        step.uniforms.sliceMode.value = 1;
       }
       break;
       case "s": {
         step.view.slice({plane: "sagittal", offset: 0.5, thickness: 1});
+        step.uniforms.sliceMode.value = 1;
       }
       break;
       case "c": {
         step.view.slice({plane: "coronal", offset: 0.5, thickness: 1});
+        step.uniforms.sliceMode.value = 1;
       }
       break;
       case "v": {
         step.view.viewNear = 0;
         step.view.viewFar = Linear.LARGE_NUMBER;
+        step.uniforms.sliceMode.value = 0;
       }
       break;
       case "t": {

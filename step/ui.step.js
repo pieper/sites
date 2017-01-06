@@ -57,7 +57,6 @@ class MenuPanel extends UIItem {
 class stepFileMenu extends MenuPanel {
   constructor(application,options) {
     super(application, {title: 'File'});
-    let option;
 
     // demos
     let demos = [
@@ -81,6 +80,7 @@ class stepFileMenu extends MenuPanel {
       },
     ];
 
+    let option;
     demos.forEach(demo => {
       option = new UI.Row();
       option.setClass( 'option' );
@@ -121,41 +121,19 @@ class stepFileMenu extends MenuPanel {
 
     // spacer
     this.menuPanel.add( new UI.HorizontalRule() );
-    // File -> New
+    // File -> Clear
     option = new UI.Row();
     option.setClass( 'option' );
-    option.setTextContent( 'New' );
+    option.setTextContent( 'Clear' );
     option.onClick( function () {
-
       if ( confirm( 'Any unsaved data will be lost. Are you sure?' ) ) {
-
-        //editor.clear();
-
+        step.generator = null;
+        step.renderer.inputFields = [];
+        step.renderer.updateProgram();
+        step.renderer.requestRender(step.view);
       }
-
-    } );
+    });
     this.menuPanel.add( option );
-
-    // spacer
-    this.menuPanel.add( new UI.HorizontalRule() );
-
-    // File->Import
-    let fileInput = document.createElement( 'input' );
-    fileInput.type = 'file';
-    fileInput.addEventListener( 'change', function ( event ) {
-
-      //editor.loader.loadFile( fileInput.files[ 0 ] );
-
-    } );
-    option = new UI.Row();
-    option.setClass( 'option' );
-    option.setTextContent( 'Import' );
-    option.onClick( function () {
-      fileInput.click();
-    } );
-    this.menuPanel.add( option );
-    //
-    this.menuPanel.add( new UI.HorizontalRule() );
   }
 }
 
@@ -165,6 +143,13 @@ class stepDatabaseMenu extends MenuPanel {
     options.requestSeries = options.requestSeries || function(){};
     super(application, {title: 'Database'});
     this.menuPanel.setClass('database');
+
+    // status
+    let statusEntry = new UI.Row();
+    statusEntry.setClass( 'option' );
+    let url = options.chronicle.url;
+    statusEntry.setTextContent( `Status: Fetching study list from ${url}...` );
+    this.menuPanel.add( statusEntry );
 
     let studyTableUI = new UI.Table();
     studyTableUI.setId('studyTable');
@@ -176,9 +161,10 @@ class stepDatabaseMenu extends MenuPanel {
 
     let seriesTable = null;
     let instanceTable = null;
+    let studyTable = null;
 
     //
-    // get and display series render images
+    // get and display list of studies
     //
     options.chronicle.chronicle.query("instances/context", {
       reduce : true,
@@ -196,8 +182,13 @@ class stepDatabaseMenu extends MenuPanel {
         studyEntry.push(data.rows[rowIndex].value);
         studyList.push(studyEntry);
       };
+      statusEntry.setTextContent( `${data.rows.length} studies from ${url}...` );
 
-      let studyTable = $('#studyTable').DataTable({
+      if (studyTable) {
+        studyTable.destroy();
+      }
+
+      studyTable = $('#studyTable').DataTable({
         data : studyList,
         columns : [
           { title: "studyKey" }, // hidden, used for drill down

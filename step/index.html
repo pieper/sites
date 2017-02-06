@@ -149,6 +149,7 @@ function loadDatasets(datasets) {
   step.renderer.view.look({at: field.center, bounds: field.bounds});
   if (!step.options.newVolumeThreeD) {
     step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
+    step.uniforms.sliceMode.value = 1;
   }
   step.renderer.requestRender(step.view);
 }

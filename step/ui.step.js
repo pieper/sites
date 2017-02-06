@@ -171,6 +171,7 @@ class stepDatabaseMenu extends MenuPanel {
       group_level : 2,
       stale : 'update_after',
     }).then(function(data) {
+      statusEntry.setTextContent( `${data.rows.length} studies from ${url}...` );
       let studyList = [];
       for (let rowIndex = 0; rowIndex < data.rows.length; rowIndex += 1) {
         let row = data.rows[rowIndex].key;
@@ -182,12 +183,10 @@ class stepDatabaseMenu extends MenuPanel {
         studyEntry.push(data.rows[rowIndex].value);
         studyList.push(studyEntry);
       };
-      statusEntry.setTextContent( `${data.rows.length} studies from ${url}...` );
 
       if (studyTable) {
         studyTable.destroy();
       }
-
       studyTable = $('#studyTable').DataTable({
         data : studyList,
         columns : [

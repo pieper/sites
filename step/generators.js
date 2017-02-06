@@ -11,8 +11,10 @@ class Generator {  // TODO: unify with Space
     this.useIntegerTextures = USE_INT_TEXTURES; //TODO
     if (this.useIntegerTextures) {
       this.samplerType = "isampler3D";
+      this.bufferType = "int";
     } else {
       this.samplerType = "sampler3D";
+      this.bufferType = "float";
     }
   }
 
@@ -95,20 +97,20 @@ class ProgrammaticGenerator extends Generator {
       }
 
       in vec3 interpolatedTextureCoordinate;
-      layout(location = 0) out int fragmentColor;
-      layout(location = 1) out int altFragmentColor;
+      layout(location = 0) out ${this.bufferType} fragmentColor;
+      layout(location = 1) out ${this.bufferType} altFragmentColor;
 
       uniform float slice;
       uniform float amplitude;
       uniform float frequency;
       uniform ${this.samplerType} inputTexture0;
 
-      int sampleValue;
-      int perturbation;
+      ${this.bufferType} sampleValue;
+      ${this.bufferType} perturbation;
 
       void main()
       {
-        perturbation = int(10. * amplitude * slice *
+        perturbation = ${this.bufferType}(10. * amplitude * slice *
                           (sin(frequency*interpolatedTextureCoordinate.s)
                            + cos(frequency*interpolatedTextureCoordinate.t))
                         );

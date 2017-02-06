@@ -504,8 +504,10 @@ class ImageField extends PixelField {
             return;
         }
 
-        #define RESCALE(s) rescaleSlope${this.id} * s + rescaleIntercept${this.id};
+        #define RESCALE(s) (rescaleSlope${this.id} * (s) + rescaleIntercept${this.id})
         #define SAMPLE(p) RESCALE(float( texture(textureUnit, p).r ))
+
+        sampleValue = SAMPLE(stpPoint);
 
         // central difference sample gradient (P is +1, N is -1)
         // p : point in patient space
@@ -526,24 +528,7 @@ class ImageField extends PixelField {
         gradientMagnitude = length(gradient);
         normal = gradient * 1./gradientMagnitude;
 
-        float middleValue = SAMPLE(stpPoint);
 
-        // account for within-voxel address (fractional coordinates)
-        // weight is 1. at center of voxel, 0.5 at edges
-        float smoothValue = 0.;
-        float weight;
-        for (int i = 0; i < 3; i++) {
-          float fraction = fract(stpPoint[i] * pixelDimensions[i]);
-          if (fraction < 0.5) {
-            weight = 0.5 + fraction;
-            smoothValue += (1. - weight) * middleValue + weight * sN[i];
-          } else {
-            weight = 1.5 - fraction;
-            smoothValue += (1. - weight) * middleValue + weight * sP[i];
-          }
-        }
-
-        sampleValue = smoothValue/3.;
         #undef SAMPLE
         #undef RESCALE
       }
@@ -563,32 +548,32 @@ class ImageField extends PixelField {
       }
 
       let imageTextureArray;
-      let pixelFormat;
-      let pixelTarget;
-      let pixelType;
+      let pixelInternalFormat; // format of the target texture
+      let pixelFormat; // format of the passed array
+      let pixelType; // data type of passed array
       let textureFilters;
       if (this.useIntegerTextures) {
         imageTextureArray = new Int16Array(imageArray);
-        pixelFormat = gl.R16I;
-        pixelTarget = gl.RED_INTEGER;
+        pixelInternalFormat = gl.R16I;
+        pixelFormat = gl.RED_INTEGER;
         pixelType = gl.SHORT;
         textureFilters = gl.NEAREST;
       } else {
         imageTextureArray = new Float32Array(imageArray);
-        pixelFormat = gl.R32F;
-        pixelTarget = gl.RED;
+        pixelInternalFormat = gl.R16F;
+        pixelFormat = gl.RED;
         pixelType = gl.FLOAT;
         textureFilters = gl.LINEAR;
       }
 
       let [w,h,d] = this.pixelDimensions;
-      gl.texStorage3D(gl.TEXTURE_3D, 1, pixelFormat, w, h, d);
+      gl.texStorage3D(gl.TEXTURE_3D, 1, pixelInternalFormat, w, h, d);
       if (!this.generator) {
         // only transfer the data if there's no generator that will fill it in
         gl.texSubImage3D(gl.TEXTURE_3D,
                          0, 0, 0, 0, // level, offsets
                          w, h, d,
-                         pixelTarget, pixelType, imageTextureArray);
+                         pixelFormat, pixelType, imageTextureArray);
       }
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, textureFilters);
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, textureFilters);

@@ -106,9 +106,15 @@ function saveDICOM(dataset) {
   saveAs(blob, "test.dcm", true);
 }
 
-function saveFieldsAsDICOM() {
+function saveFieldsAsDICOM(fields, visibleOnly=true) {
   let zip = new JSZip();
-  step.renderer.inputFields.forEach(field => {
+  fields = fields || step.renderer.inputFields;
+  fields.forEach(field => {
+    if (visibleOnly) {
+      if (!field.visible) {
+        return;
+      }
+    }
     let fileName = `${field.dataset.SOPInstanceUID}.dcm`;
     console.log(`zipping ${fileName}`);
     step.ui.bottomBar.progress = `Blobbing ${fileName}`;
@@ -353,7 +359,7 @@ function performGrowCut() {
     if (iteration < iterations) {
       // not finished, trigger another itertion
       step.ui.bottomBar.progress = `Iteration ${iteration} of ${iterations}`;
-      requestAnimationFrame(animationFrame);
+      requestAnimationFrame(animationFrame); // continue iterating
     } else {
       step.ui.bottomBar.progress = `Finished ${iterations} iterations`;
       [0,1].forEach(index=>{
@@ -366,7 +372,7 @@ function performGrowCut() {
       console.log('finished');
     }
   }
-  requestAnimationFrame(animationFrame);
+  requestAnimationFrame(animationFrame); // start the iterations
 
   step.renderer.requestRender(step.view);
 }

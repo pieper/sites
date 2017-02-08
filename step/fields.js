@@ -528,7 +528,6 @@ class ImageField extends PixelField {
         gradientMagnitude = length(gradient);
         normal = gradient * 1./gradientMagnitude;
 
-
         #undef SAMPLE
         #undef RESCALE
       }

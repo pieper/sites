@@ -260,7 +260,7 @@ $(function () {
             let attribute = tds[0].getElementsByTagName('para')[0].textContent;
             let usageParas = tds[4].getElementsByTagName('para');
             if (usageParas[0]) { // work around table C.7.6.16-12
-              let usage = usageParas.textContent;
+              let usage = usageParas[0].textContent;
               if (!converterSpecMappings[attribute]) {
                 converterSpecMappings[attribute] = [];
               }

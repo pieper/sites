@@ -237,6 +237,7 @@ class ProgrammaticGenerator extends Generator {
     let sliceSpacing = sharedGroups.PixelMeasures.SpacingBetweenSlices;
     let slice = 0.5 * sliceSpacing;
     let frames = outputDataset.NumberOfFrames;
+    let fallbackSliceViews = {};
     for (let sliceIndex = 0; sliceIndex < frames; sliceIndex++) {
       slice = sliceIndex / outputDataset.NumberOfFrames;
       gl.uniform1f(sliceUniformLocation, slice);
@@ -262,19 +263,25 @@ class ProgrammaticGenerator extends Generator {
       attachment = 0;
       this.outputFields.forEach(outputField=>{
         if (outputField.generatedPixelData) {
+          let [w,h] = [outputField.dataset.Columns, outputField.dataset.Rows];
+          let slicePixelCount = w * h;
+          let sliceByteStart = sliceIndex * slicePixelCount * 2;
+          let sliceView = new Int16Array(outputField.generatedPixelData,
+                                          sliceByteStart, slicePixelCount);
           gl.readBuffer(gl.COLOR_ATTACHMENT0+attachment);
           let supportedFormat = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
           let supportedType = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
           if (supportedFormat != gl.RED_INTEGER || supportedType != gl.SHORT) {
-            console.error("Integer framebuffer read not supported");
-            console.error(`Supported type: ${supportedType}`);
-            console.error(`Supported format: ${supportedFormat}`);
+            if (!fallbackSliceViews[outputField]) {
+              console.error("Framebuffer read not supported, using fallback");
+              fallbackSliceViews[outputField] = new Int32Array(4 * slicePixelCount);
+            }
+            let fallbackSliceView = fallbackSliceViews[outputField];
+            gl.readPixels(0, 0, w, h, gl.RGBA_INTEGER, gl.INT, fallbackSliceView);
+            for(let index = 0; index < slicePixelCount; ++index) {
+              sliceView[index] = fallbackSliceView[4*index];
+            }
           } else {
-            let [w,h] = [outputField.dataset.Columns, outputField.dataset.Rows];
-            let sliceSize = w * h * 2;
-            let sliceStart = sliceIndex * sliceSize;
-            let sliceView = new Int16Array(outputField.generatedPixelData,
-                                            sliceStart, sliceSize/2);
             gl.readPixels(0, 0, w, h, gl.RED_INTEGER, gl.SHORT, sliceView);
           }
         }

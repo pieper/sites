@@ -175,9 +175,9 @@ function requestSeries(instanceURLs) {
   });
 }
 
- 
 
- 
+
+
 function performImageFilter( generator ) {
   let filterField = step.renderer.inputFields[step.renderer.inputFields.length-1];
   if (!filterField || filterField.constructor.name != "ImageField") {
@@ -204,7 +204,7 @@ function performImageFilter( generator ) {
   step.generator.gl = step.renderer.gl;
   step.generator.inputFields = [filterField];
   step.generator.outputFields = [derivedField0];
-     
+
   step.generator.updateProgram();
 
   let animationFrame = function() {
@@ -451,8 +451,8 @@ $(function () {
     requestSeries : requestSeries,
     performFilter : performFilter,
     performGrowCut : performGrowCut,
-    performGaussian : performGaussian,  
-    performBilateral : performBilateral,  
+    performGaussian : performGaussian,
+    performBilateral : performBilateral,
     addRandomFiducials : addRandomFiducials,
     save : saveFieldsAsDICOM,
   });

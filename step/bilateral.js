@@ -54,7 +54,7 @@ class BilateralGenerator extends FilterGenerator {
       in vec3 interpolatedTextureCoordinate;
 
       // Radius
-      const int r = 2;
+      const int r = 10;
       const float sigma_s = 5.0;
       const float sigma_r = 1000.0;
       const float sigma_s2 = sigma_s * sigma_s;

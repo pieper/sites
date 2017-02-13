@@ -191,6 +191,7 @@ function performImageFilter( generator ) {
   // override default calculation
   derivedField0.windowCenter = filterField.windowCenter;
   derivedField0.windowWidth = filterField.windowWidth;
+  derivedField0.generatedPixelData = derivedField0.dataset.PixelData;
 
   step.renderer.inputFields = [filterField, derivedField0];
   step.renderer.updateProgram();

@@ -51,13 +51,15 @@ class GrowCutGenerator extends ProgrammaticGenerator {
 
       void main()
       {
-        int background =
-              texture(inputTexture0, interpolatedTextureCoordinate).r;
+        ivec3 size = textureSize(inputTexture0, 0);
+        ivec3 texelIndex = ivec3(floor(interpolatedTextureCoordinate * vec3(size)));
+        int background = texelFetch(inputTexture0, texelIndex, 0).r;
+
         if (iteration == 0) {
-          if (background < 0) {
+          if (background < 50) {
             label = 100;
             strength = MAX_STRENGTH;
-          } else if (background > 500) {
+          } else if (background > 100) {
             label = 2000;
             strength = MAX_STRENGTH;
           } else {
@@ -65,24 +67,21 @@ class GrowCutGenerator extends ProgrammaticGenerator {
             strength = 0;
           }
         } else {
-          int currentLabel =
-                texture(inputTexture1, interpolatedTextureCoordinate).r;
-          int currentStrength =
-                texture(inputTexture2, interpolatedTextureCoordinate).r;
+          label = texelFetch(inputTexture1, texelIndex, 0).r;
+          strength = texelFetch(inputTexture2, texelIndex, 0).r;
           for (int k = -1; k <= 1; k++) {
             for (int j = -1; j <= 1; j++) {
               for (int i = -1; i <= 1; i++) {
-                vec3 offset = vec3(k,j,i) * textureToPixel;
-                vec3 neighbor = interpolatedTextureCoordinate + offset;
-                int neighborStrength =
-                      texture(inputTexture2, neighbor).r;
-                int strengthCost = abs(neighborStrength - currentStrength);
-                if (neighborStrength - strengthCost > currentStrength) {
-                  strength = neighborStrength - strengthCost;
-                  label = texture(inputTexture1, neighbor).r;
-                } else {
-                  strength = currentStrength;
-                  label = currentLabel;
+                if (i != 0 && j != 0 && k != 0) {
+                  ivec3 neighborIndex = texelIndex + ivec3(i,j,k);
+                  int neighborBackground = texelFetch(inputTexture0, neighborIndex, 0).r;
+                  int neighborStrength = texelFetch(inputTexture2, neighborIndex, 0).r;
+                  int strengthCost = abs(neighborBackground - background);
+                  int takeoverStrength = neighborStrength - strengthCost;
+                  if (takeoverStrength > strength) {
+                    strength = takeoverStrength;
+                    label = texelFetch(inputTexture1, neighborIndex, 0).r;
+                  }
                 }
               }
             }

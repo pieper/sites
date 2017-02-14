@@ -213,6 +213,7 @@ function performImageFilter( generator ) {
     console.log(`image filtering`);
     step.generator.generate();
     step.renderer._render();
+    filterField.visible = 0;
     derivedField0.visible = 1;
     step.renderer.requestRender(step.view);
   }
@@ -311,7 +312,7 @@ function performGrowCut() {
   console.log('updated program');
 
   backgroundField.visible = 0;
-  let iterations = 10;
+  let iterations = 50;
   let iteration = 0;
   let animationFrame = function() {
 
@@ -368,8 +369,8 @@ function performGrowCut() {
         labelFields[index].visible = 0;
         strengthFields[index].visible = 0;
       });
-      backgroundField.visible = 0;
-      labelFields[0].visible = 1;
+      backgroundField.visible = 1;
+      labelFields[outBuffer].visible = 1;
       step.renderer._render();
       console.log('finished');
     }

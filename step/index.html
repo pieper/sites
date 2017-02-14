@@ -96,7 +96,8 @@ function addRandomFiducials() {
 // once the data is downloaded
 function readDICOM(arrayBuffer) {
   let dicomData = DicomMessage.readFile(arrayBuffer);
-  let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
+  let dataset = DicomMetaDictionary.cleanDataset(dicomData.dict);
+  dataset = DicomMetaDictionary.naturalizeDataset(dataset);
   dataset._meta = DicomMetaDictionary.namifyDataset(dicomData.meta);
   return (dataset);
 }

@@ -280,7 +280,8 @@ class RayCastRenderer extends ProgrammaticGenerator {
                                     + viewUp * halfSinViewAngle * normalizedCoordinate.y );
 
         // should be right - TODO: doublecheck when trilinear interpolation is fixed
-        float adjustedStep = sampleStep / dot (normalize(viewNormal), eyeRayDirection);
+        float adjustment = dot (normalize(viewNormal), eyeRayDirection);
+        float adjustedStep = sampleStep * adjustment;
 
         // find intersection with box, possibly terminate early
         float tNear, tFar;
@@ -291,6 +292,7 @@ class RayCastRenderer extends ProgrammaticGenerator {
 
         tNear = max(tNear, 0.);
         tNear = max(tNear, viewNear); // near clipping plane
+        tNear /= adjustment;
 
         // march along ray from front, accumulating color and opacity
         vec4 integratedPixel = vec4(0.);

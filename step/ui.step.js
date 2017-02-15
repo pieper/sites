@@ -282,6 +282,7 @@ class stepOperationMenu extends MenuPanel {
     options.performFilter = options.performFilter || function(){};
     options.performGrowCut = options.performGrowCut || function(){};
     options.performGaussian = options.performGaussian || function(){};
+    options.performRasterizeSegments = options.performRasterizeSegments || function(){};
     super(application, {title: 'Operations'});
 
     let option;
@@ -319,6 +320,15 @@ class stepOperationMenu extends MenuPanel {
     option.setTextContent( 'GrowCut' );
     option.onClick( function () {
       options.performGrowCut();
+    } );
+    this.menuPanel.add( option );
+
+    // Operations -> RasterizeSegments
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'RasterizeSegments' );
+    option.onClick( function () {
+      options.performRasterizeSegments();
     } );
     this.menuPanel.add( option );
 

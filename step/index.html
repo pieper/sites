@@ -34,6 +34,7 @@
   <script type="text/javascript" src="./growcut.js"></script>
   <script type="text/javascript" src="./gaussian.js"></script>
   <script type="text/javascript" src="./bilateral.js"></script>
+  <script type="text/javascript" src="./rasterizer.js"></script>
 
 
   <link rel="stylesheet" href="./css/step.css" />
@@ -176,9 +177,6 @@ function requestSeries(instanceURLs) {
   });
 }
 
-
-
-
 function performImageFilter( generator ) {
   let filterField = step.renderer.inputFields[step.renderer.inputFields.length-1];
   if (!filterField || filterField.constructor.name != "ImageField") {
@@ -222,67 +220,107 @@ function performImageFilter( generator ) {
   step.renderer.requestRender(step.view);
 }
 
- function performGaussian() {
-   performImageFilter(GaussianGenerator);
- }
+function performGaussian() {
+  performImageFilter(GaussianGenerator);
+}
 
- function performBilateral() {
-   performImageFilter(BilateralGenerator);
- }
+function performBilateral() {
+  performImageFilter(BilateralGenerator);
+}
 
+function performRasterizeSegments() {
+  let targetField = undefined;
+  let segmentationFields = []
+  step.renderer.inputFields.forEach(field=>{
+    if (field.constructor.name == "ImageField") {
+      targetField = field;
+    }
+    if (field.constructor.name == "SegmentationField") {
+      segmentationFields.push(field);
+      field.visible = 0;
+    }
+  });
+  if (!targetField) {
+    alert('Need to load an image field');
+    return;
+  }
+  if (segmentationFields.length == 0) {
+    alert('Need at least one segmentation field');
+    return;
+  }
+
+  let derivedImage = new DerivedImage([targetField.dataset]);
+  let derivedField = Field.fromDataset(derivedImage.dataset)[0];
+  derivedField.windowCenter = -1;
+  derivedField.windowWidth = 2 * segmentationFields.length;
+  derivedField.generatedPixelData = derivedImage.dataset.PixelData;
+
+  step.renderer.inputFields.push(derivedField);
+  step.renderer.updateProgram();
+
+  step.generator = new RasterizerGenerator({
+    gl: step.renderer.gl,
+    inputFields: segmentationFields,
+    outputFields: [derivedField],
+  });
+  step.generator.updateProgram();
+  step.generator.generate();
+
+  step.renderer.requestRender(step.view);
+}
 
  function performFilter() {
-     let filterField = step.renderer.inputFields[step.renderer.inputFields.length-1];
-     if (!filterField || filterField.constructor.name != "ImageField") {
-         alert('Need to load an image field');
-         return;
+   let filterField = step.renderer.inputFields[step.renderer.inputFields.length-1];
+   if (!filterField || filterField.constructor.name != "ImageField") {
+     alert('Need to load an image field');
+     return;
+   }
+
+   let derivedImage = new DerivedImage([filterField.dataset]);
+   let derivedField0 = Field.fromDataset(derivedImage.dataset)[0];
+   let derivedField1 = Field.fromDataset(derivedImage.dataset)[0];
+
+   // override default calculation
+   derivedField0.windowCenter = filterField.windowCenter;
+   derivedField0.windowWidth = filterField.windowWidth;
+   derivedField1.windowCenter = filterField.windowCenter;
+   derivedField1.windowWidth = filterField.windowWidth;
+
+   step.renderer.inputFields = [filterField, derivedField0, derivedField1];
+   step.renderer.updateProgram();
+
+   step.generator = new ProgrammaticGenerator({
+     gl: step.renderer.gl,
+     inputFields: [filterField],
+     outputFields: [derivedField0, derivedField1],
+   });
+   step.generator.updateProgram();
+
+   let iterations = 20;
+   let iteration = 0;
+   let renderRate = 1;
+   let animationFrame = function() {
+     console.log(`iteration ${iteration} of ${iterations}`);
+     step.generator.uniforms.amplitude.value = iteration;
+     step.generator.uniforms.frequency.value = 30.;
+     step.generator.generate();
+     if (iteration % renderRate == 0) {
+       step.renderer._render();
      }
-
-     let derivedImage = new DerivedImage([filterField.dataset]);
-     let derivedField0 = Field.fromDataset(derivedImage.dataset)[0];
-     let derivedField1 = Field.fromDataset(derivedImage.dataset)[0];
-
-     // override default calculation
-     derivedField0.windowCenter = filterField.windowCenter;
-     derivedField0.windowWidth = filterField.windowWidth;
-     derivedField1.windowCenter = filterField.windowCenter;
-     derivedField1.windowWidth = filterField.windowWidth;
-
-     step.renderer.inputFields = [filterField, derivedField0, derivedField1];
-     step.renderer.updateProgram();
-
-     step.generator = new ProgrammaticGenerator({
-         gl: step.renderer.gl,
-         inputFields: [filterField],
-         outputFields: [derivedField0, derivedField1],
-     });
-     step.generator.updateProgram();
-
-     let iterations = 20;
-     let iteration = 0;
-     let renderRate = 1;
-     let animationFrame = function() {
-         console.log(`iteration ${iteration} of ${iterations}`);
-         step.generator.uniforms.amplitude.value = iteration;
-         step.generator.uniforms.frequency.value = 30.;
-         step.generator.generate();
-         if (iteration % renderRate == 0) {
-             step.renderer._render();
-         }
-         iteration++;
-         if (iteration < iterations) {
-             derivedField0.visible = (iteration+1) % 2;
-             derivedField1.visible = iteration % 2;
-             requestAnimationFrame(animationFrame);
-         } else {
-             derivedField0.visible = 1;
-             derivedField1.visible = 1;
-             step.renderer.requestRender(step.view);
-         }
+     iteration++;
+     if (iteration < iterations) {
+       derivedField0.visible = (iteration+1) % 2;
+       derivedField1.visible = iteration % 2;
+       requestAnimationFrame(animationFrame);
+     } else {
+       derivedField0.visible = 1;
+       derivedField1.visible = 1;
+       step.renderer.requestRender(step.view);
      }
-     requestAnimationFrame(animationFrame);
+   }
+   requestAnimationFrame(animationFrame);
 
-     step.renderer.requestRender(step.view);
+   step.renderer.requestRender(step.view);
  }
 
 
@@ -362,7 +400,7 @@ function performGrowCut() {
     if (iteration < iterations) {
       // not finished, trigger another itertion
       step.ui.bottomBar.progress = `Iteration ${iteration} of ${iterations}`;
-      requestAnimationFrame(animationFrame); // continue iterating
+      //requestAnimationFrame(animationFrame); // continue iterating
     } else {
       step.ui.bottomBar.progress = `Finished ${iterations} iterations`;
       [0,1].forEach(index=>{
@@ -375,7 +413,10 @@ function performGrowCut() {
       console.log('finished');
     }
   }
-  requestAnimationFrame(animationFrame); // start the iterations
+  //requestAnimationFrame(animationFrame); // start the iterations
+  for (let i = 0; i < iterations; i++) {
+    animationFrame();
+  }
 
   step.renderer.requestRender(step.view);
 }
@@ -456,6 +497,7 @@ $(function () {
     performGrowCut : performGrowCut,
     performGaussian : performGaussian,
     performBilateral : performBilateral,
+    performRasterizeSegments : performRasterizeSegments,
     addRandomFiducials : addRandomFiducials,
     save : saveFieldsAsDICOM,
   });

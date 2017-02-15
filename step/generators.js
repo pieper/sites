@@ -108,6 +108,7 @@ class ProgrammaticGenerator extends Generator {
       ${this.bufferType} sampleValue;
       ${this.bufferType} perturbation;
 
+      // dummy example generator - makes darkened cones through volume
       void main()
       {
         perturbation = ${this.bufferType}(10. * amplitude * slice *

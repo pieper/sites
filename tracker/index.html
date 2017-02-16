@@ -572,6 +572,7 @@ var viewCopy = function(view) {
 
 var optimizerView = viewCopy(referenceView);
 
+var viewDOFs = 7;
 var viewWithDelta = function(view, deltaView) {
   var newView = viewCopy(view);
   var quaternion = deltaView.slice(3,7);
@@ -626,7 +627,6 @@ var viewEnergy = function(view) {
 }
 
 var optimizeView = function() {
-  var viewDOFs = 7;
   var translationStep = 0.05;
   var rotationStep = 0.005;
   var deltaSteps = Array(3).fill(translationStep).concat(Array(4).fill(rotationStep));
@@ -688,11 +688,16 @@ var optimizeView = function() {
   `);
 }
 
+var viewObjective = function(viewDelta) {
+  return (viewEnergy(viewWithDelta(referenceView, viewDelta)));
+}
+
 canvas3D.addEventListener('click', captureReferenceImage);
 canvas3D.addEventListener('mousewheel', wheelView);
 canvas3D.addEventListener('mousemove', adjustView);
 
 // the render loop to move the video into texture
+var useNumeric = false;
 var videoElement = null;
 var videoAnimationFrame = function() {
   if (videoCount > 0) {
@@ -706,7 +711,15 @@ var videoAnimationFrame = function() {
         //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, referenceTextureImage);
         gl.bindTexture(gl.TEXTURE_2D, null);
-        optimizeView();
+        if (useNumeric) {
+          var viewDelta = Array(viewDOFs).fill(0);
+          var answer = numeric.uncmin(viewObjective, viewDelta);
+          console.log(answer);
+          optimizerView = viewWithDelta(referenceView, viewDelta);
+          renderComparisonView(optimizerView);
+        } else {
+          optimizeView();
+        }
       }
     }
   }

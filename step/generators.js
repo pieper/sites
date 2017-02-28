@@ -273,11 +273,11 @@ class ProgrammaticGenerator extends Generator {
           let supportedFormat = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
           let supportedType = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
           if (supportedFormat != gl.RED_INTEGER || supportedType != gl.SHORT) {
-            if (!fallbackSliceViews[outputField]) {
-              console.error("Framebuffer read not supported, using fallback");
-              fallbackSliceViews[outputField] = new Int32Array(4 * slicePixelCount);
+            if (!fallbackSliceViews[attachment]) {
+              console.log("Framebuffer read not supported, using fallback");
+              fallbackSliceViews[attachment] = new Int32Array(4 * slicePixelCount);
             }
-            let fallbackSliceView = fallbackSliceViews[outputField];
+            let fallbackSliceView = fallbackSliceViews[attachment];
             gl.readPixels(0, 0, w, h, gl.RGBA_INTEGER, gl.INT, fallbackSliceView);
             for(let index = 0; index < slicePixelCount; ++index) {
               sliceView[index] = fallbackSliceView[4*index];

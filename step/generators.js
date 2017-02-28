@@ -236,11 +236,10 @@ class ProgrammaticGenerator extends Generator {
     let sliceUniformLocation = gl.getUniformLocation(this.program, "slice");
     let sharedGroups = outputDataset.SharedFunctionalGroups;
     let sliceSpacing = sharedGroups.PixelMeasures.SpacingBetweenSlices;
-    let slice = 0.5 * sliceSpacing;
     let frames = outputDataset.NumberOfFrames;
     let fallbackSliceViews = {};
     for (let sliceIndex = 0; sliceIndex < frames; sliceIndex++) {
-      slice = sliceIndex / outputDataset.NumberOfFrames;
+      let slice = (0.5 + sliceIndex) / outputDataset.NumberOfFrames;
       gl.uniform1f(sliceUniformLocation, slice);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
       let drawBuffers = [];
@@ -288,8 +287,6 @@ class ProgrammaticGenerator extends Generator {
         }
         attachment++;
       });
-
-      slice += sliceSpacing;
     }
   }
 }

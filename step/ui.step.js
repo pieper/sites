@@ -347,23 +347,23 @@ class stepOperationMenu extends MenuPanel {
 
     // kernel size integer
     this.kernelUI = new UI.Integer();
-    this.kernelUI.value = this.bilateralOptions.kernelSize;
     this.kernelUI.min = 1;
     this.kernelUI.max = 50;
     this.kernelUI.precision = 1;
     this.kernelUI.step = 1;
     this.kernelUI.unit = "pixels";
     this.container.add( this.kernelUI );
+    this.kernelUI.setValue(this.bilateralOptions.kernelSize);
 
     // space sigma number
     this.sigmaSpaceUI = new UI.Number();
-    this.sigmaSpaceUI.value = this.bilateralOptions.sigmaSpace;
     this.sigmaSpaceUI.min = 0.1;
     this.sigmaSpaceUI.max = 50;
     this.sigmaSpaceUI.precision = 1;
     this.sigmaSpaceUI.step = 0.1;
     this.sigmaSpaceUI.unit = "sigma space";
     this.container.add( this.sigmaSpaceUI );
+    this.sigmaSpaceUI.setValue(this.bilateralOptions.sigmaSpace);
 
     // range sigma number
     this.sigmaRangeUI = new UI.Number();
@@ -374,6 +374,7 @@ class stepOperationMenu extends MenuPanel {
     this.sigmaRangeUI.step = 10;
     this.sigmaRangeUI.unit = "sigma range";
     this.container.add( this.sigmaRangeUI );
+    this.sigmaRangeUI.setValue(this.bilateralOptions.sigmaRange);
 
     let apply = function() {
       this.bilateralOptions.kernelSize = this.kernelUI.getValue();
@@ -381,10 +382,16 @@ class stepOperationMenu extends MenuPanel {
       this.bilateralOptions.sigmaRange = this.sigmaRangeUI.getValue();
       this.bilateralOptions = this.options.performBilateral(this.bilateralOptions);
     }
-
     this.applyButton = new UI.Button("Apply");
     this.container.add( this.applyButton );
     this.applyButton.onClick(apply.bind(this));
+
+    let cancel = function() {
+      step.ui.sideBar.dom.removeChild(this.container.dom);
+    }
+    this.cancelButton = new UI.Button("cancel");
+    this.container.add( this.cancelButton );
+    this.cancelButton.onClick(cancel.bind(this));
 
     step.ui.sideBar.dom.appendChild(this.container.dom);
   }

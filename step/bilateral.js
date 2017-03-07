@@ -53,12 +53,12 @@ class BilateralGenerator extends FilterGenerator {
       // Coordinate of input location, could be resampled elsewhere.
       in vec3 interpolatedTextureCoordinate;
 
-      // Radius
-      const int r = 10;
-      const float sigma_s = 5.0;
-      const float sigma_r = 1000.0;
-      const float sigma_s2 = sigma_s * sigma_s;
-      const float sigma_r2 = sigma_r * sigma_r;
+      // Radius and gaussian parameters
+      uniform int kernelSize;
+      uniform float sigmaSpace;
+      uniform float sigmaRange;
+
+
       const float pi = 3.1415926535897932384626433832795;
       const float sqrt_2_pi = 2.5066282746310002;
 
@@ -71,19 +71,21 @@ class BilateralGenerator extends FilterGenerator {
       // From https://people.csail.mit.edu/sparis/bf_course/course_notes.pdf
       void doBilateralFilter()
       {
+        float sigmaSpaceSquared = sigmaSpace * sigmaSpace;
+        float sigmaRandeSquared = sigmaRange * sigmaRange;
         float background = float(texture(inputTexture0, interpolatedTextureCoordinate).r);
         float v = 0.0;
         float w = 0.0;
-        for (int i = -r; i <= r; i++) {
-          for (int j = -r; j <= r; j++) {
-            for (int k = -r; k <= r; k++) {
+        for (int i = -kernelSize; i <= kernelSize; i++) {
+          for (int j = -kernelSize; j <= kernelSize; j++) {
+            for (int k = -kernelSize; k <= kernelSize; k++) {
               vec3 offset = vec3(i,j,k) * textureToPixel;
               vec3 neighbor = interpolatedTextureCoordinate + offset;
               float neighborStrength = float(texture(inputTexture0, neighbor).r);
 
               float ww = 0.0;
-              ww = gaussian ( distance(offset, interpolatedTextureCoordinate), sigma_s, sigma_s2 ) ;
-              ww *= gaussian ( background - neighborStrength, sigma_r, sigma_r2 );
+              ww = gaussian ( distance(offset, interpolatedTextureCoordinate), sigmaSpace, sigmaSpaceSquared ) ;
+              ww *= gaussian ( background - neighborStrength, sigmaRange, sigmaRandeSquared );
               w += ww;
               v += ww * neighborStrength;
             }

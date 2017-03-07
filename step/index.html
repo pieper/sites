@@ -177,55 +177,61 @@ function requestSeries(instanceURLs) {
   });
 }
 
-function performImageFilter( generator ) {
-  let filterField = step.renderer.inputFields[step.renderer.inputFields.length-1];
-  if (!filterField || filterField.constructor.name != "ImageField") {
+function performImageFilter( generator, options ) {
+  options.filterField = options.filterField || step.renderer.inputFields[step.renderer.inputFields.length-1];
+  if (!options.filterField || options.filterField.constructor.name != "ImageField") {
     alert('Need to load an image field');
-    return;
+    return (options);
   }
 
-  let derivedImage = new DerivedImage([filterField.dataset]);
-  let derivedField0 = Field.fromDataset(derivedImage.dataset)[0];
+  options.derivedImage = new DerivedImage([options.filterField.dataset]);
+  options.derivedField0 = Field.fromDataset(options.derivedImage.dataset)[0];
 
   // override default calculation
-  derivedField0.windowCenter = filterField.windowCenter;
-  derivedField0.windowWidth = filterField.windowWidth;
-  derivedField0.generatedPixelData = derivedField0.dataset.PixelData;
+  options.derivedField0.windowCenter = options.filterField.windowCenter;
+  options.derivedField0.windowWidth = options.filterField.windowWidth;
+  options.derivedField0.generatedPixelData = options.derivedField0.dataset.PixelData;
 
-  step.renderer.inputFields = [filterField, derivedField0];
+  step.renderer.inputFields = [options.filterField, options.derivedField0];
   step.renderer.updateProgram();
 
-  step.generator = new generator({
+  options.generator = options.generator || new generator({
     gl: step.renderer.gl,
-    inputFields: [filterField],
-    outputFields: [derivedField0],
+    inputFields: [options.filterField],
+    outputFields: [options.derivedField0],
   });
 
-  step.generator.gl = step.renderer.gl;
-  step.generator.inputFields = [filterField];
-  step.generator.outputFields = [derivedField0];
+  options.generator.gl = step.renderer.gl;
+  options.generator.inputFields = [options.filterField];
+  options.generator.outputFields = [options.derivedField0];
 
-  step.generator.updateProgram();
+  options.generator.uniforms.sigmaSpace = {type: '1f', value: options.sigmaSpace};
+  options.generator.uniforms.sigmaRange = {type: '1f', value: options.sigmaRange};
+  options.generator.uniforms.kernelSize = {type: '1i', value: options.kernelSize};
 
-  let animationFrame = function() {
-    console.log(`image filtering`);
-    step.generator.generate();
-    step.renderer._render();
-    filterField.visible = 0;
-    derivedField0.visible = 1;
-    step.renderer.requestRender(step.view);
-  }
-  requestAnimationFrame(animationFrame);
+  options.generator.updateProgram();
 
+  console.log(`image filtering`);
+  options.generator.generate();
+  step.renderer._render();
+  options.filterField.visible = 0;
+  options.derivedField0.visible = 1;
   step.renderer.requestRender(step.view);
+
+  return (options);
 }
 
-function performGaussian() {
-  performImageFilter(GaussianGenerator);
+function performGaussian(options) {
+  return (performImageFilter(GaussianGenerator, options));
 }
 
-function performBilateral() {
-  performImageFilter(BilateralGenerator);
+function performBilateral(options) {
+  options = options || {
+    sigmaRange : 1000.,
+    sigmaSpace : 5.,
+    kernelSize : 3,
+  };
+  return (performImageFilter(BilateralGenerator, options));
 }
 
 function performRasterizeSegments() {

@@ -60,9 +60,11 @@ class stepFileMenu extends MenuPanel {
 
     // demos
     let demos = [
+      /*
       { name: "Prostate Example",
         seriesKeys: ['[["UnspecifiedInstitution","QIN-PROSTATE-01-0002"],["MS2197/BD/PRO   Pelvis w&w/o","1.3.6.1.4.1.14519.5.2.1.3671.7001.267069126134560539593081476574"],["MR","AX FRFSE-XL T2","1.3.6.1.4.1.14519.5.2.1.3671.7001.311804128593572138452599822764"]]'],
       },
+      */
       { name: "Head and Neck Example",
         seriesKeys: ['[["UnspecifiedInstitution","QIN-HEADNECK-01-0003"],["Thorax^1HEAD_NECK_PETCT","1.3.6.1.4.1.14519.5.2.1.2744.7002.150059977302243314164020079415"],["CT","CT WB 5.0 B40s_CHEST","1.3.6.1.4.1.14519.5.2.1.2744.7002.248974378224961074547541151175"]]'],
       },
@@ -284,6 +286,7 @@ class stepOperationMenu extends MenuPanel {
     options.performGaussian = options.performGaussian || function(){};
     options.performRasterizeSegments = options.performRasterizeSegments || function(){};
     super(application, {title: 'Operations'});
+    this.options = options;
 
     let option;
 
@@ -309,9 +312,7 @@ class stepOperationMenu extends MenuPanel {
     option = new UI.Row();
     option.setClass( 'option' );
     option.setTextContent( 'Bilateral' );
-    option.onClick( function () {
-      options.performBilateral();
-    } );
+    option.onClick(this.bilateralPanel.bind(this));
     this.menuPanel.add( option );
 
     // Operations -> GrowCut
@@ -331,7 +332,61 @@ class stepOperationMenu extends MenuPanel {
       options.performRasterizeSegments();
     } );
     this.menuPanel.add( option );
+  }
 
+  bilateralPanel() {
+
+    this.container = new UI.Panel();
+    this.container.setId('bilateralPanel');
+
+    this.bilateralOptions = this.bilateralOptions || {
+      sigmaRange : 1000.,
+      sigmaSpace : 5.,
+      kernelSize : 3,
+    };
+
+    // kernel size integer
+    this.kernelUI = new UI.Integer();
+    this.kernelUI.value = this.bilateralOptions.kernelSize;
+    this.kernelUI.min = 1;
+    this.kernelUI.max = 50;
+    this.kernelUI.precision = 1;
+    this.kernelUI.step = 1;
+    this.kernelUI.unit = "pixels";
+    this.container.add( this.kernelUI );
+
+    // space sigma number
+    this.sigmaSpaceUI = new UI.Number();
+    this.sigmaSpaceUI.value = this.bilateralOptions.sigmaSpace;
+    this.sigmaSpaceUI.min = 0.1;
+    this.sigmaSpaceUI.max = 50;
+    this.sigmaSpaceUI.precision = 1;
+    this.sigmaSpaceUI.step = 0.1;
+    this.sigmaSpaceUI.unit = "sigma space";
+    this.container.add( this.sigmaSpaceUI );
+
+    // range sigma number
+    this.sigmaRangeUI = new UI.Number();
+    this.sigmaRangeUI.value = this.bilateralOptions.sigmaRange;
+    this.sigmaRangeUI.min = 0.1;
+    this.sigmaRangeUI.max = 5000;
+    this.sigmaRangeUI.precision = 1;
+    this.sigmaRangeUI.step = 10;
+    this.sigmaRangeUI.unit = "sigma range";
+    this.container.add( this.sigmaRangeUI );
+
+    let apply = function() {
+      this.bilateralOptions.kernelSize = this.kernelUI.getValue();
+      this.bilateralOptions.sigmaSpace = this.sigmaSpaceUI.getValue();
+      this.bilateralOptions.sigmaRange = this.sigmaRangeUI.getValue();
+      this.bilateralOptions = this.options.performBilateral(this.bilateralOptions);
+    }
+
+    this.applyButton = new UI.Button("Apply");
+    this.container.add( this.applyButton );
+    this.applyButton.onClick(apply.bind(this));
+
+    step.ui.sideBar.dom.appendChild(this.container.dom);
   }
 }
 

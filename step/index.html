@@ -427,9 +427,6 @@ function performGrowCut() {
   step.renderer.requestRender(step.view);
 }
 
-// TODO: avoid odd global used in fields and generators
-let USE_INT_TEXTURES = true;
-
 let step = {
   options : {
     newVolumeThreeD : false,
@@ -444,6 +441,7 @@ let step = {
     sliceMode: { type: '1i', value: 1 },
   },
 };
+
 // once document is loaded...
 $(function () {
 
@@ -453,11 +451,30 @@ $(function () {
   let canvas = document.querySelector('#renderCanvas');
   let gl = canvas.getContext('webgl2');
 
-  // TODO: presense of this extension should allow float textures
-  //USE_INT_TEXTURES = gl.getExtension('OES_texture_float_linear') == null;
-  if (USE_INT_TEXTURES) {
-    console.warn('Floating texture linear filtering not available');
+  // check if our gl supports float textures and if
+  // so set the Field and Generator class variables so all instances use
+  // the same type
+  let glExtensions = {};
+  let expectedExtensions = [
+    "EXT_color_buffer_float",
+    "OES_texture_float_linear",
+  ]; /* TODO WEBGL_debug_renderer_info WEBGL_lose_context */
+  expectedExtensions.forEach(extensionName => {
+    glExtensions[extensionName] = gl.getExtension(extensionName);
+  });
+
+  let hasTextureFloatLinear = 'OES_texture_float_linear' in glExtensions;
+  let hasColorBufferFloat = 'EXT_color_buffer_float' in glExtensions;
+  Field.useIntegerTextures = !(hasTextureFloatLinear && hasColorBufferFloat);
+  if (Field.useIntegerTextures) {
+    console.warn('Floating texture support not available');
   }
+  Generator.useIntegerTextures = Field.useIntegerTextures;
+
+  /*
+  Field.useIntegerTextures = true; // debug
+  Generator.useIntegerTextures = true; // debug
+  */
 
   step.renderer = new RayCastRenderer({
     gl,
@@ -472,6 +489,7 @@ $(function () {
     viewNormal : [0., 1., 0.],
     viewUp : [0., 0., 1.],
   });
+  step.renderer.glExtensions = glExtensions;
   step.renderer.updateProgram();
   step.renderer._render(step.view);
 

@@ -1,5 +1,6 @@
 class Field {
   constructor(options={}) {
+    this.useIntegerTextures = Field.useIntegerTextures;
     this.id = Field.nextId;
     this.texture = undefined;
     this.modifiedTime = Number.MAX_VALUE;
@@ -10,7 +11,6 @@ class Field {
     this.visible = 1;
     this.generator = undefined;
 
-    this.useIntegerTextures = USE_INT_TEXTURES; //TODO
     if (this.useIntegerTextures) {
       this.samplerType = "isampler3D";
     } else {
@@ -91,6 +91,7 @@ class Field {
 
 }
 Field.nextId = 0; // TODO: for now this is texture unit
+Field.useIntegerTextures = false; // default, but possibly overridden based on gl env
 
 // array of fields from dataset
 Field.fromDataset = function(dataset) {

@@ -45,10 +45,10 @@ class GaussianGenerator extends FilterGenerator {
       uniform vec3 textureToPixel;
 
       // integer sampler for first input Field
-      uniform isampler3D inputTexture0;
+      uniform ${this.samplerType} inputTexture0;
 
       // output into first Field
-      layout(location = 0) out int value;
+      layout(location = 0) out ${this.bufferType} value;
 
       // Coordinate of input location, could be resampled elsewhere.
       in vec3 interpolatedTextureCoordinate;
@@ -56,46 +56,33 @@ class GaussianGenerator extends FilterGenerator {
       // Radius, must change the kernel if the radius is changed...
       const int r = 3;
       // Gaussian Kernel, sigma = 5
-      float kernel[2*r+1] = float[]( 0.12895603354653198, 0.14251845798601478, 0.15133130724683985, 0.15438840244122673, 0.15133130724683985, 0.14251845798601478, 0.12895603354653198 );
+      float kernel[2*r+1] = float[](
+        0.12895603354653198, 0.14251845798601478, 0.15133130724683985,
+        0.15438840244122673,
+        0.15133130724683985, 0.14251845798601478, 0.12895603354653198
+      );
 
-      void doFilter()
+      void main()
       {
-          int background = texture(inputTexture0, interpolatedTextureCoordinate).r;
-          float accumulator = 0.0;
-          for (int i = -r; i <= r; i++) {
-            float ikernel = kernel[i + r];
-            for (int j = -r; j <= r; j++) {
-              float jkernel = kernel[j + r];
-              for (int k = -r; k <= r; k++) {
-                float kkernel = kernel[k + r];
+        ${this.bufferType} background = texture(inputTexture0, interpolatedTextureCoordinate).r;
+        float accumulator = 0.0;
+        for (int i = -r; i <= r; i++) {
+          float ikernel = kernel[i + r];
+          for (int j = -r; j <= r; j++) {
+            float jkernel = kernel[j + r];
+            for (int k = -r; k <= r; k++) {
+              float kkernel = kernel[k + r];
 
-                vec3 offset = vec3(i,j,k) * textureToPixel;
-                vec3 neighbor = interpolatedTextureCoordinate + offset;
-                float neighborStrength = float(texture(inputTexture0, neighbor).r);
+              vec3 offset = vec3(i,j,k) * textureToPixel;
+              vec3 neighbor = interpolatedTextureCoordinate + offset;
+              float neighborStrength = float(texture(inputTexture0, neighbor).r);
 
-                accumulator = accumulator + neighborStrength * kkernel * jkernel * ikernel;
+              accumulator = accumulator + neighborStrength * kkernel * jkernel * ikernel;
             }
           }
         }
-        value = int(accumulator); 
+        value = ${this.bufferType} (accumulator);
       }
-      void doPassthrough()
-      {
-        value = texture(inputTexture0, interpolatedTextureCoordinate).r;
-      }
-      void main()
-      {
-          doFilter();
-        // if ( interpolatedTextureCoordinate.x > 0.5 ) {          
-        //   doFilter();
-        // } else {
-        //   value = 0;
-        //   if ( interpolatedTextureCoordinate.y > 0.7 ) {
-        //     doPassthrough();
-        //   }
-        // }
-      }
- 
     `);
   }
 }

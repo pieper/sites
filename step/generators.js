@@ -1,21 +1,40 @@
 // populates Fields with data based on inputs
 class Generator {  // TODO: unify with Space
   constructor(options={}) {
-
+    this.useIntegerTextures = Generator.useIntegerTextures;
     this.gl = options.gl;
     this.uniforms = options.uniforms || {};
     this.inputFields = options.inputFields || [];
     this.outputFields = options.outputFields || [];
     this.program = undefined;
 
-    this.useIntegerTextures = USE_INT_TEXTURES; //TODO
+    // * for now, all PixelData in datasets is of type short
+    // * pixel readback of float textures requires casting
+    // * gl may allow read back of single component, but may only do rgba
+    this.sliceViewArrayType = Int16Array;
+    this.sliceViewBytesPerElement = 2;
     if (this.useIntegerTextures) {
       this.samplerType = "isampler3D";
       this.bufferType = "int";
+      this.readPixelsFormat = this.gl.RED_INTEGER;
+      this.readPixelsType = this.gl.SHORT;
+      this.fallbackSliceViewsArrayType = Int32Array;
+      this.fallbackNumberOfComponents = 4;
+      this.fallbackReadPixelsFormat = this.gl.RGBA_INTEGER;
+      this.fallbackReadPixelsType = this.gl.INT;
     } else {
       this.samplerType = "sampler3D";
       this.bufferType = "float";
+      this.readPixelsFormat = this.gl.RED;
+      this.readPixelsType = this.gl.FLOAT;
+      this.fallbackSliceViewsArrayType = Float32Array;
+      this.fallbackNumberOfComponents = 4;
+      this.fallbackReadPixelsFormat = this.gl.RGBA;
+      this.fallbackReadPixelsType = this.gl.FLOAT;
     }
+
+    // TODO: need to consider rescaleIntercept/rescaleSlope when
+    // writing out to image textures
   }
 
   // utility for printing multiline strings for debugging
@@ -27,6 +46,7 @@ class Generator {  // TODO: unify with Space
     });
   }
 }
+Generator.useIntegerTextures = false; // default
 
 // Uses a GL program to generate fields
 class ProgrammaticGenerator extends Generator {
@@ -259,30 +279,35 @@ class ProgrammaticGenerator extends Generator {
       }
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-      // optional readback of rendered texture
+      //
+      // optional readback of rendered texture when generatedPixelData exists
+      // - attempt to read native pixels, but fallback to rgba if needed
+      //
       attachment = 0;
       this.outputFields.forEach(outputField=>{
         if (outputField.generatedPixelData) {
           let [w,h] = [outputField.dataset.Columns, outputField.dataset.Rows];
           let slicePixelCount = w * h;
-          let sliceByteStart = sliceIndex * slicePixelCount * 2;
-          let sliceView = new Int16Array(outputField.generatedPixelData,
+          let sliceByteStart = sliceIndex * slicePixelCount * this.sliceViewBytesPerElement;
+          let sliceView = new this.sliceViewArrayType(outputField.generatedPixelData,
                                           sliceByteStart, slicePixelCount);
           gl.readBuffer(gl.COLOR_ATTACHMENT0+attachment);
           let supportedFormat = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
           let supportedType = gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE);
-          if (supportedFormat != gl.RED_INTEGER || supportedType != gl.SHORT) {
+          if (supportedFormat != this.readPixelsFormat || supportedType != this.readPixelsType) {
             if (!fallbackSliceViews[attachment]) {
-              console.log("Framebuffer read not supported, using fallback");
-              fallbackSliceViews[attachment] = new Int32Array(4 * slicePixelCount);
+              console.log(`Framebuffer read not supported, using fallback`);
+              fallbackSliceViews[attachment] = new this.fallbackSliceViewsArrayType(
+                                                this.fallbackNumberOfComponents * slicePixelCount);
             }
             let fallbackSliceView = fallbackSliceViews[attachment];
-            gl.readPixels(0, 0, w, h, gl.RGBA_INTEGER, gl.INT, fallbackSliceView);
+            gl.readPixels(0, 0, w, h,
+              this.fallbackReadPixelsFormat, this.fallbackReadPixelsType, fallbackSliceView);
             for(let index = 0; index < slicePixelCount; ++index) {
-              sliceView[index] = fallbackSliceView[4*index];
+              sliceView[index] = fallbackSliceView[this.fallbackNumberOfComponents*index];
             }
           } else {
-            gl.readPixels(0, 0, w, h, gl.RED_INTEGER, gl.SHORT, sliceView);
+            gl.readPixels(0, 0, w, h, this.readPixelsFormat, this.readPixelsType, sliceView);
           }
         }
         attachment++;

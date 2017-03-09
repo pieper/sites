@@ -45,10 +45,10 @@ class BilateralGenerator extends FilterGenerator {
       uniform vec3 textureToPixel;
 
       // integer sampler for first input Field
-      uniform isampler3D inputTexture0;
+      uniform ${this.samplerType} inputTexture0;
 
       // output into first Field
-      layout(location = 0) out int value;
+      layout(location = 0) out ${this.bufferType} value;
 
       // Coordinate of input location, could be resampled elsewhere.
       in vec3 interpolatedTextureCoordinate;
@@ -92,7 +92,7 @@ class BilateralGenerator extends FilterGenerator {
           }
         }
         v = v / w;
-        value = int ( v );
+        value = ${this.bufferType} ( v ); // cast if needed
       }
       void main()
       {

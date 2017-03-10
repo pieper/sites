@@ -187,8 +187,8 @@ class FiducialField extends Field {
                 ${fiducial.point[0]}, ${fiducial.point[1]}, ${fiducial.point[2]} );
         distance = length(centerToSample);
         if (distance < ${fiducial.radius}) {
-          sampleValue += ${this.rgba[3]};
-          normal += pow(${fiducial.radius}-distance,4.) * normalize(centerToSample);
+          sampleValue += smoothstep(${fiducial.radius * .95}, ${fiducial.radius}, distance) * ${this.rgba[3]};
+          normal += normalize(centerToSample);
         }
 
       `;

@@ -451,6 +451,12 @@ $(function () {
   let canvas = document.querySelector('#renderCanvas');
   let gl = canvas.getContext('webgl2');
 
+  if (!gl) {
+    alert('Sorry, it looks like your browser does not support webgl2.  Try firefox.');
+    return;
+  }
+
+
   // check if our gl supports float textures and if
   // so set the Field and Generator class variables so all instances use
   // the same type

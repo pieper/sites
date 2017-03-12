@@ -35,6 +35,7 @@
   <script type="text/javascript" src="./gaussian.js"></script>
   <script type="text/javascript" src="./bilateral.js"></script>
   <script type="text/javascript" src="./rasterizer.js"></script>
+  <script type="text/javascript" src="./pde.js"></script>
 
 
   <link rel="stylesheet" href="./css/step.css" />
@@ -236,6 +237,67 @@ function performBilateral(options) {
     kernelSize : 3,
   };
   return (performImageFilter(BilateralGenerator, options));
+}
+
+function performPDE(options) {
+  options = options || {};
+  options.deltaT = options.deltaT || 1.;
+  options.edgeWeight = options.edgeWeight || 1.;
+  options.iterations = options.iterations || 100;
+
+  let filterField = step.renderer.inputFields[0];
+  if (!filterField || filterField.constructor.name != "ImageField") {
+    alert('Need to load an image field');
+    return;
+  }
+  filterField.visible = 0;
+
+  let derivedImage = new DerivedImage([filterField.dataset]);
+  let derivedFields = [];
+  derivedFields[0] = Field.fromDataset(derivedImage.dataset)[0];
+  derivedFields[1] = Field.fromDataset(derivedImage.dataset)[0];
+
+  // override default calculation
+  derivedFields[0].windowCenter = filterField.windowCenter;
+  derivedFields[0].windowWidth = filterField.windowWidth;
+  derivedFields[1].windowCenter = filterField.windowCenter;
+  derivedFields[1].windowWidth = filterField.windowWidth;
+
+  step.renderer.inputFields = [filterField, derivedFields[0], derivedFields[1]];
+  step.renderer.updateProgram();
+
+  step.generator = new PDEGenerator({
+    uniforms: {
+      deltaT : { type: '1f', value: options.deltaT },
+      edgeWeight : { type: '1f', value: options.edgeWeight },
+      iterations : { type: '1i', value: options.iterations },
+      iteration : { type: '1i', value: 0 },
+    },
+    gl: step.renderer.gl,
+    inputFields: [filterField, derivedFields[0]],
+    outputFields: [derivedFields[1]],
+  });
+  step.generator.updateProgram();
+
+  let iterations = options.iterations;
+  let iteration = 0;
+  let renderRate = 1;
+  for (let iteration of Array(options.iterations).keys()) {
+    console.log(`iteration ${iteration} of ${iterations}`);
+    let inputPhi = derivedFields[iteration%2];
+    inputPhi.visible = 0;
+    let outputPhi = derivedFields[(iteration+1)%2];
+    outputPhi.visible = 1;
+    step.generator.uniforms.iteration.value = iteration;
+    step.generator.inputFields = [filterField, inputPhi];
+    step.generator.outputFields =  [outputPhi];
+    step.generator.generate();
+    if (iteration % renderRate == 0) {
+      step.renderer._render();
+    }
+  }
+  step.renderer.requestRender(step.view);
+  return(options);
 }
 
 function performRasterizeSegments() {
@@ -528,6 +590,7 @@ $(function () {
     chronicle : step.chronicle,
     requestSeries : requestSeries,
     performFilter : performFilter,
+    performPDE : performPDE,
     performGrowCut : performGrowCut,
     performGaussian : performGaussian,
     performBilateral : performBilateral,

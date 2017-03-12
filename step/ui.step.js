@@ -286,6 +286,7 @@ class stepOperationMenu extends MenuPanel {
   constructor(step, options) {
     options = options || {};
     options.performFilter = options.performFilter || function(){};
+    options.performPDE = options.performPDE || function(){};
     options.performGrowCut = options.performGrowCut || function(){};
     options.performGaussian = options.performGaussian || function(){};
     options.performRasterizeSegments = options.performRasterizeSegments || function(){};
@@ -319,6 +320,13 @@ class stepOperationMenu extends MenuPanel {
     option.setClass( 'option' );
     option.setTextContent( 'Bilateral' );
     option.onClick(this.bilateralPanel.bind(this));
+    this.menuPanel.add( option );
+
+    // Operations -> pde
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'PDE' );
+    option.onClick(this.pdePanel.bind(this));
     this.menuPanel.add( option );
 
     // Operations -> GrowCut
@@ -389,6 +397,69 @@ class stepOperationMenu extends MenuPanel {
       this.bilateralOptions.sigmaSpace = this.sigmaSpaceUI.getValue();
       this.bilateralOptions.sigmaRange = this.sigmaRangeUI.getValue();
       this.bilateralOptions = this.options.performBilateral(this.bilateralOptions);
+    }
+    this.applyButton = new UI.Button("Apply");
+    this.container.add( this.applyButton );
+    this.applyButton.onClick(apply.bind(this));
+
+    let cancel = function() {
+      step.ui.sideBar.dom.removeChild(this.container.dom);
+    }
+    this.cancelButton = new UI.Button("cancel");
+    this.container.add( this.cancelButton );
+    this.cancelButton.onClick(cancel.bind(this));
+
+    step.ui.sideBar.dom.appendChild(this.container.dom);
+  }
+
+  pdePanel() {
+
+    this.container = new UI.Panel();
+    this.container.setId('pdePanel');
+
+    this.pdeOptions = this.pdeOptions || {
+      edgeWeight : 1.,
+      deltaT : 1.,
+      iterations : 100.,
+    };
+
+    // TODO: refactor out common ui elements of this and bilateral cli-style
+    // edgeWeight number
+    this.edgeWeightUI = new UI.Number();
+    this.edgeWeightUI.min = 0.1;
+    this.edgeWeightUI.max = 50;
+    this.edgeWeightUI.precision = 1;
+    this.edgeWeightUI.step = 0.1;
+    this.edgeWeightUI.unit = "edge weight";
+    this.container.add( this.edgeWeightUI );
+    this.edgeWeightUI.setValue(this.pdeOptions.edgeWeight);
+
+    // deltaT number
+    this.deltaTUI = new UI.Number();
+    this.deltaTUI.min = 0.1;
+    this.deltaTUI.max = 50;
+    this.deltaTUI.precision = 1;
+    this.deltaTUI.step = 0.1;
+    this.deltaTUI.unit = "deltaT";
+    this.container.add( this.deltaTUI );
+    this.deltaTUI.setValue(this.pdeOptions.deltaT);
+
+    // iterations size integer
+    this.iterationsUI = new UI.Integer();
+    this.iterationsUI.min = 1;
+    this.iterationsUI.max = 500;
+    this.iterationsUI.precision = 1;
+    this.iterationsUI.step = 1;
+    this.iterationsUI.unit = "iterations";
+    this.container.add( this.iterationsUI );
+    this.iterationsUI.setValue(this.pdeOptions.iterations);
+
+    let apply = function() {
+      console.log(this);
+      this.pdeOptions.edgeWeight = this.edgeWeightUI.getValue();
+      this.pdeOptions.deltaT = this.deltaTUI.getValue();
+      this.pdeOptions.iterations = this.iterationsUI.getValue();
+      this.pdeOptions = this.options.performPDE(this.pdeOptions);
     }
     this.applyButton = new UI.Button("Apply");
     this.container.add( this.applyButton );

@@ -478,32 +478,26 @@ class ImageField extends PixelField {
       uniform mat4 patientToPixel${this.id};
       uniform mat3 normalPixelToPatient${this.id};
       uniform ivec3 pixelDimensions${this.id};
-      void sampleField${this.id} (const in ${this.samplerType} textureUnit,
-                                  const in vec3 samplePointIn,
-                                  const in float gradientSize,
-                                  out float sampleValue,
-                                  out vec3 normal,
-                                  out float gradientMagnitude)
-      {
-        // samplePoint is in patient coordinates
-        vec3 samplePoint = transformPoint${this.id}(samplePointIn);
 
+      vec3 patientToTexture${this.id}(const in vec3 patientPoint)
+      {
         // stpPoint is in 0-1 texture coordinates, meaning that it
         // is the patientToPixel transform scaled by the inverse
         // pixel dimensions.
         vec3 pixelDimensions = vec3(pixelDimensions${this.id});
         vec3 dimensionsInverse = vec3(1.) / pixelDimensions;
-        vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
+        vec3 stpPoint = (patientToPixel${this.id} * vec4(patientPoint, 1.)).xyz;
         stpPoint *= dimensionsInverse;
+        return(stpPoint);
+      }
 
-        // trivial reject outside
-        if (any(lessThan(stpPoint, vec3(0.)))
-             || any(greaterThan(stpPoint,vec3(1.)))) {
-            sampleValue = 0.;
-            normal = vec3(0.);
-            gradientMagnitude = 0.;
-            return;
-        }
+      void sampleTexture${this.id}(const in ${this.samplerType} textureUnit,
+                                   const in vec3 stpPoint,
+                                   const in float gradientSize,
+                                   out float sampleValue,
+                                   out vec3 normal,
+                                   out float gradientMagnitude)
+      {
 
         #define RESCALE(s) (rescaleSlope${this.id} * (s) + rescaleIntercept${this.id})
         #define SAMPLE(p) RESCALE(float( texture(textureUnit, p).r ))
@@ -513,6 +507,8 @@ class ImageField extends PixelField {
         // central difference sample gradient (P is +1, N is -1)
         // p : point in patient space
         // o : offset vector in patient space along dimension
+        vec3 pixelDimensions = vec3(pixelDimensions${this.id});
+        vec3 dimensionsInverse = vec3(1.) / pixelDimensions;
         vec3 sN = vec3(0.);
         vec3 sP = vec3(0.);
         vec3 offset = vec3(0.);
@@ -531,6 +527,29 @@ class ImageField extends PixelField {
 
         #undef SAMPLE
         #undef RESCALE
+      }
+
+      void sampleField${this.id} (const in ${this.samplerType} textureUnit,
+                                  const in vec3 samplePointIn,
+                                  const in float gradientSize,
+                                  out float sampleValue,
+                                  out vec3 normal,
+                                  out float gradientMagnitude)
+      {
+        // samplePoint is in patient coordinates, stp is texture coordinates
+        vec3 samplePoint = transformPoint${this.id}(samplePointIn);
+        vec3 stpPoint = patientToTexture${this.id}(samplePoint);
+
+        // trivial reject outside
+        if (any(lessThan(stpPoint, vec3(0.)))
+             || any(greaterThan(stpPoint,vec3(1.)))) {
+          sampleValue = 0.;
+          normal = vec3(0.);
+          gradientMagnitude = 0.;
+        } else {
+          sampleTexture${this.id}(textureUnit, stpPoint, gradientSize,
+                                  sampleValue, normal, gradientMagnitude);
+        }
       }
     `);
   }

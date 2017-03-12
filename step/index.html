@@ -546,11 +546,6 @@ $(function () {
   });
   document.body.appendChild(step.ui.sideBar.dom);
 
-  let toolSelectUI = step.ui.bottomBar.toolSelectUI;
-  toolSelectUI.dom.addEventListener('change', event => {
-    windowLevelControl.tool = toolSelectUI.getValue();
-  });
-
   //
   // interactive controls
   //
@@ -558,6 +553,12 @@ $(function () {
   step.controls.activate({
     onWindowLevel: step.ui.sideBar.drawHistogram
   });
+
+  let toolSelectUI = step.ui.bottomBar.toolSelectUI;
+  toolSelectUI.dom.addEventListener('change', event => {
+    step.controls.tool = toolSelectUI.getValue();
+  });
+
 
 });
 

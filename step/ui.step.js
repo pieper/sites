@@ -29,11 +29,13 @@ class Menubar extends UIItem {
 }
 
 class stepMenubar extends Menubar {
-  constructor(application, options) {
+  constructor(step, options) {
     super();
-    this.container.add(new stepFileMenu(application,options).container);
-    this.container.add(new stepDatabaseMenu(application,options).container);
-    this.container.add(new stepOperationMenu(application,options).container);
+    this.container.add(new stepFileMenu(step,options).container);
+    this.container.add(new stepDatabaseMenu(step,options).container);
+    this.container.add(new stepOperationMenu(step,options).container);
+    this.container.add(new stepViewMenu(step,options).container);
+    this.container.add(new stepAboutMenu(step,options).container);
   }
 }
 
@@ -55,8 +57,8 @@ class MenuPanel extends UIItem {
 }
 
 class stepFileMenu extends MenuPanel {
-  constructor(application,options) {
-    super(application, {title: 'File'});
+  constructor(step,options) {
+    super(step, {title: 'File'});
 
     // demos
     let demos = [
@@ -68,12 +70,14 @@ class stepFileMenu extends MenuPanel {
       { name: "Head and Neck Example",
         seriesKeys: ['[["UnspecifiedInstitution","QIN-HEADNECK-01-0003"],["Thorax^1HEAD_NECK_PETCT","1.3.6.1.4.1.14519.5.2.1.2744.7002.150059977302243314164020079415"],["CT","CT WB 5.0 B40s_CHEST","1.3.6.1.4.1.14519.5.2.1.2744.7002.248974378224961074547541151175"]]'],
       },
+      /*
       { name: "QIN 139 Segmentation",
         seriesKeys: [
           '[["UnspecifiedInstitution","QIN-HEADNECK-01-0139"],["CT CHEST W/O CONTRAST","1.3.6.1.4.1.14519.5.2.1.2744.7002.373729467545468642229382466905"],["SEG","tumor segmentation - User3 SemiAuto trial 1","1.2.276.0.7230010.3.1.3.8323329.20009.1440004784.9295"]]',
           '[["UnspecifiedInstitution","QIN-HEADNECK-01-0139"],["CT CHEST W/O CONTRAST","1.3.6.1.4.1.14519.5.2.1.2744.7002.373729467545468642229382466905"],["CT","CT HeadNeck  3.0  B30f_CHEST","1.3.6.1.4.1.14519.5.2.1.2744.7002.182837959725425690842769990419"]]',
         ],
       },
+      */
       { name: "MRHead",
         seriesKeys: [
           '[["UnspecifiedInstitution","123456"],["Slicer Sample Data","1.2.826.0.1.3680043.2.1125.1.34027065691713096181869243555208536"],["MR","No series description","1.2.826.0.1.3680043.2.1125.1.60570920072252354871500178658621494"]]',
@@ -139,10 +143,10 @@ class stepFileMenu extends MenuPanel {
 }
 
 class stepDatabaseMenu extends MenuPanel {
-  constructor(application, options) {
+  constructor(step, options) {
     options = options || {};
     options.requestSeries = options.requestSeries || function(){};
-    super(application, {title: 'Database'});
+    super(step, {title: 'Database'});
     this.menuPanel.setClass('database');
 
     // status
@@ -279,17 +283,18 @@ class stepDatabaseMenu extends MenuPanel {
 }
 
 class stepOperationMenu extends MenuPanel {
-  constructor(application, options) {
+  constructor(step, options) {
     options = options || {};
     options.performFilter = options.performFilter || function(){};
     options.performGrowCut = options.performGrowCut || function(){};
     options.performGaussian = options.performGaussian || function(){};
     options.performRasterizeSegments = options.performRasterizeSegments || function(){};
-    super(application, {title: 'Operations'});
+    super(step, {title: 'Operations'});
     this.options = options;
 
     let option;
 
+    /*
     // Operations -> FilterTest
     option = new UI.Row();
     option.setClass( 'option' );
@@ -307,6 +312,7 @@ class stepOperationMenu extends MenuPanel {
       options.performGaussian();
     } );
     this.menuPanel.add( option );
+    */
 
     // Operations -> bilateral
     option = new UI.Row();
@@ -324,6 +330,7 @@ class stepOperationMenu extends MenuPanel {
     } );
     this.menuPanel.add( option );
 
+    /*
     // Operations -> RasterizeSegments
     option = new UI.Row();
     option.setClass( 'option' );
@@ -332,6 +339,7 @@ class stepOperationMenu extends MenuPanel {
       options.performRasterizeSegments();
     } );
     this.menuPanel.add( option );
+    */
   }
 
   bilateralPanel() {
@@ -394,6 +402,55 @@ class stepOperationMenu extends MenuPanel {
     this.cancelButton.onClick(cancel.bind(this));
 
     step.ui.sideBar.dom.appendChild(this.container.dom);
+  }
+}
+
+class stepViewMenu extends MenuPanel {
+  constructor(step, options) {
+    options = options || {};
+    options.performRasterizeSegments = options.performRasterizeSegments || function(){};
+    super(step, {title: 'View'});
+    this.options = options;
+
+    let option;
+
+    ['Axial', 'Sagittal', 'Coronal'].forEach(view => {
+      option = new UI.Row();
+      option.setClass( 'option' );
+      option.setTextContent( view );
+      option.onClick(() => {
+        step.view.slice({plane: view.toLowerCase(), offset: 0.5, thickness: 1});
+        step.uniforms.sliceMode.value = 1;
+        step.renderer.requestRender(step.view);
+      });
+      this.menuPanel.add( option );
+    });
+
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Volume' );
+    option.onClick(() => {
+      step.view.viewNear = 0;
+      step.view.viewFar = Linear.LARGE_NUMBER;
+      step.uniforms.sliceMode.value = 0;
+      step.renderer.requestRender(step.view);
+    });
+    this.menuPanel.add( option );
+  }
+}
+
+class stepAboutMenu extends MenuPanel {
+  constructor(step, options) {
+    options = options || {};
+    super(step, {title: 'About'});
+    this.options = options;
+
+    let option;
+
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent('This is a very experimental implementation of image viewing and manipulation using WebGL 2.0.' );
+    this.menuPanel.add( option );
   }
 }
 
@@ -488,22 +545,9 @@ class stepBottomBar extends UIItem {
     this.toolSelectUI = new UI.Select().setOptions({
       windowLevel: "Window/Level",
       trackball: "Trackball",
-      paint: "Paint",
+      /* paint: "Paint", */
     }).setValue('windowLevel');
     this.container.add( this.toolSelectUI );
-
-    // TODO: color select
-    this.colorText = new UI.Text('Color:').setWidth('50px');
-    this.colorText.dom.style.textAlign = 'right';
-    this.container.add(this.colorText);
-    this.colorSelectUI = new UI.Select().setOptions({
-      black: "Black",
-      red: "Red",
-      green: "Green",
-      blue: "Blue",
-      white: "White",
-    }).setValue('red');
-    this.container.add( this.colorSelectUI );
 
     this.progressTextUI = new UI.Text('');
     this.progressTextUI.dom.style.textAlign = 'right';
@@ -526,7 +570,7 @@ class stepBottomBar extends UIItem {
     this.dom.style.opacity = 1;
     let restoreProgress = function() {
       this.progressTextUI.setValue('');
-      this.dom.style.opacity = .25;
+      this.dom.removeAttribute('style');
     };
     clearTimeout(this.progressTimeout);
     this.progressTimeout = setTimeout(restoreProgress.bind(this), 2000);

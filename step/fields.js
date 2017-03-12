@@ -142,7 +142,8 @@ Field.fromDataset = function(dataset) {
 class Fiducial {
   constructor(options={}) {
     this.point = options.point || [0.,0.,0.];
-    this.radius = options.radius || .1;
+    this.radius = options.radius || 10.;
+    this.thickness = options.thickness || 5.5;
   }
 }
 
@@ -185,12 +186,12 @@ class FiducialField extends Field {
 
         centerToSample = samplePoint - vec3(
                 ${fiducial.point[0]}, ${fiducial.point[1]}, ${fiducial.point[2]} );
-        distance = length(centerToSample);
-        if (distance < ${fiducial.radius}) {
-          sampleValue += ${this.rgba[3]};
-          normal += pow(${fiducial.radius}-distance,4.) * normalize(centerToSample);
+        distanceFromCenter = length(centerToSample);
+        distanceFromSurface = distanceFromCenter - ${fiducial.radius};
+        if (abs(distanceFromSurface) < ${fiducial.thickness}) {
+          sampleValue += abs((abs(distanceFromSurface) - ${fiducial.thickness})) * ${this.rgba[3]};
+          normal += sign(distanceFromSurface) * normalize(centerToSample);
         }
-
       `;
     });
     return(source);
@@ -229,8 +230,8 @@ class FiducialField extends Field {
         vec3 samplePoint = transformPoint${this.id}(samplePointIn);
 
         vec3 centerToSample;
-        float distance;
-        float glow = 1.2;
+        float distanceFromCenter;
+        float distanceFromSurface;
 
         // default if sampleValue is not in any fiducial
         sampleValue = 0.;

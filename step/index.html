@@ -84,7 +84,7 @@ function addRandomFiducials() {
   let fiducialField = new FiducialField({
     fiducials,
     rgba: [Math.random(), Math.random(), Math.random(), Math.random()],
-    opacityScale: 100.,
+    opacityScale: 1.,
   });
 
   step.renderer.inputFields.push(fiducialField);
@@ -156,9 +156,13 @@ function loadDatasets(datasets) {
   let field = fields[0];
   step.renderer.view.look({at: field.center, bounds: field.bounds});
   if (!step.options.newVolumeThreeD) {
-    step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
+    step.view.slice({plane: "coronal", offset: 0.5, thickness: 1});
     step.uniforms.sliceMode.value = 1;
   }
+  let lightOffset = [200, -200, 400];
+  [0,1,2].forEach(index => {
+    step.uniforms.pointLight.value[index] = step.view.viewPoint[index] + lightOffset[index];
+  });
   step.renderer.requestRender(step.view);
 }
 
@@ -433,9 +437,9 @@ let step = {
   },
   uniforms : {
     pointLight: { type: '3fv', value: [100., -400., 1500.] },
-    gradientSize: { type: '1f', value: .01 },
+    gradientSize: { type: '1f', value: 1. },
     rayMaxSteps: { type: '1i', value: 10000 },
-    sampleStep: { type: '1f', value: 0.1 },
+    sampleStep: { type: '1f', value: 0.5 },
     renderCanvasWidth: { type: '1f', value: 512 },
     renderCanvasHeight: { type: '1f', value: 512 },
     sliceMode: { type: '1i', value: 1 },
@@ -450,6 +454,12 @@ $(function () {
   //
   let canvas = document.querySelector('#renderCanvas');
   let gl = canvas.getContext('webgl2');
+
+  if (!gl) {
+    alert('Sorry, it looks like your browser does not support webgl2.  Try firefox.');
+    return;
+  }
+
 
   // check if our gl supports float textures and if
   // so set the Field and Generator class variables so all instances use
@@ -536,11 +546,6 @@ $(function () {
   });
   document.body.appendChild(step.ui.sideBar.dom);
 
-  let toolSelectUI = step.ui.bottomBar.toolSelectUI;
-  toolSelectUI.dom.addEventListener('change', event => {
-    windowLevelControl.tool = toolSelectUI.getValue();
-  });
-
   //
   // interactive controls
   //
@@ -548,6 +553,12 @@ $(function () {
   step.controls.activate({
     onWindowLevel: step.ui.sideBar.drawHistogram
   });
+
+  let toolSelectUI = step.ui.bottomBar.toolSelectUI;
+  toolSelectUI.dom.addEventListener('change', event => {
+    step.controls.tool = toolSelectUI.getValue();
+  });
+
 
 });
 

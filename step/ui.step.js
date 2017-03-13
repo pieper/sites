@@ -405,7 +405,7 @@ class stepOperationMenu extends MenuPanel {
     let cancel = function() {
       step.ui.sideBar.dom.removeChild(this.container.dom);
     }
-    this.cancelButton = new UI.Button("cancel");
+    this.cancelButton = new UI.Button("Cancel");
     this.container.add( this.cancelButton );
     this.cancelButton.onClick(cancel.bind(this));
 
@@ -468,7 +468,7 @@ class stepOperationMenu extends MenuPanel {
     let cancel = function() {
       step.ui.sideBar.dom.removeChild(this.container.dom);
     }
-    this.cancelButton = new UI.Button("cancel");
+    this.cancelButton = new UI.Button("Cancel");
     this.container.add( this.cancelButton );
     this.cancelButton.onClick(cancel.bind(this));
 
@@ -531,10 +531,6 @@ class stepSideBar extends UIItem {
     super(step);
     this.container = new UI.CollapsiblePanel();
     this.container.setId('sideBar');
-
-    let button = new UI.Button('Calculate Histogram');
-    button.onClick(this.drawHistogram.bind(this));
-    this.container.add(button);
 
     let histogramUI = new UI.Panel();
     histogramUI.setId('displayPanel');

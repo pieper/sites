@@ -250,7 +250,7 @@ function performPDE(options) {
     alert('Need to load an image field');
     return;
   }
-  filterField.visible = 0;
+  filterField.visible = 1;
 
   let derivedImage = new DerivedImage([filterField.dataset]);
   let derivedFields = [];
@@ -282,7 +282,7 @@ function performPDE(options) {
   let iterations = options.iterations;
   let iteration = 0;
   let renderRate = 1;
-  for (let iteration of Array(options.iterations).keys()) {
+  let animationFrame = function() {
     console.log(`iteration ${iteration} of ${iterations}`);
     let inputPhi = derivedFields[iteration%2];
     inputPhi.visible = 0;
@@ -292,11 +292,17 @@ function performPDE(options) {
     step.generator.inputFields = [filterField, inputPhi];
     step.generator.outputFields =  [outputPhi];
     step.generator.generate();
+    ++iteration;
     if (iteration % renderRate == 0) {
       step.renderer._render();
+      let gl = step.renderer.gl;
+    }
+    if (iteration <= iterations) {
+      requestAnimationFrame(animationFrame);
     }
   }
-  step.renderer.requestRender(step.view);
+  animationFrame(iteration);
+
   return(options);
 }
 

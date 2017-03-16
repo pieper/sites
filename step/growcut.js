@@ -38,7 +38,6 @@ class GrowCutGenerator extends ProgrammaticGenerator {
       uniform int iterations;
       uniform int iteration;
       uniform ivec3 pixelDimensions;
-      uniform vec3 textureToPixel;
 
       uniform isampler3D inputTexture0; // background
       uniform isampler3D inputTexture1; // label

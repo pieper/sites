@@ -34,7 +34,7 @@ class PDEGenerator extends FilterGenerator {
       uniform ivec3 pixelDimensions;
 
       // scaling between texture coordinates and pixels, i.e. 1/256.0
-      uniform vec3 textureToPixel;
+      uniform vec3 pixelToTexture;
 
       uniform int iterations;
       uniform int iteration;
@@ -66,9 +66,15 @@ class PDEGenerator extends FilterGenerator {
                       phi, phiNormal, phiGradientMagnitude);
 
         if (iteration == 0) {
-          value = step(150., background);
-          if (length(interpolatedTextureCoordinate - vec3(0.5)) < 0.1) {
-            value = 150.;
+          vec3 pixelCenter = vec3(0.5) / pixelToTexture;
+          vec3 pixelCoordinate = interpolatedTextureCoordinate / pixelToTexture;
+          mat4 pixelToPatient0 = inverse(patientToPixel0);
+          vec4 patientCenter = pixelToPatient0 * vec4(pixelCenter, 1.);
+          vec4 patientCoordinate = pixelToPatient0 * vec4(pixelCoordinate, 1.);
+          float distance = length(patientCoordinate - patientCenter);
+
+          if (distance < 30.) {
+            value = (30. - distance) * 15.;
           } else {
             value = 0.;
           }
@@ -76,6 +82,8 @@ class PDEGenerator extends FilterGenerator {
           value = phi + deltaT
                           * phiGradientMagnitude
                           / (1. + edgeWeight * backgroundGradientMagnitude);
+
+          value = phi + deltaT;
         }
       }
     `);

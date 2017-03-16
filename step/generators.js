@@ -259,7 +259,7 @@ class ProgrammaticGenerator extends Generator {
     let frames = outputDataset.NumberOfFrames;
     let fallbackSliceViews = {};
     for (let sliceIndex = 0; sliceIndex < frames; sliceIndex++) {
-      let slice = (0.5 + sliceIndex) / outputDataset.NumberOfFrames;
+      let slice = (0.5 + sliceIndex) / frames;
       gl.uniform1f(sliceUniformLocation, slice);
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
       let drawBuffers = [];
@@ -324,7 +324,7 @@ class FilterGenerator extends ProgrammaticGenerator {
     let u = this.uniforms
     let pixelDimensions = this.inputFields[0].pixelDimensions
     u['pixelDimensions'] = {type: '3iv', value: pixelDimensions};
-    let textureToPixel = pixelDimensions.map(e=>1./e);
-    u['textureToPixel'] = {type: '3fv', value: textureToPixel};
+    let pixelToTexture = pixelDimensions.map(e=>1./e);
+    u['pixelToTexture'] = {type: '3fv', value: pixelToTexture};
   };
 }

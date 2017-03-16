@@ -73,14 +73,15 @@ class PDEGenerator extends FilterGenerator {
           vec4 patientCoordinate = pixelToPatient0 * vec4(pixelCoordinate, 1.);
           float distance = length(patientCoordinate - patientCenter);
 
-          if (distance < 30.) {
+          if (distance < 30. && distance > 5.) {
             value = (30. - distance) * 15.;
           } else {
             value = 0.;
           }
         } else {
           value = phi + deltaT * (
-                          phiGradientMagnitude / (1. + edgeWeight * backgroundGradientMagnitude)
+                          - .125 * phi
+                          + .5 * phiGradientMagnitude / (1. + edgeWeight * backgroundGradientMagnitude)
           );
         }
       }

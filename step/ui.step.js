@@ -426,9 +426,9 @@ class stepOperationMenu extends MenuPanel {
     // TODO: refactor out common ui elements of this and bilateral cli-style
     // edgeWeight number
     this.edgeWeightUI = new UI.Number();
-    this.edgeWeightUI.min = 0.1;
+    this.edgeWeightUI.min = 0.01;
     this.edgeWeightUI.max = 50;
-    this.edgeWeightUI.precision = 1;
+    this.edgeWeightUI.precision = 2;
     this.edgeWeightUI.step = 0.1;
     this.edgeWeightUI.unit = "edge weight";
     this.container.add( this.edgeWeightUI );

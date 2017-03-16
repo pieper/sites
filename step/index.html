@@ -283,7 +283,7 @@ function performPDE(options) {
   let iteration = 0;
   let renderRate = 1;
   let animationFrame = function() {
-    console.log(`iteration ${iteration} of ${iterations}`);
+    step.ui.bottomBar.progress = `Iteration ${iteration} of ${iterations}`;
     let inputPhi = derivedFields[iteration%2];
     inputPhi.visible = 0;
     let outputPhi = derivedFields[(iteration+1)%2];
@@ -299,6 +299,9 @@ function performPDE(options) {
     }
     if (iteration <= iterations) {
       requestAnimationFrame(animationFrame);
+    } else {
+      step.renderer._render();
+      step.ui.bottomBar.progress = `Finished ${iterations} iterations`;
     }
   }
   animationFrame(iteration);

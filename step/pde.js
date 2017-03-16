@@ -79,11 +79,9 @@ class PDEGenerator extends FilterGenerator {
             value = 0.;
           }
         } else {
-          value = phi + deltaT
-                          * phiGradientMagnitude
-                          / (1. + edgeWeight * backgroundGradientMagnitude);
-
-          value = phi + deltaT;
+          value = phi + deltaT * (
+                          phiGradientMagnitude / (1. + edgeWeight * backgroundGradientMagnitude)
+          );
         }
       }
     `);

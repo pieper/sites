@@ -54,7 +54,7 @@ class Field {
       {
       }
       void sampleField${this.id} (const in ${this.samplerType} textureUnit,
-                                  const in vec3 samplePointIn,
+                                  const in vec3 samplePointPatient,
                                   const in float gradientSize,
                                   out float sampleValue,
                                   out vec3 normal,
@@ -219,7 +219,7 @@ class FiducialField extends Field {
       uniform int visible${this.id};
 
       void sampleField${this.id} (const in ${this.samplerType} textureUnit,
-                                  const in vec3 samplePointIn,
+                                  const in vec3 samplePointPatient,
                                   const in float gradientSize,
                                   out float sampleValue,
                                   out vec3 normal,
@@ -227,7 +227,7 @@ class FiducialField extends Field {
       {
         // TODO: transform should be associated with the sampling, not the ray point
         //       so that gradient is calculated incorporating transform
-        vec3 samplePoint = transformPoint${this.id}(samplePointIn);
+        vec3 samplePoint = transformPoint${this.id}(samplePointPatient);
 
         vec3 centerToSample;
         float distanceFromCenter;
@@ -356,6 +356,7 @@ class PixelField extends Field {
     let u = super.uniforms();
     u['normalPixelToPatient'+this.id] = {type: "Matrix3fv", value: this.normalPixelToPatient},
     u['patientToPixel'+this.id] = {type: "Matrix4fv", value: this.patientToPixel};
+    u['pixelToPatient'+this.id] = {type: "Matrix4fv", value: this.pixelToPatient};
     u['pixelDimensions'+this.id] = {type: '3iv', value: this.pixelDimensions};
     let pixelToTexture = this.pixelDimensions.map(e=>1./e).reverse();
     u['pixelToTexture'+this.id] = {type: '3fv', value: pixelToTexture};
@@ -477,6 +478,7 @@ class ImageField extends PixelField {
       uniform float rescaleIntercept${this.id};
       uniform float rescaleSlope${this.id};
       uniform mat4 patientToPixel${this.id};
+      uniform mat4 pixelToPatient${this.id};
       uniform mat3 normalPixelToPatient${this.id};
       uniform ivec3 pixelDimensions${this.id};
 
@@ -492,8 +494,16 @@ class ImageField extends PixelField {
         return(stpPoint);
       }
 
+      vec3 textureToPatient${this.id}(const in vec3 stpPoint)
+      {
+        // inverse operation of patientToTexture
+        vec3 pixelDimensions = vec3(pixelDimensions${this.id});
+        vec3 patientPoint = (pixelToPatient${this.id} * vec4(pixelDimensions * stpPoint, 1.)).xyz;
+        return(patientPoint);
+      }
+
       void sampleTexture${this.id}(const in ${this.samplerType} textureUnit,
-                                   const in vec3 stpPoint,
+                                   const in vec3 patientPoint,
                                    const in float gradientSize,
                                    out float sampleValue,
                                    out vec3 normal,
@@ -503,21 +513,20 @@ class ImageField extends PixelField {
         #define RESCALE(s) (rescaleSlope${this.id} * (s) + rescaleIntercept${this.id})
         #define SAMPLE(p) RESCALE(float( texture(textureUnit, p).r ))
 
+        vec3 stpPoint = patientToTexture${this.id}(patientPoint);
         sampleValue = SAMPLE(stpPoint);
 
         // central difference sample gradient (P is +1, N is -1)
         // p : point in patient space
         // o : offset vector in patient space along dimension
-        vec3 pixelDimensions = vec3(pixelDimensions${this.id});
-        vec3 dimensionsInverse = vec3(1.) / pixelDimensions;
         vec3 sN = vec3(0.);
         vec3 sP = vec3(0.);
         vec3 offset = vec3(0.);
         for (int i = 0; i < 3; i++) {
-          offset[i] = dimensionsInverse[i];
-          sP[i] = SAMPLE(stpPoint + offset);
-          offset[i] = -dimensionsInverse[i];
-          sN[i] = SAMPLE(stpPoint + offset);
+          offset[i] = gradientSize;
+          sP[i] = SAMPLE(patientToTexture${this.id}(patientPoint + offset));
+          offset[i] = -gradientSize;
+          sN[i] = SAMPLE(patientToTexture${this.id}(patientPoint + offset));
           offset[i] = 0.;
         }
         vec3 gradient = vec3( (sP[0]-sN[0]),
@@ -531,14 +540,14 @@ class ImageField extends PixelField {
       }
 
       void sampleField${this.id} (const in ${this.samplerType} textureUnit,
-                                  const in vec3 samplePointIn,
+                                  const in vec3 samplePointPatient,
                                   const in float gradientSize,
                                   out float sampleValue,
                                   out vec3 normal,
                                   out float gradientMagnitude)
       {
         // samplePoint is in patient coordinates, stp is texture coordinates
-        vec3 samplePoint = transformPoint${this.id}(samplePointIn);
+        vec3 samplePoint = transformPoint${this.id}(samplePointPatient);
         vec3 stpPoint = patientToTexture${this.id}(samplePoint);
 
         // trivial reject outside
@@ -548,7 +557,7 @@ class ImageField extends PixelField {
           normal = vec3(0.);
           gradientMagnitude = 0.;
         } else {
-          sampleTexture${this.id}(textureUnit, stpPoint, gradientSize,
+          sampleTexture${this.id}(textureUnit, samplePoint, gradientSize,
                                   sampleValue, normal, gradientMagnitude);
         }
       }
@@ -660,12 +669,12 @@ class SegmentationField extends PixelField {
       uniform ivec3 pixelDimensions${this.id};
       uniform uint packingFactor${this.id};
       void sampleField${this.id} (const in ${this.samplerType} textureUnit,
-                                  const in vec3 samplePointIn,
+                                  const in vec3 samplePointPatient,
                                   const in float gradientSize,
                                   out float sampleValue, out vec3 normal,
                                   out float gradientMagnitude)
       {
-        vec3 samplePoint = transformPoint${this.id}(samplePointIn);
+        vec3 samplePoint = transformPoint${this.id}(samplePointPatient);
         vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
         stpPoint /= vec3(pixelDimensions${this.id});
         stpPoint.x /= 8.;

@@ -60,15 +60,14 @@ class PDEGenerator extends FilterGenerator {
         float phi, phiGradientMagnitude;
         vec3 backgroundNormal, phiNormal;
 
-        sampleTexture0(inputTexture0, interpolatedTextureCoordinate, 0.01,
+        sampleTexture0(inputTexture0, textureToPatient0(interpolatedTextureCoordinate), 0.01,
                       background, backgroundNormal, backgroundGradientMagnitude);
-        sampleTexture1(inputTexture1, interpolatedTextureCoordinate, 0.01,
+        sampleTexture1(inputTexture1, textureToPatient1(interpolatedTextureCoordinate), 0.01,
                       phi, phiNormal, phiGradientMagnitude);
 
         if (iteration == 0) {
           vec3 pixelCenter = vec3(0.5) / pixelToTexture;
           vec3 pixelCoordinate = interpolatedTextureCoordinate / pixelToTexture;
-          mat4 pixelToPatient0 = inverse(patientToPixel0);
           vec4 patientCenter = pixelToPatient0 * vec4(pixelCenter, 1.);
           vec4 patientCoordinate = pixelToPatient0 * vec4(pixelCoordinate, 1.);
           float distance = length(patientCoordinate - patientCenter);

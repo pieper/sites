@@ -1,6 +1,7 @@
 class Controls {
   constructor(options={}) {
     this.mouseEvents = ['mousedown', 'mousemove', 'mouseup'];
+    this.touchEvents = ['touchstart', 'touchmove', 'touchend'];
     this.startPoint = undefined;
     this.startWindow = undefined;
     this.tool = 'windowLevel';
@@ -48,6 +49,10 @@ class Controls {
     this.mouseEvents.forEach(eventName => {
       step.renderer.canvas.addEventListener(eventName, this.mouseCallback, {passive:true});
     });
+    this.touchCallback = this.onTouchEvent.bind(this);
+    this.touchEvents.forEach(eventName => {
+      step.renderer.canvas.addEventListener(eventName, this.touchCallback, {passive:true});
+    });
 
     this.wheelCallback = this.onWheelEvent.bind(this);
     step.renderer.canvas.addEventListener('mousewheel', this.wheelCallback, {passive:true});
@@ -61,9 +66,31 @@ class Controls {
     this.mouseEvents.forEach(eventName => {
       step.renderer.canvas.removeEventListener(eventName, this.mouseCallback);
     });
+    this.touchEvents.forEach(eventName => {
+      step.renderer.canvas.removeEventListener(eventName, this.touchCallback);
+    });
 
     step.renderer.canvas.removeEventListener('mousewheel', this.wheelCallback);
     window.removeEventListener('keydown', this.keyboardCallback);
+  }
+
+  onTouchEvent(touchEvent) {
+    touchEvent.buttons = 1;
+    switch (touchEvent.type) {
+      case 'touchstart': {
+        touchEvent.type = 'mousedown';
+      }
+      break;
+      case 'touchmove': {
+        touchEvent.type = 'mousemove';
+      }
+      break;
+      case 'touchend': {
+        touchEvent.type = 'mouseup';
+      }
+      break;
+    }
+    this.mouseCallback(touchEvent);
   }
 
   onMouseEvent(mouseEvent) {

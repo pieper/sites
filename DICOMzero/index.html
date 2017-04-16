@@ -132,10 +132,15 @@ function readDICOM(progressEvent) {
   let reader = progressEvent.target;
   let arrayBuffer = reader.result;
   dc0.arrayBuffers.push(arrayBuffer);
-  let dicomData = DicomMessage.readFile(arrayBuffer);
-  let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
-  dataset._meta = DicomMetaDictionary.namifyDataset(dicomData.meta);
-  dc0.datasets.push(dataset);
+  let dicomData;
+  try {
+    dicomData = DicomMessage.readFile(arrayBuffer);
+    let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
+    dataset._meta = DicomMetaDictionary.namifyDataset(dicomData.meta);
+    dc0.datasets.push(dataset);
+  } catch (error) {
+    console.log("skipping non-dicom file");
+  }
   let readerIndex = dc0.readers.indexOf(reader);
   if (readerIndex < 0) {
     console.error("Logic error: Unexpected reader!");

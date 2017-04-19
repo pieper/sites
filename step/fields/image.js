@@ -73,11 +73,6 @@ class ImageField extends PixelField {
     return(`
       uniform highp ${this.samplerType} textureUnit${this.id};
 
-      vec3 transformPoint${this.id}(const in vec3 samplePoint)
-      {
-        return(samplePoint);
-      }
-
       uniform float windowCenter${this.id};
       uniform float windowWidth${this.id};
       void transferFunction${this.id} (const in float sampleValue,

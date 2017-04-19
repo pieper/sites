@@ -124,6 +124,7 @@ class RayCastRenderer extends ProgrammaticGenerator {
   perFieldSamplingShaderSource() {
     let perFieldSamplingShaderSource = '';
     this.inputFields.forEach(field=>{
+      perFieldSamplingShaderSource += field.transformShaderSource();
       perFieldSamplingShaderSource += field.samplingShaderSource();
     });
     return(perFieldSamplingShaderSource);

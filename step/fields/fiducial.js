@@ -60,11 +60,6 @@ class FiducialField extends Field {
 
     let source = `
 
-      vec3 transformPoint${this.id}(const in vec3 samplePoint)
-      {
-          return samplePoint; // identity by default
-      }
-
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,
                                        out vec3 color,

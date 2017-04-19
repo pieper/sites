@@ -29,24 +29,30 @@ class Field {
   // user of this class is responsible for calling modified
   // after making changes that require updating the gl representation
   modified() {
-    this.modifiedTime = performance.now(); // TODO: maybe use incrementing Number
+    this.modifiedTime = window.performance.now(); // TODO: maybe use incrementing Number
   }
 
   updated() {
-    this.updatedTime = performance.now();
+    this.updatedTime = window.performance.now();
   }
 
   needsUpdate() {
     return this.updatedTime < this.modifiedTime;
   }
 
-  samplingShaderSource() {
-    // return a string with these functions implemented in GLSL
+  // ShaderSources return a string with these functions implemented in GLSL
+  transformShaderSource() {
     return(`
       vec3 transformPoint${this.id}(const in vec3 samplePoint)
       {
         return(samplePoint);
       }
+    `);
+  }
+
+  samplingShaderSource() {
+    // return a string with these functions implemented in GLSL
+    return(`
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,
                                        out vec3 color,

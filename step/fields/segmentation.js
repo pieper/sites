@@ -31,11 +31,6 @@ class SegmentationField extends PixelField {
     return(`
       uniform highp ${this.samplerType} textureUnit${this.id};
 
-      vec3 transformPoint${this.id}(const in vec3 samplePoint)
-      {
-        return(samplePoint);
-      }
-
       uniform vec3 rgb${this.id};
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,

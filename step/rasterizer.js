@@ -20,6 +20,7 @@ class RasterizerGenerator extends ProgrammaticGenerator {
       ${function() {
           let perFieldSamplingShaderSource = '';
           this.inputFields.forEach(field=>{
+            perFieldSamplingShaderSource += field.transformShaderSource();
             perFieldSamplingShaderSource += field.samplingShaderSource();
           });
           perFieldSamplingShaderSource += this.outputField.samplingShaderSource();

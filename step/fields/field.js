@@ -10,6 +10,7 @@ class Field {
                              // an object with min and max
     this.visible = 1;
     this.generator = undefined;
+    this.transformField = undefined;
 
     if (this.useIntegerTextures) {
       this.samplerType = "isampler3D";

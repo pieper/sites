@@ -32,6 +32,7 @@ class BilateralGenerator extends FilterGenerator {
       ${function() {
           let perFieldSamplingShaderSource = '';
           this.inputFields.forEach(field=>{
+            perFieldSamplingShaderSource += field.transformShaderSource();
             perFieldSamplingShaderSource += field.samplingShaderSource();
           });
           return(perFieldSamplingShaderSource);

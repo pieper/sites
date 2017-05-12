@@ -107,12 +107,6 @@ class NonLocalMeansGenerator extends FilterGenerator {
       // ftp://ftp.math.ucla.edu/pub/camreport/cam08-01.pdf
       void doNLM()
       {
-        // Input parameters
-        /* int patchRadius = 1;
-* int searchRadius = 5;
-* float bandwidth = 10.;
-* float sigma = .5;
-*/
         float gaussianScale = 1.0 / ( sqrt_2_pi * sigma );
         float twoSigmaSquared = 2.0 * sigma * sigma;
         float bandwidthSquared = bandwidth * bandwidth;

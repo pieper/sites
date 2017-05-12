@@ -322,6 +322,13 @@ class stepOperationMenu extends MenuPanel {
     option.onClick(this.bilateralPanel.bind(this));
     this.menuPanel.add( option );
 
+    // Operations -> nonlocalmeans
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Non-local Means' );
+    option.onClick(this.nonlocalmeansPanel.bind(this));
+    this.menuPanel.add( option );
+
     // Operations -> pde
     option = new UI.Row();
     option.setClass( 'option' );
@@ -397,6 +404,83 @@ class stepOperationMenu extends MenuPanel {
       this.bilateralOptions.sigmaSpace = this.sigmaSpaceUI.getValue();
       this.bilateralOptions.sigmaRange = this.sigmaRangeUI.getValue();
       this.bilateralOptions = this.options.performBilateral(this.bilateralOptions);
+    }
+    this.applyButton = new UI.Button("Apply");
+    this.container.add( this.applyButton );
+    this.applyButton.onClick(apply.bind(this));
+
+    let cancel = function() {
+      step.ui.sideBar.dom.removeChild(this.container.dom);
+    }
+    this.cancelButton = new UI.Button("Cancel");
+    this.container.add( this.cancelButton );
+    this.cancelButton.onClick(cancel.bind(this));
+
+    step.ui.sideBar.dom.appendChild(this.container.dom);
+  }
+
+  nonlocalmeansPanel() {
+
+    this.container = new UI.Panel();
+    this.container.setId('nonlocalmeansPanel');
+
+    this.nonlocalmeansOptions = this.nonlocalmeansOptions || {
+      patchRadius : 1,
+      searchRadius : 5,
+      bandwidth : 10.,
+      sigma : .5,
+    };
+
+    // Label
+    this.labelUI = new UI.Text ( "Non-local Means");
+    this.container.add ( this.labelUI );
+    // window radius integer
+    this.patchUI = new UI.Integer();
+    this.patchUI.min = 1;
+    this.patchUI.max = 50;
+    this.patchUI.precision = 1;
+    this.patchUI.step = 1;
+    this.patchUI.unit = "patch radius (pixels)";
+    this.container.add( this.patchUI );
+    this.patchUI.setValue(this.nonlocalmeansOptions.patchRadius);
+
+    // search radius integer
+    this.searchUI = new UI.Integer();
+    this.searchUI.min = 1;
+    this.searchUI.max = 50;
+    this.searchUI.precision = 1;
+    this.searchUI.step = 1;
+    this.searchUI.unit = "search radius (pixels)";
+    this.container.add( this.searchUI );
+    this.searchUI.setValue(this.nonlocalmeansOptions.searchRadius);
+
+    // space sigma number
+    this.sigmaUI = new UI.Number();
+    this.sigmaUI.min = 0.1;
+    this.sigmaUI.max = 50;
+    this.sigmaUI.precision = 1;
+    this.sigmaUI.step = 0.1;
+    this.sigmaUI.unit = "sigma (pixels)";
+    this.container.add( this.sigmaUI );
+    this.sigmaUI.setValue(this.nonlocalmeansOptions.sigma);
+
+    // bandwidth number
+    this.bandwidthUI = new UI.Number();
+    this.bandwidthUI.value = this.nonlocalmeansOptions.bandwidth;
+    this.bandwidthUI.min = 0.1;
+    this.bandwidthUI.max = 50;
+    this.bandwidthUI.precision = .1;
+    this.bandwidthUI.step = 1;
+    this.bandwidthUI.unit = "bandwidth (unitless)";
+    this.container.add( this.bandwidthUI );
+    this.bandwidthUI.setValue(this.nonlocalmeansOptions.bandwidth);
+
+    let apply = function() {
+      this.nonlocalmeansOptions.patchRadius = this.patchUI.getValue();
+      this.nonlocalmeansOptions.searchRadius = this.searchUI.getValue();
+      this.nonlocalmeansOptions.sigma = this.sigmaUI.getValue();
+      this.nonlocalmeansOptions.bandwidth = this.bandwidthUI.getValue();
+      this.nonlocalmeansOptions = this.options.performNonlocalmeans(this.nonlocalmeansOptions);
     }
     this.applyButton = new UI.Button("Apply");
     this.container.add( this.applyButton );

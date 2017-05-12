@@ -38,6 +38,7 @@
   <script type="text/javascript" src="./growcut.js"></script>
   <script type="text/javascript" src="./gaussian.js"></script>
   <script type="text/javascript" src="./bilateral.js"></script>
+  <script type="text/javascript" src="./nonlocalmeans.js"></script>
   <script type="text/javascript" src="./rasterizer.js"></script>
   <script type="text/javascript" src="./pde.js"></script>
 
@@ -242,6 +243,17 @@ function performBilateral(options) {
   };
   return (performImageFilter(BilateralGenerator, options));
 }
+
+function performNonlocalmeans(options) {
+  options = options || {
+    patchRadius : 1,
+    searchRadius : 7,
+    bandwidth : 10.,
+    sigma : 1.,
+  };
+  return (performImageFilter(NonLocalMeansGenerator, options));
+}
+
 
 function performPDE(options) {
   options = options || {};
@@ -607,6 +619,7 @@ $(function () {
     performGrowCut : performGrowCut,
     performGaussian : performGaussian,
     performBilateral : performBilateral,
+    performNonlocalmeans : performNonlocalmeans,
     performRasterizeSegments : performRasterizeSegments,
     addRandomFiducials : addRandomFiducials,
     save : saveFieldsAsDICOM,

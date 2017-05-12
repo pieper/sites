@@ -883,6 +883,7 @@ UI.Integer = function ( number ) {
 	this.step = 1;
 
 	this.dom = dom;
+  this.unit = '';
 
 	this.setValue( number );
 
@@ -993,7 +994,7 @@ UI.Integer.prototype.setValue = function ( value ) {
 		value = parseInt( value );
 
 		this.value = value;
-		this.dom.value = value;
+		this.dom.value = value + ' ' + this.unit;
 
 	}
 
@@ -1017,6 +1018,19 @@ UI.Integer.prototype.setRange = function ( min, max ) {
 	return this;
 
 };
+
+UI.Integer.prototype.setUnit = function ( unit ) {
+
+	this.unit = unit;
+
+	return this;
+
+};
+
+UI.Integer.prototype.getUnit = function () {
+	return this.unit;
+};
+
 
 
 // Break

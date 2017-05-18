@@ -33,11 +33,7 @@ class NonLocalMeansGenerator extends FilterGenerator {
   // - 0 new filtered image
   constructor(options={}) {
     super(options);
-    this.options = options;
-    this.options.patchRadius = this.options.patchRadius || 1;
-    this.options.searchRadius = this.options.searchRadius || 5;
-    this.options.sigma = this.options.sigma || 1.0;
-    this.options.bandwidth = this.options.bandwidth || 10;
+    this.options = options.options;
   }
 
   updateProgram() {
@@ -51,7 +47,6 @@ class NonLocalMeansGenerator extends FilterGenerator {
   }
 
   _fragmentShaderSource() {
-    console.log ( "NLM brute..." );
 
     return (`${this.headerSource()}
 

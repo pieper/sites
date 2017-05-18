@@ -6,12 +6,16 @@ class BilateralGenerator extends FilterGenerator {
   // - 0 new filtered image
   constructor(options={}) {
     super(options);
+    this.options = options.options;
   }
 
   updateProgram() {
     // recreate the program and textures for the current field list
     super.updateProgram();
     let gl = this.gl;
+    this.uniforms.kernelSize = {type: '1i', value: this.options.kernelSize};
+    this.uniforms.sigmaSpace = {type: '1f', value: this.options.sigmaSpace};
+    this.uniforms.sigmaRange = {type: '1f', value: this.options.sigmaRange};
   }
 
   _fragmentShaderSource() {

@@ -204,11 +204,12 @@ function performImageFilter( generator, options ) {
 
   step.renderer.inputFields = [options.filterField, options.derivedField0];
   step.renderer.updateProgram();
-
-  options.generator = options.generator || new generator({
+  
+  options.generator = new generator({
     gl: step.renderer.gl,
     inputFields: [options.filterField],
     outputFields: [options.derivedField0],
+    options: options
   });
 
   options.generator.gl = step.renderer.gl;
@@ -245,12 +246,6 @@ function performBilateral(options) {
 }
 
 function performNonlocalmeans(options) {
-  options = options || {
-    patchRadius : 1,
-    searchRadius : 7,
-    bandwidth : 10.,
-    sigma : 1.,
-  };
   return (performImageFilter(NonLocalMeansGenerator, options));
 }
 

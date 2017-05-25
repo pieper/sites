@@ -10,9 +10,14 @@ class ImageField extends PixelField {
     this.windowWidth = Number(this.dataset.WindowWidth[0]);
     this.rescaleIntercept = Number(this.dataset.RescaleIntercept);
     this.rescaleSlope = Number(this.dataset.RescaleSlope);
+    this.samplesPerPixel = Number(this.dataset.SamplesPerPixel);
 
     if (this.dataset.BitsAllocated != 16) {
-      console.error('Can only render 16 bit data');
+      console.error('Can only handle 16 bit data');
+    }
+
+    if (! this.dataset.SamplesPerPixel in [1,3]) {
+      console.error('Can only handle 1 or 3 samples per pixel');
     }
   }
 

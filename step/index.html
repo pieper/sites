@@ -32,6 +32,7 @@
   <script type="text/javascript" src="./fields/pixel.js"></script>
   <script type="text/javascript" src="./fields/image.js"></script>
   <script type="text/javascript" src="./fields/segmentation.js"></script>
+  <script type="text/javascript" src="./fields/transform.js"></script>
   <script type="text/javascript" src="./view.js"></script>
   <script type="text/javascript" src="./generators.js"></script>
   <script type="text/javascript" src="./renderer.js"></script>
@@ -97,6 +98,71 @@ function addRandomFiducials() {
   step.renderer.updateProgram();
   console.log(fiducialField);
   step.renderer.view.look({at: fiducialField.center, bounds: bounds});
+  step.renderer.requestRender(step.view);
+}
+
+function addTransformField() {
+  //
+  // Create a vector transform field and apply it to all the renderers fields
+  // - make a dummy dataset containing the transform
+  // - - TODO: this isn't a proper Deformable Spatial Registration (yet)
+  // - - see http://dicom.nema.org/medical/dicom/current/output/html/part03.html#sect_C.20.3
+  // - convert it to a field
+  // - add it to the renderer and set it as input field on other fields
+  //
+
+  let [w,h,d] = [3,3,3];
+  let arrayElementCount = [w,h,d].reduce((p,e)=>p*e);
+  let vectorGrid = new Float32Array(3 * arrayElementCount);
+  let centerElement = 3 * Math.floor(arrayElementCount / 2);
+  vectorGrid[centerElement+0] = 10.;
+  vectorGrid[centerElement+1] = 10.;
+  vectorGrid[centerElement+2] = 10.;
+  let transformDataset = {
+    SOPClass: "DeformableSpatialRegistration",
+
+    // backwards compatibility with PixelField
+    Columns: 3,
+    Rows: 3,
+    NumberOfFrames: 3,
+    SharedFunctionalGroups: {
+      PlaneOrientation: {
+        ImageOrientationPatient: [1,0,0, 0,1,0],
+      },
+      PixelMeasures: {
+        PixelSpacing: [10,10],
+        SpacingBetweenSlices: 10,
+      },
+    },
+    PerFrameFunctionalGroups: [
+      {
+        PlanePosition: {
+          ImagePositionPatient: [-10, -10, -10],
+        },
+      },
+      {
+        PlanePosition: {
+          ImagePositionPatient: [-10, -10, 0],
+        },
+      },
+    ],
+
+    // the grid itself
+    DeformableRegistrationGrid: {
+      //GridDimensions: [3, 3, 3], TODO - should use these instead of functional groups
+      //GridResolution: [10., 10., 10.],
+      VectorGridData: vectorGrid,
+    },
+  };
+
+  let transformField = Field.fromDataset(transformDataset)[0];
+  transformField.visible = 0;
+
+  step.renderer.inputFields.forEach(field => {
+    field.transformField = transformField;
+  });
+  step.renderer.inputFields.push(transformField);
+  step.renderer.updateProgram();
   step.renderer.requestRender(step.view);
 }
 
@@ -617,6 +683,7 @@ $(function () {
     performNonlocalmeans : performNonlocalmeans,
     performRasterizeSegments : performRasterizeSegments,
     addRandomFiducials : addRandomFiducials,
+    addTransformField : addTransformField,
     save : saveFieldsAsDICOM,
   });
   document.body.insertBefore(step.ui.menubar.dom, document.body.firstChild);

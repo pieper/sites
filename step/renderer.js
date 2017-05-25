@@ -72,7 +72,7 @@ class RayCastRenderer extends ProgrammaticGenerator {
 
     let gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); // draw to the main framebuffer!
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(this.program);

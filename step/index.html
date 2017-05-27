@@ -115,9 +115,9 @@ function addTransformField() {
   let arrayElementCount = [w,h,d].reduce((p,e)=>p*e);
   let vectorGrid = new Float32Array(3 * arrayElementCount);
   let centerElement = 3 * Math.floor(arrayElementCount / 2);
-  vectorGrid[centerElement+0] = 10.;
-  vectorGrid[centerElement+1] = 10.;
-  vectorGrid[centerElement+2] = 10.;
+  vectorGrid[centerElement+0] = 30.;
+  vectorGrid[centerElement+1] = 30.;
+  vectorGrid[centerElement+2] = 30.;
   let transformDataset = {
     SOPClass: "DeformableSpatialRegistration",
 
@@ -156,12 +156,12 @@ function addTransformField() {
   };
 
   let transformField = Field.fromDataset(transformDataset)[0];
-  transformField.visible = 0;
+  transformField.visible = 1;
 
   step.renderer.inputFields.forEach(field => {
     field.transformField = transformField;
   });
-  step.renderer.inputFields.push(transformField);
+  step.renderer.inputFields.unshift(transformField);
   step.renderer.updateProgram();
   step.renderer.requestRender(step.view);
 }

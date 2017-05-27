@@ -9,7 +9,7 @@ class Field {
                              // undefined means there is no bound, otherwise
                              // an object with min and max
     this.visible = 1; // integer so it can be passed as a uniform
-    this.spinMultiplier = 0.1; // for transform testing
+    this.transformGain = 1.; // for visualizing/animating/exaggerating transform
     this.generator = undefined; // the generator that populates the texture
     this.transformField = undefined; // the field that defines the deformation
 
@@ -44,29 +44,24 @@ class Field {
 
   // ShaderSources return a string with these functions implemented in GLSL
   transformShaderSource() {
-    return(`
-    uniform float spinMultiplier${this.id};
-    mat4 rotationMatrix${this.id}(vec3 ax, float angle)
-    {
-      ax = normalize(ax);
-      float s = sin(angle);
-      float c = cos(angle);
-      float oc = 1.0 - c;
-
-      return mat4(
-        oc * ax.x * ax.x + c, oc * ax.x * ax.y - ax.z * s,  oc * ax.z * ax.x + ax.y * s,  0.0,
-        oc * ax.x * ax.y + ax.z * s,  oc * ax.y * ax.y + c, oc * ax.y * ax.z - ax.x * s,  0.0,
-        oc * ax.z * ax.x - ax.y * s,  oc * ax.y * ax.z + ax.x * s,  oc * ax.z * ax.z + c, 0.0,
-        0.0,  0.0,  0.0,  1.0);
+    if (this.transformField) {
+      return (`
+        uniform float transformGain${this.id};
+        vec3 transformPoint${this.id}(const in vec3 samplePoint)
+        {
+          vec3 transformSTPPoint = patientToTexture${this.transformField.id}(samplePoint);
+          vec3 displacement = texture(textureUnit${this.transformField.id}, transformSTPPoint).xyz;
+          return(samplePoint + transformGain${this.id} * displacement);
+        }
+      `);
+    } else {
+      return (`
+        vec3 transformPoint${this.id}(const in vec3 samplePoint)
+        {
+          return(samplePoint);
+        }
+      `);
     }
-
-    vec3 transformPoint${this.id}(const in vec3 samplePoint)
-      {
-        mat4 spin = rotationMatrix${this.id}(vec3(1.), spinMultiplier${this.id} * samplePoint.z);
-        vec3 newPoint = (spin * vec4(samplePoint,1.)).xyz;
-        return(newPoint);
-      }
-    `);
   }
 
   samplingShaderSource() {
@@ -94,7 +89,7 @@ class Field {
     let u = {};
     u['visible'+this.id] = {type: '1i', value: this.visible};
     u['textureUnit'+this.id] = {type: '1i', value: this.id};
-    u['spinMultiplier'+this.id] = {type: '1f', value: this.spinMultiplier};
+    u['transformGain'+this.id] = {type: '1f', value: this.transformGain};
     return(u);
   }
 

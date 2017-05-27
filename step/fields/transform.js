@@ -25,8 +25,8 @@ class TransformField extends PixelField {
                                        out vec3 color,
                                        out float opacity)
       {
-        color = vec3(0.5);
-        opacity = 0.;
+        color = vec3(sampleValue, 0.5, 2.);
+        opacity = gradientMagnitude;
       }
 
       uniform int visible${this.id};
@@ -64,7 +64,9 @@ class TransformField extends PixelField {
       {
       // TODO
         vec3 stpPoint = patientToTexture${this.id}(patientPoint);
-        vec3 displacement = texture(textureUnit, stpPoint).xyz;
+        normal = texture(textureUnit, stpPoint).xyz;
+        sampleValue = length(normal);
+        gradientMagnitude = sampleValue;
       }
 
       void sampleField${this.id} (const in ${this.samplerType} textureUnit,
@@ -74,9 +76,23 @@ class TransformField extends PixelField {
                                   out vec3 normal,
                                   out float gradientMagnitude)
       {
-        sampleValue = 0.;
-        normal = vec3(0.);
-        gradientMagnitude = 0.;
+        // samplePoint is in patient coordinates, stp is texture coordinates
+        vec3 samplePoint = transformPoint${this.id}(samplePointPatient);
+        vec3 stpPoint = patientToTexture${this.id}(samplePoint);
+
+        // trivial reject outside
+        if (any(lessThan(stpPoint, vec3(0.)))
+             || any(greaterThan(stpPoint,vec3(1.)))) {
+          sampleValue = 0.;
+          normal = vec3(0.);
+          gradientMagnitude = 0.;
+        } else {
+          sampleValue = 100.;
+          normal = vec3(1.);
+          gradientMagnitude = 1.;
+          sampleTexture${this.id}(textureUnit, samplePoint, gradientSize,
+                                  sampleValue, normal, gradientMagnitude);
+        }
       }
     `);
   }

@@ -115,43 +115,19 @@ function addTransformField() {
   let arrayElementCount = [w,h,d].reduce((p,e)=>p*e);
   let vectorGrid = new Float32Array(3 * arrayElementCount);
   let centerElement = 3 * Math.floor(arrayElementCount / 2);
-  vectorGrid[centerElement+0] = 30.;
-  vectorGrid[centerElement+1] = 30.;
-  vectorGrid[centerElement+2] = 30.;
+  vectorGrid[centerElement+0] = -10.;
+  vectorGrid[centerElement+1] = 10.;
+  vectorGrid[centerElement+2] = 10.;
   let transformDataset = {
     SOPClass: "DeformableSpatialRegistration",
-
-    // backwards compatibility with PixelField
-    Columns: 3,
-    Rows: 3,
-    NumberOfFrames: 3,
-    SharedFunctionalGroups: {
-      PlaneOrientation: {
+    DeformableRegistration: {
+      DeformableRegistrationGrid: {
         ImageOrientationPatient: [1,0,0, 0,1,0],
+        ImagePositionPatient: [-20, -20, -20],
+        GridDimensions: [w, h, d],
+        GridResolution: [20., 20., 20.],
+        VectorGridData: vectorGrid,
       },
-      PixelMeasures: {
-        PixelSpacing: [10,10],
-        SpacingBetweenSlices: 10,
-      },
-    },
-    PerFrameFunctionalGroups: [
-      {
-        PlanePosition: {
-          ImagePositionPatient: [-10, -10, -10],
-        },
-      },
-      {
-        PlanePosition: {
-          ImagePositionPatient: [-10, -10, 0],
-        },
-      },
-    ],
-
-    // the grid itself
-    DeformableRegistrationGrid: {
-      //GridDimensions: [3, 3, 3], TODO - should use these instead of functional groups
-      //GridResolution: [10., 10., 10.],
-      VectorGridData: vectorGrid,
     },
   };
 
@@ -161,7 +137,7 @@ function addTransformField() {
   step.renderer.inputFields.forEach(field => {
     field.transformField = transformField;
   });
-  step.renderer.inputFields.unshift(transformField);
+  step.renderer.inputFields.unshift(transformField); // TODO: generalize dependencies
   step.renderer.updateProgram();
   step.renderer.requestRender(step.view);
 }

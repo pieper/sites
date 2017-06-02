@@ -4,39 +4,68 @@ class PixelField extends Field {
     this.dataset = options.dataset || {};
   }
 
+  dimensions() {
+    return([this.dataset.Columns,
+            this.dataset.Rows,
+            this.dataset.NumberOfFrames].map(Number));
+  }
+
+  orientation() {
+    return(this.dataset.SharedFunctionalGroups.PlaneOrientation.ImageOrientationPatient.map(Number));
+  }
+
+  sliceStepFromOrientation(orientation) {
+    let columnStepToPatient = vec3.fromValues(...orientation.slice(0,3));
+    let rowStepToPatient = vec3.fromValues(...orientation.slice(3,6));
+    let sliceStepToPatient = vec3.create();
+    vec3.cross(sliceStepToPatient, columnStepToPatient, rowStepToPatient);
+    return(sliceStepToPatient);
+  }
+
+  spacing() {
+    let pixelMeasures = this.dataset.SharedFunctionalGroups.PixelMeasures;
+    return([pixelMeasures.PixelSpacing[0],
+            pixelMeasures.PixelSpacing[1],
+            pixelMeasures.SpacingBetweenSlices].map(Number));
+  }
+
+  spacing() {
+    let pixelMeasures = this.dataset.SharedFunctionalGroups.PixelMeasures;
+    return([pixelMeasures.PixelSpacing[0],
+            pixelMeasures.PixelSpacing[1],
+            pixelMeasures.SpacingBetweenSlices].map(Number));
+  }
+
+  position(frame) {
+    frame = frame || 0;
+    let perFrameGroups = this.dataset.PerFrameFunctionalGroups;
+    return(perFrameGroups[frame].PlanePosition.ImagePositionPatient.map(Number));
+  }
+
   analyze() {
     super.analyze();
     // examine the dataset and calculate intermediate values needed for rendering
     // TODO: patientToPixel and related matrices should be generalized to functions.
     // TODO: transfer function parameters could be textures.
 
-    this.pixelDimensions = [this.dataset.Columns,
-                              this.dataset.Rows,
-                              this.dataset.NumberOfFrames].map(Number);
+    this.pixelDimensions = this.dimensions();
 
-    // matrix from sampling space (patient, mm) to STP (0 to 1) texture coordinates
-    let sharedGroups = this.dataset.SharedFunctionalGroups;
-    let orientation = sharedGroups.PlaneOrientation.ImageOrientationPatient;
-    let columnStepToPatient = vec3.fromValues(...orientation.slice(0,3).map(Number));
-    let rowStepToPatient = vec3.fromValues(...orientation.slice(3,6).map(Number));
-    let sliceStepToPatient = vec3.create();
-    vec3.cross(sliceStepToPatient, rowStepToPatient, columnStepToPatient);
+    let [spacingBetweenColumns,
+         spacingBetweenRows,
+         spacingBetweenSlices] = this.spacing();
 
-    let pixelMeasures = sharedGroups.PixelMeasures;
-    let spacingBetweenColumns = Number(pixelMeasures.PixelSpacing[0]);
-    let spacingBetweenRows = Number(pixelMeasures.PixelSpacing[1]);
-    let spacingBetweenSlices = Number(pixelMeasures.SpacingBetweenSlices);
+    let orientation = this.orientation();
+    let sliceStepToPatient = this.sliceStepFromOrientation(orientation);
 
+    let columnStepToPatient = vec3.fromValues(...orientation.slice(0,3));
+    let rowStepToPatient = vec3.fromValues(...orientation.slice(3,6));
     vec3.scale(columnStepToPatient, columnStepToPatient, spacingBetweenColumns);
     vec3.scale(rowStepToPatient, rowStepToPatient, spacingBetweenRows);
     vec3.scale(sliceStepToPatient, sliceStepToPatient, spacingBetweenSlices);
 
-    let perFrameGroups = this.dataset.PerFrameFunctionalGroups;
-    let position0 = perFrameGroups[0].PlanePosition.ImagePositionPatient;
-    let origin = vec3.fromValues(...position0.map(Number));
-    if (perFrameGroups.length > 1) {
-      let position1 = perFrameGroups[1].PlanePosition.ImagePositionPatient;
-      position1 = vec3.fromValues(...position1.map(Number));
+    let origin = vec3.fromValues(...this.position(0));
+    if (this.pixelDimensions[2] > 1) {
+      let position1 = vec3.fromValues(...this.position(1));
       let originToPosition1 = vec3.create();
       vec3.subtract(originToPosition1, position1, origin);
       if (vec3.dot(sliceStepToPatient, originToPosition1) < 0) {
@@ -44,6 +73,7 @@ class PixelField extends Field {
       }
     }
 
+    // matrix from pixel coordinates IJK (0 to N-1) to sampling space (patient, mm) and inverse
     this.pixelToPatient = mat4.fromValues(...columnStepToPatient, 0,
                                           ...rowStepToPatient, 0,
                                           ...sliceStepToPatient, 0,
@@ -78,6 +108,7 @@ class PixelField extends Field {
     vec3.min(min, firstCorner, secondCorner);
     vec3.max(max, firstCorner, secondCorner);
     this.bounds = {min : min.valueOf(), max : max.valueOf()};
+
     let center = vec3.create();
     vec3.add(center, min, max);
     vec3.scale(center, center, 0.5);

@@ -4,9 +4,36 @@ class TransformField extends PixelField {
     this.analyze();
   }
 
+  dimensions() {
+    let grid = this.dataset.DeformableRegistration.DeformableRegistrationGrid;
+    return(grid.GridDimensions.map(Number));
+  }
+
+  orientation() {
+    let grid = this.dataset.DeformableRegistration.DeformableRegistrationGrid;
+    return(grid.ImageOrientationPatient.map(Number));
+  }
+
+  spacing() {
+    let grid = this.dataset.DeformableRegistration.DeformableRegistrationGrid;
+    return(grid.GridResolution.map(Number));
+  }
+
+  position(frame) {
+    frame = frame || 0;
+    let grid = this.dataset.DeformableRegistration.DeformableRegistrationGrid;
+    let origin = grid.ImagePositionPatient.map(Number);
+    let sliceStep = this.sliceStepFromOrientation(this.orientation());
+    console.log(`sliceStep: ${sliceStep}`);
+    let sliceSpacing = this.spacing()[2];
+    vec3.scale(sliceStep, sliceStep, frame * sliceSpacing);
+    let framePosition = vec3.create();
+    vec3.add(framePosition, origin, sliceStep);
+    return(framePosition)
+  }
+
   analyze() {
     super.analyze();
-
   }
 
   uniforms() {
@@ -103,7 +130,7 @@ class TransformField extends PixelField {
     let needsUpdate = super.fieldToTexture(gl);
     if (needsUpdate) {
 
-      let grid = this.dataset.DeformableRegistrationGrid;
+      let grid = this.dataset.DeformableRegistration.DeformableRegistrationGrid;
       
       let [w,h,d] = this.pixelDimensions;
       gl.texStorage3D(gl.TEXTURE_3D, 1, gl.RGB32F, w, h, d);

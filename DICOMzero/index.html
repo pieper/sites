@@ -35,6 +35,7 @@ function resetDICOMzero() {
   dc0 = {
     mappingLog : [],
     dataTransfer : undefined,
+    unnaturalDatasets : [],
     datasets : [],
     readers : [],
     arrayBuffers : [],
@@ -135,6 +136,7 @@ function readDICOM(progressEvent) {
   let dicomData;
   try {
     dicomData = DicomMessage.readFile(arrayBuffer);
+    dc0.unnaturalDatasets.push(dicomData.dict);
     let dataset = DicomMetaDictionary.naturalizeDataset(dicomData.dict);
     dataset._meta = DicomMetaDictionary.namifyDataset(dicomData.meta);
     dc0.datasets.push(dataset);

@@ -118,6 +118,10 @@ function addTransformField() {
   vectorGrid[centerElement+0] = -10.;
   vectorGrid[centerElement+1] = 10.;
   vectorGrid[centerElement+2] = 10.;
+  for (let k of Array(9).keys()) {
+    vectorGrid[3*k+2] = 20.; // translate bottom plane upward
+    vectorGrid[10+3*k+2] = 15.; // translate middle less upward
+  }
   let transformDataset = {
     SOPClass: "DeformableSpatialRegistration",
     DeformableRegistration: {
@@ -131,6 +135,18 @@ function addTransformField() {
     },
   };
 
+  let referenceField = step.renderer.inputFields[0];
+  if (referenceField) {
+    let grid = transformDataset.DeformableRegistration.DeformableRegistrationGrid;
+    let bounds = referenceField.bounds;
+    grid.ImagePositionPatient = bounds.min.slice();
+    grid.GridResolution = [
+      (bounds.max[0] - bounds.min[0]) / w,
+      (bounds.max[1] - bounds.min[1]) / h,
+      (bounds.max[2] - bounds.min[2]) / d,
+    ];
+  };
+
   let transformField = Field.fromDataset(transformDataset)[0];
   transformField.visible = 1;
 
@@ -140,6 +156,22 @@ function addTransformField() {
   step.renderer.inputFields.unshift(transformField); // TODO: generalize dependencies
   step.renderer.updateProgram();
   step.renderer.requestRender(step.view);
+}
+
+function animateTransform() {
+  let frame = 0;
+  let frames = 100;
+  let maxGain = 10;
+  let animationFrame = function (now) {
+    step.renderer.inputFields[1].transformGain = maxGain * Math.sin(Math.PI*frame/frames);
+    step.renderer.requestRender();
+    frame = frame + 1;
+    if (frame < frames) {
+      requestAnimationFrame(animationFrame)
+    }
+    step.ui.bottomBar.progress = `Animation frame ${frame} of ${frames}`;
+  };
+  requestAnimationFrame(animationFrame)
 }
 
 // once the data is downloaded
@@ -660,6 +692,7 @@ $(function () {
     performRasterizeSegments : performRasterizeSegments,
     addRandomFiducials : addRandomFiducials,
     addTransformField : addTransformField,
+    animateTransform : animateTransform,
     save : saveFieldsAsDICOM,
   });
   document.body.insertBefore(step.ui.menubar.dom, document.body.firstChild);

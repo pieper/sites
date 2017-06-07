@@ -104,6 +104,7 @@ class stepFileMenu extends MenuPanel {
 
     // spacer - tests
     this.menuPanel.add( new UI.HorizontalRule() );
+
     // File -> Add Fiducials
     option = new UI.Row();
     option.setClass( 'option' );
@@ -113,12 +114,21 @@ class stepFileMenu extends MenuPanel {
     } );
     this.menuPanel.add( option );
 
-    // File -> Add Fiducials
+    // File -> Add Transform
     option = new UI.Row();
     option.setClass( 'option' );
     option.setTextContent( 'Add Transform' );
     option.onClick( function () {
       options.addTransformField();
+    } );
+    this.menuPanel.add( option );
+
+    // File -> Animate Transform
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Animate Transform' );
+    option.onClick( function () {
+      options.animateTransform();
     } );
     this.menuPanel.add( option );
 

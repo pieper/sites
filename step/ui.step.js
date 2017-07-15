@@ -67,6 +67,12 @@ class stepFileMenu extends MenuPanel {
         seriesKeys: ['[["UnspecifiedInstitution","QIN-PROSTATE-01-0002"],["MS2197/BD/PRO   Pelvis w&w/o","1.3.6.1.4.1.14519.5.2.1.3671.7001.267069126134560539593081476574"],["MR","AX FRFSE-XL T2","1.3.6.1.4.1.14519.5.2.1.3671.7001.311804128593572138452599822764"]]'],
       },
       */
+      { name: "Prostate Example",
+        seriesKeys: [
+          '[["UnspecifiedInstitution","QIN-PROSTATE-01-0001"],["PELVIS W/O CONT","1.3.6.1.4.1.14519.5.2.1.3671.7001.133687106572018334063091507027"],["MR","Apparent Diffusion Coefficient (mm?/s)","1.3.6.1.4.1.14519.5.2.1.3671.7001.261913302903961139526297576821"]]',
+          '[["UnspecifiedInstitution","QIN-PROSTATE-01-0001"],["PELVIS W/O CONT","1.3.6.1.4.1.14519.5.2.1.3671.7001.133687106572018334063091507027"],["SEG","UnspecifiedSeriesDescription","1.2.276.0.7230010.3.1.3.0.19185.1476720200.384250"]]',
+          ],
+      },
       { name: "Head and Neck Example",
         seriesKeys: ['[["UnspecifiedInstitution","QIN-HEADNECK-01-0003"],["Thorax^1HEAD_NECK_PETCT","1.3.6.1.4.1.14519.5.2.1.2744.7002.150059977302243314164020079415"],["CT","CT WB 5.0 B40s_CHEST","1.3.6.1.4.1.14519.5.2.1.2744.7002.248974378224961074547541151175"]]'],
       },

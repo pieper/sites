@@ -1,6 +1,9 @@
 class SegmentationField extends PixelField {
   constructor(options={}) {
     super(options);
+
+    this.samplerType = 'isampler3D';
+
     this.analyze();
   }
 
@@ -56,9 +59,13 @@ class SegmentationField extends PixelField {
                                   out float gradientMagnitude)
       {
         vec3 samplePoint = transformPoint${this.id}(samplePointPatient);
+
         vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
         stpPoint /= vec3(pixelDimensions${this.id});
+
+
         stpPoint.x /= 8.;
+
         if (any(lessThan(stpPoint, vec3(0.))) ||
             any(greaterThan(stpPoint,vec3(1.)))) {
           sampleValue = 0.;

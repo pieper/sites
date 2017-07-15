@@ -615,6 +615,7 @@ $(function () {
     alert('Sorry, it looks like your browser does not support webgl2.  Try firefox.');
     return;
   }
+  $('#noWebGLAlert').remove();
 
 
   // check if our gl supports float textures and if
@@ -731,9 +732,13 @@ window.onresize = onResize;
 
 </script>
 
-<p>
-This demo uses <a href='https://www.khronos.org/registry/webgl/specs/latest/2.0/'>WebGL2</a>.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.  <a href='https://www.khronos.org/webgl/wiki/Getting_a_WebGL_Implementation'>See this page for details.</a>
-</p>
+<div id="noWebGLAlert">
+  <p>
+  This demo uses <a href='https://www.khronos.org/registry/webgl/specs/latest/2.0/'>WebGL2</a>.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.  <a href='https://www.khronos.org/webgl/wiki/Getting_a_WebGL_Implementation'>See this page for details.</a>
+  </p>
+  <p>This video shows what the project looks like when WebGL2 is available:</p>
+  <iframe src="http://www.youtube.com/embed/wMkuwzA7RDo"  width="640" height="480" frameborder="0" allowfullscreen></iframe>
+</div>
 
 </body>
 </html>

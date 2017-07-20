@@ -2,9 +2,40 @@ class SegmentationField extends PixelField {
   constructor(options={}) {
     super(options);
 
-    this.samplerType = 'isampler3D';
+    this.samplerType = 'sampler3D';
 
     this.analyze();
+  }
+
+  unpack() {
+    // convert BitsAllocated, BitsStored == 1 dataset to
+    // 0-255 Uint8Array pixel data
+    // TODO: this could be moved to the SegmentationNormalizer
+    // TODO: for segmentation generators to create valid SegmentationFields
+    //       this code will need to be made conditional on the BitsAllocated
+    let [columns,rows,slices] = [this.dataset.Rows,
+                                 this.dataset.Columns,
+                                 this.dataset.NumberOfFrames,
+                                ].map(Number);
+    let sliceSize = (rows*columns);
+    let packedPixelData = new Uint8Array(this.dataset.PixelData);
+    let bytesPerPackedRow = Math.ceil(rows/8);
+    let packedSliceSize = rows * bytesPerPackedRow;
+    let pixelData = new Uint8Array(slices*rows*columns);
+    for (let slice = 0; slice < slices; slice++) {
+      for (let row = 0; row < rows; row++) {
+        let packedRowIndex = slice * packedSliceSize + row * bytesPerPackedRow;
+        for (let column = 0; column < columns; column++) {
+          let columnByteIndex = Math.floor(column/8);
+          let packedIndex = packedRowIndex + columnByteIndex;
+          let columnBitIndex = column%8;
+          let mask = 1 << columnBitIndex;
+          let unpackedValue = (packedPixelData[packedIndex] & mask) >> columnBitIndex;
+          pixelData[slice*sliceSize + row*columns + column] = 255. * unpackedValue;
+        }
+      }
+    }
+    return (pixelData);
   }
 
   analyze() {
@@ -19,21 +50,17 @@ class SegmentationField extends PixelField {
       console.warn('SpacingBetweenSlices and SliceThickness should be equal for SEG');
       console.warn(pixelMeasures.SpacingBetweenSlices + ' != ' + pixelMeasures.SliceThickness);
     }
-    this.pixelDimensions[0] /= 8; // the array size is smaller due to packing
     this.rgb = Colors.dicomlab2RGB(this.dataset.Segment[0].RecommendedDisplayCIELabValue);
   }
 
   uniforms() {
     let u = super.uniforms();
-    u['packingFactor'+this.id] = {type: '1ui', value: this.pixelDimensions[0]};
     u['rgb'+this.id] = {type: '3fv', value: this.rgb};
     return(u);
   }
 
-  samplingShaderSource() {
+  transferFunctionSource() {
     return(`
-      uniform highp ${this.samplerType} textureUnit${this.id};
-
       uniform vec3 rgb${this.id};
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,
@@ -43,43 +70,9 @@ class SegmentationField extends PixelField {
         color = vec3(0., 0., 0.);
         opacity = 0.;
         if (sampleValue > 0.) {
-          color = rgb${this.id};
-          opacity = 10.;
+          color = sampleValue * rgb${this.id};
+          opacity = .1;
         }
-      }
-
-      uniform int visible${this.id};
-      uniform mat4 patientToPixel${this.id};
-      uniform ivec3 pixelDimensions${this.id};
-      uniform uint packingFactor${this.id};
-      void sampleField${this.id} (const in ${this.samplerType} textureUnit,
-                                  const in vec3 samplePointPatient,
-                                  const in float gradientSize,
-                                  out float sampleValue, out vec3 normal,
-                                  out float gradientMagnitude)
-      {
-        vec3 samplePoint = transformPoint${this.id}(samplePointPatient);
-
-        vec3 stpPoint = (patientToPixel${this.id} * vec4(samplePoint, 1.)).xyz;
-        stpPoint /= vec3(pixelDimensions${this.id});
-
-
-        stpPoint.x /= 8.;
-
-        if (any(lessThan(stpPoint, vec3(0.))) ||
-            any(greaterThan(stpPoint,vec3(1.)))) {
-          sampleValue = 0.;
-          gradientMagnitude = 0.;
-          return;
-        }
-
-        uint bitIndex = uint(floor(8.*fract(stpPoint.x*float(packingFactor${this.id}))));
-        uint uintSampleValue = uint(texture(textureUnit, stpPoint).r);
-        uint bitValue = (uintSampleValue >> bitIndex) & uint(1);
-        sampleValue = float(bitValue);
-
-        normal = vec3(0., 0., -1.);
-        gradientMagnitude = 0.;
       }
     `);
   }
@@ -90,38 +83,15 @@ class SegmentationField extends PixelField {
 
     if (needsUpdate) {
       let [w,h,d] = this.pixelDimensions;
-      gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8UI, w, h, d);
-      // Each row of the texture needs to be a mulitple of the
-      // unpack size, which is typically 4 and cannot be changed
-      // in webgl.  So we load the texture a row at a time
-      // using the first part of the next row as padding.
-      // For the last row we need to copy over the contents
-      // into a new buffer of the correct size.
-      //https://groups.google.com/forum/#!topic/webgl-dev-list/wuUZP7iTr9Q
-      // TODO: this could be needed for any texture but it's not likely.
-      let unpackAlignment = gl.getParameter(gl.UNPACK_ALIGNMENT);
-      let paddedRowSize = Math.floor((w + unpackAlignment - 1) / unpackAlignment)
-                            * unpackAlignment;
-      let rowByteArray;
-      for (let slice = 0; slice < d; slice++) {
-        for (let row = 0; row < h; row++) {
-          let rowStart = slice * (w*h) + row * w;
-          if (slice == d-1 && row == h-1) {
-            let lastRow = new Uint8Array(w);
-            rowByteArray = new Uint8Array(paddedRowSize);
-            for (let column = 0; column < w; column++) {
-              rowByteArray[column] = lastRow[column];
-            }
-          } else {
-            rowByteArray = new Uint8Array(this.dataset.PixelData, rowStart, paddedRowSize);
-          }
-          gl.texSubImage3D(gl.TEXTURE_3D,
-                           0, // level, offsets
-                           0, row, slice,
-                           w, 1, 1,
-                           gl.RED_INTEGER, gl.UNSIGNED_BYTE, rowByteArray);
-        }
-      }
+      let byteArray = this.unpack(); // for now, don't save unpacked pixel data
+      gl.texStorage3D(gl.TEXTURE_3D, 1, gl.R8, w, h, d);
+      gl.texSubImage3D(gl.TEXTURE_3D,
+                       0, // level, offsets
+                       0, 0, 0,
+                       w, h, d,
+                       gl.RED, gl.UNSIGNED_BYTE, byteArray);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       this.updated();
     }
   }

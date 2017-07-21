@@ -19,6 +19,12 @@ class ImageField extends PixelField {
     if (! this.dataset.SamplesPerPixel in [1,3]) {
       console.error('Can only handle 1 or 3 samples per pixel');
     }
+
+    // array of control points in form [value, {r, g, b, a}]
+    this.transferFunction = [
+      [0, {r: 0, g: 0, b: 0, a: 1}],
+      [1, {r: 255, g: 255, b: 255, a: 1}],
+    ];
   }
 
   statistics(options={}) {
@@ -65,12 +71,18 @@ class ImageField extends PixelField {
 
   uniforms() {
     // TODO: need to be keyed to id (in a struct)
-
     let u = super.uniforms();
     u['windowCenter'+this.id] = {type: "1f", value: this.windowCenter};
     u['windowWidth'+this.id] = {type: "1f", value: this.windowWidth};
     u['rescaleSlope'+this.id] = {type: "1f", value: this.rescaleSlope};
     u['rescaleIntercept'+this.id] = {type: "1f", value: this.rescaleIntercept};
+    // add transfer function control point uniforms
+    for (let index = 0; index < this.transferFunction.length; index++) {
+      let [value, rgba] = this.transferFunction[index];
+      rgba = [rgba.r/255, rgba.g/255, rgba.b/255, rgba.a];
+      u['tfcp'+this.id+'value'+index] = {type: '1f', value: value};
+      u['tfcp'+this.id+'rgba'+index] = {type: '4fv', value: rgba};
+    }
     return(u);
   }
 
@@ -84,10 +96,49 @@ class ImageField extends PixelField {
     `);
   }
 
+  transferFunctionControlPointUniformSource() {
+    let uniformSource = '\n';
+    for (let index = 0; index < this.transferFunction.length; index++) {
+      uniformSource += `uniform float tfcp${this.id}value${index};\n`;
+      uniformSource += `uniform vec4 tfcp${this.id}rgba${index};\n`;
+    }
+    return(uniformSource);
+  }
+
+  transferFunctionControlPointLookupSource() {
+    let lookupSource = '\n';
+    let index = 0;
+    lookupSource += `
+      if (pixelValue < tfcp${this.id}value${index}) {
+        color = tfcp${this.id}rgba${index}.rgb;
+        opacity = tfcp${this.id}rgba${index}.a;
+      }\n`;
+    for (index = 1; index < this.transferFunction.length; index++) {
+      // TODO: add proportional scaling
+      lookupSource += `
+        else if (pixelValue < tfcp${this.id}value${index}) {
+          float proportion = (pixelValue - tfcp${this.id}value${index-1}) /
+            (tfcp${this.id}value${index} - tfcp${this.id}value${index-1});
+          color = mix( tfcp${this.id}rgba${index-1}.rgb,
+                       tfcp${this.id}rgba${index}.rgb,
+                       proportion );
+          opacity = mix( tfcp${this.id}rgba${index-1}.a,
+                         tfcp${this.id}rgba${index}.a,
+                         proportion );
+        }\n`;
+    }
+    lookupSource += `
+      else {
+        color = tfcp${this.id}rgba${index-1}.rgb;
+      }\n`;
+    return(lookupSource);
+  }
+
   transferFunctionSource() {
     return(`
       uniform float windowCenter${this.id};
       uniform float windowWidth${this.id};
+      ${this.transferFunctionControlPointUniformSource()}
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,
                                        out vec3 color,
@@ -97,8 +148,13 @@ class ImageField extends PixelField {
                 (sampleValue - (windowCenter${this.id}-0.5))
                   / (windowWidth${this.id}-1.);
         pixelValue = clamp( pixelValue, 0., 1. );
+
         color = vec3(pixelValue);
+
         opacity = gradientMagnitude * pixelValue / 1000.; // TODO
+
+        ${this.transferFunctionControlPointLookupSource()}
+
       }
     `);
   }

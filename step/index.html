@@ -16,6 +16,12 @@
   <script src="./js/pouchdb-5.1.0.js"></script>
   <script src="./js/pouchdb.memory.js"></script>
 
+  <link rel="stylesheet" href="js/TF/ui.css"/>
+  <script src="js/TF/ui.js"></script>
+  <script src="js/TF/CP_widget.js"></script>
+  <script src="js/TF/TF_panel.js"></script>
+
+
   <script type="text/javascript" src="../dcmio/FileSaver.min.js"></script>
   <script type="text/javascript" src="../dcmio/DicomMetaDictionary.js"></script>
   <script type="text/javascript" src="../dcmio/BufferStream.js"></script>
@@ -259,6 +265,21 @@ function requestSeries(instanceURLs) {
       }
     });
   });
+}
+
+function updateTransferFunction() {
+
+  let field = step.controls.selectedImageField();
+  if (field) {
+    let oldTFLength = field.transferFunction.length;
+    field.transferFunction = step.tf.getTF();
+    if (oldTFLength != field.transferFunction.length) {
+console.log('updating program');
+console.log(field.transferFunction);
+      step.renderer.updateProgram();
+    }
+    step.renderer.requestRender();
+  }
 }
 
 function performImageFilter( generator, options ) {
@@ -684,6 +705,7 @@ $(function () {
   step.ui.menubar = new stepMenubar(step, {
     chronicle : step.chronicle,
     requestSeries : requestSeries,
+    updateTransferFunction : updateTransferFunction,
     performFilter : performFilter,
     performPDE : performPDE,
     performGrowCut : performGrowCut,

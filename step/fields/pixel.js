@@ -85,12 +85,14 @@ class PixelField extends Field {
     // TODO:
     // the inverse transpose of the upper 3x3 of the pixelToPatient matrix,
     // which is the transpose of the upper 3x3 of the patientToPixel matrix
+    /*
     let p = this.patientToPixel;
     this.normalPixelToPatient = [
       p[0][0], p[0][1], p[0][2],
       p[1][0], p[1][1], p[1][2],
       p[2][0], p[2][1], p[2][2],
     ];
+    */
 
     // the bounds are the outer corners of the very first and very last
     // pixels of the dataset measured in pixel space
@@ -117,7 +119,7 @@ class PixelField extends Field {
 
   uniforms() {
     let u = super.uniforms();
-    u['normalPixelToPatient'+this.id] = {type: "Matrix3fv", value: this.normalPixelToPatient},
+    // u['normalPixelToPatient'+this.id] = {type: "Matrix3fv", value: this.normalPixelToPatient},
     u['patientToPixel'+this.id] = {type: "Matrix4fv", value: this.patientToPixel};
     u['pixelToPatient'+this.id] = {type: "Matrix4fv", value: this.pixelToPatient};
     u['pixelDimensions'+this.id] = {type: '3iv', value: this.pixelDimensions};
@@ -174,7 +176,7 @@ class PixelField extends Field {
       uniform int visible${this.id};
       uniform mat4 patientToPixel${this.id};
       uniform mat4 pixelToPatient${this.id};
-      uniform mat3 normalPixelToPatient${this.id};
+      // uniform mat3 normalPixelToPatient${this.id}; not currently used
       uniform ivec3 pixelDimensions${this.id};
 
       vec3 patientToTexture${this.id}(const in vec3 patientPoint)

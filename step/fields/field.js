@@ -89,7 +89,9 @@ class Field {
     let u = {};
     u['visible'+this.id] = {type: '1i', value: this.visible};
     u['textureUnit'+this.id] = {type: '1i', value: this.id};
-    u['transformGain'+this.id] = {type: '1f', value: this.transformGain};
+    if (this.transformField) {
+      u['transformGain'+this.id] = {type: '1f', value: this.transformGain};
+    }
     return(u);
   }
 

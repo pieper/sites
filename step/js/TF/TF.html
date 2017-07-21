@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Transfer Function Editor</title>
+    <link rel="stylesheet" href="UI/ui.css"/>
+    <script src="scripts/es5-shim.min.js"></script>
+    <script src="scripts/es6-shim.min.js"></script>
+    <!--<link href='https://fonts.googleapis.com/css?family=Roboto+Condensed:400' rel='stylesheet' type='text/css'>-->
+</head>
+<body style="padding-left: 20px">
+<a href="#updateTF" id="fire"></a>
+<!--<div class="wrapper" style="position: relative; width: 80%; height: 600px; left: auto; top: 40px">-->
+</div>
+<script src="UI/ui.js"></script>
+<script src="UI/CP_widget.js"></script>
+<script src="UI/TF_panel.js"></script>
+<script>
+    document.documentElement.style.overflow = 'hidden';  // hide scrollbars firefox, chrome
+    document.body.scroll = "no"; // ie only
+
+    var bWidth = window.innerWidth;
+    var bHeight = window.innerHeight;
+    console.log( bWidth + ', ' + bHeight );
+    var tf_panel = new TF_panel( { container: document.body, panel: { width: bWidth, height: bHeight } } );
+
+    window.onresize = function() {
+        tf_panel.resize( window.innerWidth, window.innerHeight );
+    };
+	
+	function fire() {
+		var evObj = document.createEvent( 'Events' );
+		evObj.initEvent( 'click', true, false );
+		document.getElementById( 'fire' ).dispatchEvent( evObj );
+	}
+	
+	//fire on transfer function change by simulating click event
+	tf_panel.registerCallback( fire );
+</script>
+</body>
+</html>

@@ -33,8 +33,9 @@ class stepMenubar extends Menubar {
     super();
     this.container.add(new stepFileMenu(step,options).container);
     this.container.add(new stepDatabaseMenu(step,options).container);
-    this.container.add(new stepOperationMenu(step,options).container);
     this.container.add(new stepViewMenu(step,options).container);
+    this.container.add(new stepDisplayMenu(step,options).container);
+    this.container.add(new stepOperationMenu(step,options).container);
     this.container.add(new stepAboutMenu(step,options).container);
   }
 }
@@ -304,6 +305,31 @@ class stepDatabaseMenu extends MenuPanel {
         operation: options.requestSeries
       });
     };
+  }
+}
+
+// Transfer function editor
+class stepDisplayMenu extends MenuPanel {
+  constructor(step, options) {
+    options = options || {};
+    options.updateTransferFunction = options.updateTransferFunction || function(){};
+    super(step, {title: 'Display'});
+
+    // status
+    let statusEntry = new UI.Row();
+    statusEntry.setClass( 'option' );
+    statusEntry.setTextContent( `placeholder for TF` );
+    this.menuPanel.add( statusEntry );
+
+    let transferFunctionUI = new UI.Span();
+    transferFunctionUI.setId( 'tfPanel' );
+    this.menuPanel.add( transferFunctionUI );
+
+    let tfPanel = document.getElementById('tfPanel');
+    step.tf = new TF_panel( {
+      container: transferFunctionUI.dom,
+      } );
+    step.tf.registerCallback(options.updateTransferFunction);
   }
 }
 

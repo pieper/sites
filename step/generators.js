@@ -52,8 +52,6 @@ Generator.useIntegerTextures = false; // default
 class ProgrammaticGenerator extends Generator {
   constructor(options={}) {
     super(options);
-    this.uniforms.amplitude = { type: '1f', value: 1. };
-    this.uniforms.frequency = { type: '1f', value: 1. };
     let gl = this.gl;
 
     this.outputFields.forEach(outputField=>{
@@ -106,40 +104,7 @@ class ProgrammaticGenerator extends Generator {
 
   _fragmentShaderSource() {
     return (`${this.headerSource()}
-
-      ${function() {
-          let textureDeclarations = '';
-          this.inputFields.forEach(field=>{
-            textureDeclarations += `uniform highp ${this.samplerType} textureUnit${field.id}`+";\n";
-          });
-          return(textureDeclarations);
-        }.bind(this)()
-      }
-
-      in vec3 interpolatedTextureCoordinate;
-      layout(location = 0) out ${this.bufferType} fragmentColor;
-      layout(location = 1) out ${this.bufferType} altFragmentColor;
-
-      uniform float slice;
-      uniform float amplitude;
-      uniform float frequency;
-      uniform ${this.samplerType} inputTexture0;
-
-      ${this.bufferType} sampleValue;
-      ${this.bufferType} perturbation;
-
-      // dummy example generator - makes darkened cones through volume
-      void main()
-      {
-        perturbation = ${this.bufferType}(10. * amplitude * slice *
-                          (sin(frequency*interpolatedTextureCoordinate.s)
-                           + cos(frequency*interpolatedTextureCoordinate.t))
-                        );
-        vec3 tc = interpolatedTextureCoordinate;
-        sampleValue = texture(inputTexture0, tc).r;
-        fragmentColor = sampleValue + perturbation;
-        altFragmentColor = sampleValue - perturbation;
-      }
+      // to be overridden by concrete subclass
     `);
   }
 
@@ -194,10 +159,15 @@ class ProgrammaticGenerator extends Generator {
   _setUniform(key, uniform) {
     let gl = this.gl;
     let location = gl.getUniformLocation(this.program, key);
+    if (!location) {
+      console.error('No uniform location for', key);
+      return;
+    }
 
     if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
     if (uniform.type == '3iv') {gl.uniform3iv(location, uniform.value); return;}
-    if (uniform.type == '3fv') {gl.uniform3fv(location, uniform.value); return;}
+    if (uniform.type == '4fv') {gl.uniform4fv(location, uniform.value); return;}
+    if (uniform.type == '4iv') {gl.uniform4iv(location, uniform.value); return;}
     if (uniform.type == '1f') {gl.uniform1f(location, uniform.value); return;}
     if (uniform.type == '1ui') {gl.uniform1ui(location, uniform.value); return;}
     if (uniform.type == '1i') {gl.uniform1i(location, uniform.value); return;}
@@ -313,6 +283,54 @@ class ProgrammaticGenerator extends Generator {
         attachment++;
       });
     }
+  }
+}
+
+// Uses a GL program to generate fields
+class ExampleGenerator extends ProgrammaticGenerator {
+  constructor(options={}) {
+    super(options);
+    this.uniforms.amplitude = { type: '1f', value: 1. };
+    this.uniforms.frequency = { type: '1f', value: 1. };
+  }
+
+  _fragmentShaderSource() {
+    return (`${this.headerSource()}
+
+      ${function() {
+          let textureDeclarations = '';
+          this.inputFields.forEach(field=>{
+            textureDeclarations += `uniform highp ${this.samplerType} textureUnit${field.id}`+";\n";
+          });
+          return(textureDeclarations);
+        }.bind(this)()
+      }
+
+      in vec3 interpolatedTextureCoordinate;
+      layout(location = 0) out ${this.bufferType} fragmentColor;
+      layout(location = 1) out ${this.bufferType} altFragmentColor;
+
+      uniform float slice;
+      uniform float amplitude;
+      uniform float frequency;
+      uniform ${this.samplerType} inputTexture0;
+
+      ${this.bufferType} sampleValue;
+      ${this.bufferType} perturbation;
+
+      // dummy example generator - makes darkened cones through volume
+      void main()
+      {
+        perturbation = ${this.bufferType}(10. * amplitude * slice *
+                          (sin(frequency*interpolatedTextureCoordinate.s)
+                           + cos(frequency*interpolatedTextureCoordinate.t))
+                        );
+        vec3 tc = interpolatedTextureCoordinate;
+        sampleValue = texture(inputTexture0, tc).r;
+        fragmentColor = sampleValue + perturbation;
+        altFragmentColor = sampleValue - perturbation;
+      }
+    `);
   }
 }
 

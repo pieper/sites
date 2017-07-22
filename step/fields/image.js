@@ -25,6 +25,7 @@ class ImageField extends PixelField {
       [0, {r: 0, g: 0, b: 0, a: 1}],
       [1, {r: 255, g: 255, b: 255, a: 1}],
     ];
+    this.gradientOpacityScale = 1.;
   }
 
   statistics(options={}) {
@@ -76,6 +77,7 @@ class ImageField extends PixelField {
     u['windowWidth'+this.id] = {type: "1f", value: this.windowWidth};
     u['rescaleSlope'+this.id] = {type: "1f", value: this.rescaleSlope};
     u['rescaleIntercept'+this.id] = {type: "1f", value: this.rescaleIntercept};
+    u['gradientOpacityScale'+this.id] = {type: "1f", value: this.gradientOpacityScale};
     // add transfer function control point uniforms
     for (let index = 0; index < this.transferFunction.length; index++) {
       let [value, rgba] = this.transferFunction[index];
@@ -114,7 +116,6 @@ class ImageField extends PixelField {
         opacity = tfcp${this.id}rgba${index}.a;
       }\n`;
     for (index = 1; index < this.transferFunction.length; index++) {
-      // TODO: add proportional scaling
       lookupSource += `
         else if (pixelValue < tfcp${this.id}value${index}) {
           float proportion = (pixelValue - tfcp${this.id}value${index-1}) /
@@ -138,6 +139,7 @@ class ImageField extends PixelField {
     return(`
       uniform float windowCenter${this.id};
       uniform float windowWidth${this.id};
+      uniform float gradientOpacityScale${this.id};
       ${this.transferFunctionControlPointUniformSource()}
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,
@@ -149,12 +151,9 @@ class ImageField extends PixelField {
                   / (windowWidth${this.id}-1.);
         pixelValue = clamp( pixelValue, 0., 1. );
 
-        color = vec3(pixelValue);
-
-        opacity = gradientMagnitude * pixelValue / 1000.; // TODO
-
         ${this.transferFunctionControlPointLookupSource()}
 
+        opacity *= gradientMagnitude * gradientOpacityScale${this.id};
       }
     `);
   }

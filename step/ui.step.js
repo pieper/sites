@@ -315,21 +315,34 @@ class stepDisplayMenu extends MenuPanel {
     options.updateTransferFunction = options.updateTransferFunction || function(){};
     super(step, {title: 'Display'});
 
-    // status
-    let statusEntry = new UI.Row();
-    statusEntry.setClass( 'option' );
-    statusEntry.setTextContent( `placeholder for TF` );
-    this.menuPanel.add( statusEntry );
+    // gradientOpacityScale
+    this.gradientOpacityScale = new UI.Number();
+    this.gradientOpacityScale.value = 1;
+    this.gradientOpacityScale.min = 0;
+    this.gradientOpacityScale.precision = 6;
+    this.gradientOpacityScale.step = .25;
+    if (options.onGradientOpacityScaleChange) {
+      this.gradientOpacityScale.onChange(options.onGradientOpacityScaleChange);
+    }
+    this.menuPanel.add( this.gradientOpacityScale );
 
+    // scalar transfer function editor
     let transferFunctionUI = new UI.Span();
-    transferFunctionUI.setId( 'tfPanel' );
     this.menuPanel.add( transferFunctionUI );
-
-    let tfPanel = document.getElementById('tfPanel');
-    step.tf = new TF_panel( {
-      container: transferFunctionUI.dom,
-      } );
+    let tfDiv = document.createElement('div');
+    tfDiv.style.position = 'relative';
+    transferFunctionUI.dom.appendChild(tfDiv);
+    step.tf = new TF_panel({
+      container: tfDiv,
+      widgets : [{
+        controlPoints: [
+          {value: 0, alpha: 1, color: {r: 0, g: 0,b: 0}},
+          {value: 1, alpha: 1, color: {r: 255, g: 255,b: 255}},
+        ],
+      }],
+    });
     step.tf.registerCallback(options.updateTransferFunction);
+
   }
 }
 

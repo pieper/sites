@@ -267,9 +267,12 @@ function requestSeries(instanceURLs) {
   });
 }
 
-function updateTransferFunction() {
+function updateGradientOpacity(value) {
+  updateTransferFunction({gradientOpacityScale: value});
+}
 
-  let field = step.controls.selectedImageField();
+function updateTransferFunction(options = {}) {
+  let field = options.field || step.controls.selectedImageField();
   if (field) {
     let oldTFLength = field.transferFunction.length;
     field.transferFunction = step.tf.getTF();
@@ -277,6 +280,9 @@ function updateTransferFunction() {
 console.log('updating program');
 console.log(field.transferFunction);
       step.renderer.updateProgram();
+    }
+    if (options.gradientOpacityScale) {
+      field.gradientOpacityScale = options.gradientOpacityScale;
     }
     step.renderer.requestRender();
   }
@@ -706,6 +712,7 @@ $(function () {
     chronicle : step.chronicle,
     requestSeries : requestSeries,
     updateTransferFunction : updateTransferFunction,
+    onGradientOpacityScaleChange : (event) => {updateGradientOpacity(event.target.value)},
     performFilter : performFilter,
     performPDE : performPDE,
     performGrowCut : performGrowCut,

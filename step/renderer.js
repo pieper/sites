@@ -202,6 +202,10 @@ class RayCastRenderer extends ProgrammaticGenerator {
       uniform float renderCanvasWidth;
       uniform float renderCanvasHeight;
       uniform int sliceMode;
+      uniform float Kambient; // TODO: move to per-field
+      uniform float Kdiffuse;
+      uniform float Kspecular;
+      uniform float Shininess;
 
       bool intersectBox(const in vec3 rayOrigin, const in vec3 rayDirection,
                         const in vec3 boxMin, const in vec3 boxMax,
@@ -235,10 +239,6 @@ class RayCastRenderer extends ProgrammaticGenerator {
         vec3 Cambient = color;
         vec3 Cdiffuse = color;
         vec3 Cspecular = vec3(1.,1.,1.);
-        float Kambient = .30;
-        float Kdiffuse = .95;
-        float Kspecular = .80;
-        float Shininess = 10.;
 
         vec3 litColor = Kambient * Cambient;
         vec3 pointToEye = normalize(viewPoint - samplePoint);

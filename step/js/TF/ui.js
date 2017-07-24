@@ -146,7 +146,6 @@ Panel.prototype.toggle = function() {
 };
 
 Panel.prototype.hide = function() {
-	console.log( 'hide' );
 	this.dom.style.visibility = 'hidden';
 };
 

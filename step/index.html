@@ -275,10 +275,15 @@ function updateTransferFunction(options = {}) {
   let field = options.field || step.controls.selectedImageField();
   if (field) {
     let oldTFLength = field.transferFunction.length;
-    field.transferFunction = step.tf.getTF();
+    let transferFunction = step.tf.getTF();
+    let fixedTransferFunction = JSON.parse(JSON.stringify(transferFunction));
+    fixedTransferFunction.forEach(point => {
+      point[1].r /= 255;
+      point[1].g /= 255;
+      point[1].b /= 255;
+    });
+    field.transferFunction = fixedTransferFunction;
     if (oldTFLength != field.transferFunction.length) {
-console.log('updating program');
-console.log(field.transferFunction);
       step.renderer.updateProgram();
     }
     if (options.gradientOpacityScale) {
@@ -305,7 +310,7 @@ function performImageFilter( generator, options ) {
 
   step.renderer.inputFields = [options.filterField, options.derivedField0];
   step.renderer.updateProgram();
-  
+
   options.generator = new generator({
     gl: step.renderer.gl,
     inputFields: [options.filterField],

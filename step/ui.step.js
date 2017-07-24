@@ -315,6 +315,11 @@ class stepDisplayMenu extends MenuPanel {
     options.updateTransferFunction = options.updateTransferFunction || function(){};
     super(step, {title: 'Display'});
 
+    // TODO:
+    // - add field selector
+    // - add visibility toggle
+    // - populate ui from field
+    // - add save and restore presets with preview rendering
     // gradientOpacityScale
     this.gradientOpacityScale = new UI.Number();
     this.gradientOpacityScale.min = 0;
@@ -342,7 +347,6 @@ class stepDisplayMenu extends MenuPanel {
       }],
     });
     step.tf.registerCallback(options.updateTransferFunction);
-
   }
 }
 

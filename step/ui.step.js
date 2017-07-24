@@ -317,13 +317,13 @@ class stepDisplayMenu extends MenuPanel {
 
     // gradientOpacityScale
     this.gradientOpacityScale = new UI.Number();
-    this.gradientOpacityScale.value = 1;
     this.gradientOpacityScale.min = 0;
     this.gradientOpacityScale.precision = 6;
-    this.gradientOpacityScale.step = .25;
+    this.gradientOpacityScale.step = .00001;
     if (options.onGradientOpacityScaleChange) {
       this.gradientOpacityScale.onChange(options.onGradientOpacityScaleChange);
     }
+    this.gradientOpacityScale.setValue(0.0001);
     this.menuPanel.add( this.gradientOpacityScale );
 
     // scalar transfer function editor

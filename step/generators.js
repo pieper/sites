@@ -160,7 +160,12 @@ class ProgrammaticGenerator extends Generator {
     let gl = this.gl;
     let location = gl.getUniformLocation(this.program, key);
     if (!location) {
-      console.error('No uniform location for', key);
+      // for now, don't warn for this since the field superclass
+      // declares visualization uniforms which may not be referenced
+      // in generator code.  This could be a source of confusion
+      // if uniforms aren't found in the shader code.
+      // TODO: add a verbose mode for diagnostics and debugging
+      //console.error('No uniform location for', key);
       return;
     }
 

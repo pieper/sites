@@ -50,18 +50,20 @@ class SegmentationField extends PixelField {
       console.warn('SpacingBetweenSlices and SliceThickness should be equal for SEG');
       console.warn(pixelMeasures.SpacingBetweenSlices + ' != ' + pixelMeasures.SliceThickness);
     }
-    this.rgb = Colors.dicomlab2RGB(this.dataset.Segment[0].RecommendedDisplayCIELabValue);
+    this.rgba = Colors.dicomlab2RGB(this.dataset.Segment[0].RecommendedDisplayCIELabValue);
+    this.rgba.push(1);
+    this.gradientOpacityScale = 1;
   }
 
   uniforms() {
     let u = super.uniforms();
-    u['rgb'+this.id] = {type: '3fv', value: this.rgb};
     return(u);
   }
 
   transferFunctionSource() {
     return(`
-      uniform vec3 rgb${this.id};
+      uniform vec4 rgba${this.id};
+      uniform float gradientOpacityScale${this.id};
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,
                                        out vec3 color,
@@ -70,8 +72,8 @@ class SegmentationField extends PixelField {
         color = vec3(0., 0., 0.);
         opacity = 0.;
         if (sampleValue > 0.) {
-          color = sampleValue * rgb${this.id};
-          opacity = .1;
+          color = sampleValue * rgba${this.id}.rgb;
+          opacity = rgba${this.id}.a * gradientMagnitude * gradientOpacityScale${this.id};
         }
       }
     `);

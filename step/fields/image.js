@@ -23,9 +23,8 @@ class ImageField extends PixelField {
     // array of control points in form [value, {r, g, b, a}]
     this.transferFunction = [
       [0, {r: 0, g: 0, b: 0, a: 1}],
-      [1, {r: 255, g: 255, b: 255, a: 1}],
+      [1, {r: 1, g: 1, b: 1, a: 1}],
     ];
-    this.gradientOpacityScale = 1.;
   }
 
   statistics(options={}) {
@@ -77,11 +76,10 @@ class ImageField extends PixelField {
     u['windowWidth'+this.id] = {type: "1f", value: this.windowWidth};
     u['rescaleSlope'+this.id] = {type: "1f", value: this.rescaleSlope};
     u['rescaleIntercept'+this.id] = {type: "1f", value: this.rescaleIntercept};
-    u['gradientOpacityScale'+this.id] = {type: "1f", value: this.gradientOpacityScale};
     // add transfer function control point uniforms
     for (let index = 0; index < this.transferFunction.length; index++) {
       let [value, rgba] = this.transferFunction[index];
-      rgba = [rgba.r/255, rgba.g/255, rgba.b/255, rgba.a];
+      rgba = [rgba.r, rgba.g, rgba.b, rgba.a];
       u['tfcp'+this.id+'value'+index] = {type: '1f', value: value};
       u['tfcp'+this.id+'rgba'+index] = {type: '4fv', value: rgba};
     }
@@ -139,6 +137,7 @@ class ImageField extends PixelField {
     return(`
       uniform float windowCenter${this.id};
       uniform float windowWidth${this.id};
+      uniform vec4 rgba${this.id};
       uniform float gradientOpacityScale${this.id};
       ${this.transferFunctionControlPointUniformSource()}
       void transferFunction${this.id} (const in float sampleValue,
@@ -151,9 +150,14 @@ class ImageField extends PixelField {
                   / (windowWidth${this.id}-1.);
         pixelValue = clamp( pixelValue, 0., 1. );
 
-        ${this.transferFunctionControlPointLookupSource()}
-
-        opacity *= gradientMagnitude * gradientOpacityScale${this.id};
+        if (sliceMode == 1) {
+          color = vec3(pixelValue);
+          opacity = rgba${this.id}.a;
+        } else {
+          ${this.transferFunctionControlPointLookupSource()}
+          opacity *= gradientMagnitude * gradientOpacityScale${this.id};
+        }
+        color *= rgba${this.id}.rgb;
       }
     `);
   }

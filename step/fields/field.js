@@ -8,9 +8,17 @@ class Field {
     this.bounds = undefined; // the spatial extent of the field.
                              // undefined means there is no bound, otherwise
                              // an object with min and max
+
+    // viewing parameters
     this.visible = 1; // integer so it can be passed as a uniform
-    this.transformGain = 1.; // for visualizing/animating/exaggerating transform
-    this.generator = undefined; // the generator that populates the texture
+    this.rgba = options.rgba || [1., 1., 1., 1.]; // base color
+    this.rgba = this.rgba.map(e=>e*1.00001); // hack to make it floating point
+    this.gradientOpacityScale = options.gradientOpacityScale || 0.0005;
+
+    this.generator = options.generator || undefined; // the generator that populates the texture
+
+    // transform parameters
+    this.transformGain = options.transformGain || 1.; // for visualizing/animating/exaggerating transform
     this.transformField = undefined; // the field that defines the deformation
 
     if (this.useIntegerTextures) {
@@ -88,6 +96,8 @@ class Field {
     // return an object of the current uniform values
     let u = {};
     u['visible'+this.id] = {type: '1i', value: this.visible};
+    u['rgba'+this.id] = {type: '4fv', value: this.rgba};
+    u['gradientOpacityScale'+this.id] = {type: '1f', value: this.gradientOpacityScale};
     u['textureUnit'+this.id] = {type: '1i', value: this.id};
     if (this.transformField) {
       u['transformGain'+this.id] = {type: '1f', value: this.transformGain};

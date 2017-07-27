@@ -22,7 +22,7 @@ class ImageField extends PixelField {
 
     // array of control points in form [value, {r, g, b, a}]
     this.transferFunction = [
-      [0, {r: 0, g: 0, b: 0, a: 1}],
+      [0, {r: 0, g: 0, b: 0, a: 0}],
       [1, {r: 1, g: 1, b: 1, a: 1}],
     ];
   }
@@ -155,7 +155,9 @@ class ImageField extends PixelField {
           opacity = rgba${this.id}.a;
         } else {
           ${this.transferFunctionControlPointLookupSource()}
-          opacity *= gradientMagnitude * gradientOpacityScale${this.id};
+          float gradientContribution = gradientMagnitude * gradientOpacityScale${this.id};
+          color += gradientContribution * rgba${this.id}.rgb;
+          opacity += gradientContribution;
         }
         color *= rgba${this.id}.rgb;
       }

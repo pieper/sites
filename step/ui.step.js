@@ -314,6 +314,7 @@ class stepDisplayMenu extends MenuPanel {
     options = options || {};
     options.updateTransferFunction = options.updateTransferFunction || function(){};
     super(step, {title: 'Display'});
+    this.menuPanel.setClass('display');
 
     // TODO:
     // - add field selector
@@ -321,6 +322,9 @@ class stepDisplayMenu extends MenuPanel {
     // - populate ui from field
     // - add save and restore presets with preview rendering
     // gradientOpacityScale
+    let toolText = new UI.Text('Gradient Opacity: ').setWidth('150px');
+    toolText.dom.style.textAlign = 'right';
+    this.menuPanel.add(toolText);
     this.gradientOpacityScale = new UI.Number();
     this.gradientOpacityScale.min = 0;
     this.gradientOpacityScale.precision = 6;
@@ -336,17 +340,42 @@ class stepDisplayMenu extends MenuPanel {
     this.menuPanel.add( transferFunctionUI );
     let tfDiv = document.createElement('div');
     tfDiv.style.position = 'relative';
+    tfDiv.style.width = '750px';
+    tfDiv.style.height = '150px';
     transferFunctionUI.dom.appendChild(tfDiv);
     step.tf = new TF_panel({
       container: tfDiv,
+      width: 750,
+      height: 150,
       widgets : [{
         controlPoints: [
-          {value: 0, alpha: 1, color: {r: 0, g: 0,b: 0}},
+          {value: 0, alpha: 0, color: {r: 0, g: 0,b: 0}},
           {value: 1, alpha: 1, color: {r: 255, g: 255,b: 255}},
         ],
       }],
     });
     step.tf.registerCallback(options.updateTransferFunction);
+
+    toolText = new UI.Text('Field: ').setWidth('50px');
+    toolText.dom.style.textAlign = 'right';
+    this.menuPanel.add(toolText);
+    this.fieldSelect = new UI.Select().setOptions({
+      selectField: "Select a field",
+    }).setValue('selectField');
+    this.menuPanel.add( this.fieldSelect );
+  }
+
+  // TODO:
+  populateFieldSelector() {
+    let fieldOptions = { selectField: "Select a field" };
+    step.renderer.inputFields.forEach(field => {
+      fieldOptions[field.id] = field.id;
+    });
+    this.fieldSelect.setOptions(fieldOptions);
+    this.fieldSelect.setValue('selectField');
+  }
+
+  selectField(field) {
   }
 }
 

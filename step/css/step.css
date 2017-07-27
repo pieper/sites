@@ -149,12 +149,23 @@ input.Number {
 			position: absolute;
 			color: #888;
 			display: none;
-			padding: 5px 10px;
+			padding: 10px 20px;
 			background: #111;
-			width: 850px;
 		}
 
 		#menubar .menu:hover .database {
+			display: block;
+		}
+
+		#menubar .menu .display {
+			position: absolute;
+			color: #888;
+			display: none;
+			padding: 10px 20px;
+			background: #111;
+		}
+
+		#menubar .menu:hover .display {
 			display: block;
 		}
 

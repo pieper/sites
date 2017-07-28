@@ -7,11 +7,17 @@
   </head>
   <body>
 
+    <input id='AFcb' type="checkbox" checked='true'>AF</input>
+    <input id='CST-M1cb' type="checkbox" checked='true'>CST-M1</input>
+    <input id='IFOFcb' type="checkbox" checked='true'>IFOF</input>
+    <input id='ILFcb' type="checkbox" checked='true'>ILF</input>
+    <input id='UFcb' type="checkbox" checked='true'>UF</input>
+
     <a-scene>
       <a-entity
           id="camera"
           camera="fov: 80; zoom: 1;"
-          position="0 2 2"
+          position="0 0 2"
           orbit-controls="
               autoRotate: false;
               target: #target;
@@ -36,11 +42,11 @@
 
       <a-entity id="target">
         <a-entity id="tracts" position="0 0 0" scale="15 15 15" rotation="-90 0 0">
-          <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/AF.gltf"></a-gltf-model>
-          <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/CST-M1.gltf"></a-gltf-model>
-          <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/IFOF.gltf"></a-gltf-model>
-          <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/ILF.gltf"></a-gltf-model>
-          <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/UF.gltf"></a-gltf-model>
+          <a-gltf-model id='AF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/AF.gltf"></a-gltf-model>
+          <a-gltf-model id='CST-M1' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/CST-M1.gltf"></a-gltf-model>
+          <a-gltf-model id='IFOF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/IFOF.gltf"></a-gltf-model>
+          <a-gltf-model id='ILF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/ILF.gltf"></a-gltf-model>
+          <a-gltf-model id='UF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/UF.gltf"></a-gltf-model>
           <!--
           <a-plane position="0 0 0" rotation="-90 0 0" width=".4" height=".4" color="#7BC8A4"></a-plane>
           -->
@@ -49,6 +55,14 @@
       <a-sky color="#ECECEC"></a-sky>
     </a-scene>
 
+    <script>
+      var tracts = ['AF', 'CST-M1', 'IFOF', 'ILF', 'UF'];
+      tracts.forEach(tract => {
+        var entity = document.getElementById(tract);
+        var checkbox = document.getElementById(tract+'cb');
+        checkbox.onchange = function() {entity.object3D.visible = checkbox.checked};
+      });
+    </script>
 
   </body>
 </html>

@@ -11,14 +11,14 @@
       <a-entity
           id="camera"
           camera="fov: 80; zoom: 1;"
-          position="0 2 5"
+          position="0 2 2"
           orbit-controls="
               autoRotate: false;
               target: #target;
               enableDamping: true;
               dampingFactor: 0.125;
               rotateSpeed:0.25;
-              minDistance:3;
+              minDistance:1;
               maxDistance:100;
               "
           mouse-cursor="">
@@ -35,14 +35,14 @@
       -->
 
       <a-entity id="target">
-        <a-plane position="0 0 -4" rotation="-90 0 0" width=".4" height=".4" color="#7BC8A4"></a-plane>
-        <a-entity id="tracts" position="0 1.6 -4" scale="15 15 15" rotation="-90 0 0">
+        <a-entity id="tracts" position="0 0 0" scale="15 15 15" rotation="-90 0 0">
           <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/AF.gltf"></a-gltf-model>
           <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/CST-M1.gltf"></a-gltf-model>
           <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/IFOF.gltf"></a-gltf-model>
           <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/ILF.gltf"></a-gltf-model>
           <a-gltf-model src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/UF.gltf"></a-gltf-model>
           <!--
+          <a-plane position="0 0 0" rotation="-90 0 0" width=".4" height=".4" color="#7BC8A4"></a-plane>
           -->
         </a-entity>
       </a-entity>

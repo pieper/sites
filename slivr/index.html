@@ -7,11 +7,11 @@
   </head>
   <body>
 
-    <input id='AFcb' type="checkbox" checked='true'>AF</input>
-    <input id='CST-M1cb' type="checkbox" checked='true'>CST-M1</input>
-    <input id='IFOFcb' type="checkbox" checked='true'>IFOF</input>
-    <input id='ILFcb' type="checkbox" checked='true'>ILF</input>
-    <input id='UFcb' type="checkbox" checked='true'>UF</input>
+    <input id='AFcb' type="checkbox" disabled='true'>AF</input>
+    <input id='CST-M1cb' type="checkbox" disabled='true'>CST-M1</input>
+    <input id='IFOFcb' type="checkbox" disabled='true'>IFOF</input>
+    <input id='ILFcb' type="checkbox" disabled='true'>ILF</input>
+    <input id='UFcb' type="checkbox" disabled='true'>UF</input>
 
     <a-scene>
       <a-entity
@@ -31,17 +31,8 @@
           <a-entity geometry="primitive:cone; radius-bottom:1; radius-top:0" scale=".33 1 .33" position="0 0 0" rotation="90 0 0" material="color: #0099ff; transparent: true; opacity:0.5"></a-entity>
       </a-entity>
 
-      <!--
-      <a-gltf-model id="knee" src="data/knee.gltf" position="0.5 1.5 0"></a-gltf-model>
-      <a-gltf-model id="brain" src="data/brain.gltf" position="0 1.5 0" rotation="90 0 0"></a-gltf-model>
-
-      <a-entity camera look-controls="reverseMouseDrag: true"></a-entity>
-      <a-gltf-model id="brain" src="data/brain.gltf" position="0 1.6 -4" scale="2 2 2" rotation="90 0 0"></a-gltf-model>
-      <a-gltf-model id="duck" src="data/Duck.gltf" position="0 1.3 -4" scale=".1 .1 .1"></a-gltf-model>
-      -->
-
       <a-entity id="target">
-        <a-entity id="tracts" position="0 0 0" scale="15 15 15" rotation="-90 0 0">
+        <a-entity id="tracts" position="0 0 0" scale="15 15 15" rotation="-90 180 0">
           <a-gltf-model id='AF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/AF.gltf"></a-gltf-model>
           <a-gltf-model id='CST-M1' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/CST-M1.gltf"></a-gltf-model>
           <a-gltf-model id='IFOF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/IFOF.gltf"></a-gltf-model>
@@ -57,11 +48,21 @@
 
     <script>
       var tracts = ['AF', 'CST-M1', 'IFOF', 'ILF', 'UF'];
-      tracts.forEach(tract => {
-        var entity = document.getElementById(tract);
-        var checkbox = document.getElementById(tract+'cb');
-        checkbox.onchange = function() {entity.object3D.visible = checkbox.checked};
-      });
+      document.addEventListener("DOMContentLoaded", function(event) {
+
+        tracts.forEach(tract => {
+          var entity = document.getElementById(tract);
+          var checkbox = document.getElementById(tract+'cb');
+          checkbox.addEventListener('change', function() {
+            entity.object3D.visible = checkbox.checked;
+          });
+          entity.addEventListener('model-loaded', function() {
+            checkbox.checked = true;
+            checkbox.disabled = false;
+          });
+        });
+
+      })
     </script>
 
   </body>

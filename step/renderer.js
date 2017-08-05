@@ -211,6 +211,7 @@ class RayCastRenderer extends ProgrammaticGenerator {
                         const in vec3 boxMin, const in vec3 boxMax,
                         out float tNear, out float tFar)
         // intersect ray with a box
+        // https://github.com/bozorgi/VTKMultiVolumeRayCaster/blob/master/README.pdf
         // http://www.siggraph.org/education/materials/HyperGraph/raytrace/rtinter3.htm
       {
           // compute intersection of ray with all six bbox planes

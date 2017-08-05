@@ -117,6 +117,18 @@ class stepFileMenu extends MenuPanel {
     // File -> Add Fiducials
     option = new UI.Row();
     option.setClass( 'option' );
+    option.setTextContent( 'Load volume from Slicer' );
+    option.onClick( function () {
+      options.loadVolumeFromSlicer();
+    } );
+    this.menuPanel.add( option );
+
+    // spacer - tests
+    this.menuPanel.add( new UI.HorizontalRule() );
+
+    // File -> Add Fiducials
+    option = new UI.Row();
+    option.setClass( 'option' );
     option.setTextContent( 'Add 3 Random Fiducials' );
     option.onClick( function () {
       options.addRandomFiducials();

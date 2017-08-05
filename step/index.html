@@ -33,12 +33,17 @@
   <script type="text/javascript" src="../dcmio/colors.js"></script>
 
   <script type="text/javascript" src="./linear.js"></script>
+
   <script type="text/javascript" src="./fields/field.js"></script>
   <script type="text/javascript" src="./fields/fiducial.js"></script>
   <script type="text/javascript" src="./fields/pixel.js"></script>
   <script type="text/javascript" src="./fields/image.js"></script>
   <script type="text/javascript" src="./fields/segmentation.js"></script>
   <script type="text/javascript" src="./fields/transform.js"></script>
+
+  <script type="text/javascript" src="./formats.js"></script>
+  <script type="text/javascript" src="./slicer.js"></script>
+
   <script type="text/javascript" src="./view.js"></script>
   <script type="text/javascript" src="./generators.js"></script>
   <script type="text/javascript" src="./renderer.js"></script>
@@ -66,6 +71,18 @@
 
 <script>
 'use strict'
+
+function loadVolumeFromSlicer(id='vtkMRMLScalarVolumeNode1') {
+  //
+  // pull over a dataset from SlicerWeb and render it
+  //
+
+  let slicer = new Slicer();
+
+  slicer.volume(id).then(dataset=>{
+    loadDatasets([dataset]);
+  });
+}
 
 function addRandomFiducials() {
   //
@@ -730,6 +747,7 @@ $(function () {
     performNonlocalmeans : performNonlocalmeans,
     performRasterizeSegments : performRasterizeSegments,
     addRandomFiducials : addRandomFiducials,
+    loadVolumeFromSlicer : loadVolumeFromSlicer,
     addTransformField : addTransformField,
     animateTransform : animateTransform,
     save : saveFieldsAsDICOM,

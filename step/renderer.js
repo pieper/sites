@@ -267,7 +267,7 @@ class RayCastRenderer extends ProgrammaticGenerator {
       //
       vec4 rayCast( in vec3 sampleCoordinate )
       {
-        vec4 backgroundRGBA = vec4(0.2,0.,.5,1.); // TODO: mid blue background for now
+        vec4 backgroundRGBA = vec4(.25, .25, .25, 1.);
 
         float aspect = renderCanvasWidth / renderCanvasHeight;
         vec2 normalizedCoordinate = 2. * (sampleCoordinate.st -.5);

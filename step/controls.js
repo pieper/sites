@@ -20,6 +20,14 @@ class Controls {
     return field;
   }
 
+  toggleField(index) {
+    step.renderer.inputFields[index].visible ^= 1; // xor equals toggles
+  }
+
+  randomColor() {
+    this.selectedImageField().rgba = [Math.random(), Math.random(), Math.random(), 1.];
+  }
+
   cycleImages(indexToDisplay) {
     if (indexToDisplay == undefined) {
       indexToDisplay = this.imageDisplayIndex;
@@ -190,60 +198,71 @@ class Controls {
         key = key.toLowerCase();
       }
     }
-    switch (key) {
-      case "ArrowUp": {
-        step.view.orbit(0, 1);
-      }
-      break;
-      case "ArrowRight": {
-        step.view.orbit(1, 0);
-      }
-      break;
-      case "ArrowLeft": {
-        step.view.orbit(-1, 0);
-      }
-      break;
-      case "ArrowDown": {
-        step.view.orbit(0, -1);
-      }
-      break;
-      case "a": {
-        step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
-        step.uniforms.sliceMode.value = 1;
-      }
-      break;
-      case "s": {
-        step.view.slice({plane: "sagittal", offset: 0.5, thickness: 1});
-        step.uniforms.sliceMode.value = 1;
-      }
-      break;
-      case "c": {
-        step.view.slice({plane: "coronal", offset: 0.5, thickness: 1});
-        step.uniforms.sliceMode.value = 1;
-      }
-      break;
-      case "v": {
-        step.view.viewNear = 0;
-        step.view.viewFar = Linear.LARGE_NUMBER;
-        step.uniforms.sliceMode.value = 0;
-      }
-      break;
-      case "t": {
-        if (this.tool == "trackball") {
-          this.tool = "windowLevel";
-        } else {
-          this.tool = "trackball";
+    if (key.match(/[0-9]/)) { // isdigit
+      this.toggleField(Number(key));
+    } else {
+      switch (key) {
+        case "ArrowUp": {
+          step.view.orbit(0, 1);
+        }
+        break;
+        case "ArrowRight": {
+          step.view.orbit(1, 0);
+        }
+        break;
+        case "ArrowLeft": {
+          step.view.orbit(-1, 0);
+        }
+        break;
+        case "ArrowDown": {
+          step.view.orbit(0, -1);
+        }
+        break;
+        case "a": {
+          step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
+          step.uniforms.sliceMode.value = 1;
+        }
+        break;
+        case "s": {
+          step.view.slice({plane: "sagittal", offset: 0.5, thickness: 1});
+          step.uniforms.sliceMode.value = 1;
+        }
+        break;
+        case "c": {
+          step.view.slice({plane: "coronal", offset: 0.5, thickness: 1});
+          step.uniforms.sliceMode.value = 1;
+        }
+        break;
+        case "v": {
+          step.view.viewNear = 0;
+          step.view.viewFar = Linear.LARGE_NUMBER;
+          step.uniforms.sliceMode.value = 0;
+        }
+        break;
+        case "t": {
+          if (this.tool == "trackball") {
+            this.tool = "windowLevel";
+          } else {
+            this.tool = "trackball";
+          }
+        }
+        break;
+        case "f": {
+          step.view.look({at: step.renderer.center, bounds: step.renderer.bounds});
+        }
+        break;
+        case "r": {
+          this.cycleImages();
+        }
+        break;
+        case "y": {
+          this.randomColor();
+        }
+        break;
+        default : {
+          console.log(`No mapping for "${key}"`);
         }
       }
-      break;
-      case "f": {
-        step.view.look({at: step.renderer.center, bounds: step.renderer.bounds});
-      }
-      break;
-      case "r": {
-        this.cycleImages();
-      }
-      break;
     }
     step.renderer.requestRender(step.view);
   }

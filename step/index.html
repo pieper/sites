@@ -72,16 +72,23 @@
 <script>
 'use strict'
 
-function loadVolumeFromSlicer(id='vtkMRMLScalarVolumeNode1') {
-  //
+function loadVolumeFromSlicer(id=['vtkMRMLScalarVolumeNode1']) {
   // pull over a dataset from SlicerWeb and render it
-  //
-
   let slicer = new Slicer();
-
   slicer.volume(id).then(dataset=>{
     loadDatasets([dataset]);
   });
+}
+
+function loadVolumesFromSlicer(ids) {
+  if (ids) {
+    ids.forEach(loadVolumeFromSlicer);
+  } else {
+    let slicer = new Slicer();
+    slicer.volumes().then(function(volumes) {
+      volumes.forEach(volume => loadVolumeFromSlicer(volume.id));
+    });
+  }
 }
 
 function addRandomFiducials() {

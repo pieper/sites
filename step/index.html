@@ -72,9 +72,11 @@
 <script>
 'use strict'
 
+let slicerURL = 'http://localhost:2016/slicer';
+
 function loadVolumeFromSlicer(id=['vtkMRMLScalarVolumeNode1']) {
   // pull over a dataset from SlicerWeb and render it
-  let slicer = new Slicer();
+  let slicer = new Slicer({url: slicerURL});
   slicer.volume(id).then(dataset=>{
     loadDatasets([dataset]);
   });
@@ -84,7 +86,7 @@ function loadVolumesFromSlicer(ids) {
   if (ids) {
     ids.forEach(loadVolumeFromSlicer);
   } else {
-    let slicer = new Slicer();
+    let slicer = new Slicer({url: slicerURL});
     slicer.volumes().then(function(volumes) {
       volumes.forEach(volume => loadVolumeFromSlicer(volume.id));
     });

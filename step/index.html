@@ -74,10 +74,63 @@
 
 let slicerURL = 'http://localhost:2016/slicer';
 
-function loadVolumeFromSlicer(id=['vtkMRMLScalarVolumeNode1']) {
+//
+// Hard coded for the neurosurgical ultrasound experiment
+//
+
+// assumes:
+// - specific volumes loaded
+// - LandmarkRegistration performed with ThinPlateSpline
+// - grid transform exported
+
+function Patient3_setup() {
+
+
+  let volumeID = 'vtkMRMLScalarVolumeNode3';
+  let gridTransformID = 'vtkMRMLGridTransformNode2';
+
+  let slicer = new Slicer({url: slicerURL});
+
+  slicer.volume(volumeID).then(dataset=>{
+    loadDatasets([dataset]);
+    slicer.transform(gridTransformID).then(transformDataset=>{
+      let transformField = Field.fromDataset(transformDataset)[0];
+      transformField.visible = 1;
+      step.renderer.inputFields.unshift(transformField);
+      step.renderer.inputFields[1].transformField = transformField;
+
+      step.renderer.updateProgram();
+      step.renderer.requestRender(step.view);
+    });
+  });
+}
+
+
+// End hard coded
+
+
+function crossFade(options={}) {
+
+  options.timepoint = (options.timepoint == undefined) ? .5 : options.timepoint;
+  options.fields = options.fields || step.renderer.inputFields;
+  options.fields.forEach(field => {
+    field.rgba[3] = 0;
+  });
+  let frameCount = options.fields.length;
+  let frameTime = options.timepoint * frameCount;
+  let frame = Math.floor(frameTime);
+  let blend = frameTime - frame;
+  options.fields[frame%frameCount].rgba[3] = 1. - blend;
+  options.fields[(frame+1)%frameCount].rgba[3] = blend;
+}
+
+function loadVolumeFromSlicer(options) {
+  options.id = options.id || 'vtkMRMLScalarVolumeNode1';
+  options.name = options.name || 'SlicerVolume1';
   // pull over a dataset from SlicerWeb and render it
   let slicer = new Slicer({url: slicerURL});
-  slicer.volume(id).then(dataset=>{
+  slicer.volume(options.id).then(dataset=>{
+    dataset.SeriesDescription = options.name;
     loadDatasets([dataset]);
   });
 }
@@ -88,7 +141,7 @@ function loadVolumesFromSlicer(ids) {
   } else {
     let slicer = new Slicer({url: slicerURL});
     slicer.volumes().then(function(volumes) {
-      volumes.forEach(volume => loadVolumeFromSlicer(volume.id));
+      volumes.forEach(volume => loadVolumeFromSlicer(volume));
     });
   }
 }
@@ -202,6 +255,24 @@ function animateTransform() {
       requestAnimationFrame(animationFrame)
     }
     step.ui.bottomBar.progress = `Animation frame ${frame} of ${frames}`;
+  };
+  requestAnimationFrame(animationFrame)
+}
+
+function animateCrossFade(options={}) {
+  options.frames = options.frames || 100;
+  let frame = 0;
+  let animationFrame = function (now) {
+    crossFade({ 
+      //timepoint: (1. + Math.sin(Math.PI*frame/options.frames)) / 2.
+      timepoint: frame/options.frames
+    });
+    step.renderer.requestRender();
+    frame = frame + 1;
+    step.ui.bottomBar.progress = `Animation frame ${frame} of ${options.frames}`;
+    if (frame <= options.frames) {
+      requestAnimationFrame(animationFrame)
+    }
   };
   requestAnimationFrame(animationFrame)
 }

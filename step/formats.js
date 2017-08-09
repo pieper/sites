@@ -33,12 +33,15 @@ class NRRD {
       }
     });
 
-    step.nrrdArrayBuffer = nrrdArrayBuffer;
-    nrrd.data = new Int16Array(nrrdArrayBuffer.slice(dataOffset));
+    if (nrrd.header['type'] == 'short') {
+      nrrd.data = new Int16Array(nrrdArrayBuffer.slice(dataOffset));
+    } else if (nrrd.header['type'] == 'float') {
+      nrrd.data = new Float32Array(nrrdArrayBuffer.slice(dataOffset));
+    }
     return (nrrd);
   }
 
-  static unparse(nrrd) {
+  static format(nrrd) {
     // make an array buffer out of the nrrd
 
     let nrrdHeader = `NRRD0004
@@ -62,11 +65,11 @@ class NRRD {
     let dataSize = nrrd.data.byteLength;
     let dataBytes = new Uint8Array(nrrd.data.buffer, bufferSize-dataSize);
 
-    let unparsed = new Uint8Array(headerBytes.length + dataBytes.length);
-    unparsed.set(headerBytes);
-    unparsed.set(dataBytes, headerBytes.length);
+    let formated = new Uint8Array(headerBytes.length + dataBytes.length);
+    formated.set(headerBytes);
+    formated.set(dataBytes, headerBytes.length);
 
-    return (unparsed.buffer);
+    return (formated.buffer);
   }
 
   static nrrdToDICOMDataset(nrrd) {
@@ -95,60 +98,98 @@ class NRRD {
       unitDirections.push(unitDirection);
     });
 
-    let dataset = {
-      "SOPClass": "EnhancedCTImage",
-      "Columns": String(sizes[0]),
-      "Rows": String(sizes[1]),
-      "NumberOfFrames": String(sizes[2]),
-      "SamplesPerPixel": 1,
-      "BitsStored": 16,
-      "HighBit": 15,
-      "WindowCenter": [ "84" ],
-      "WindowWidth": [ "168" ],
-      "BitsAllocated": 16,
-      "PixelRepresentation": 1,
-      "RescaleSlope": "1",
-      "RescaleIntercept": "0",
-      "SharedFunctionalGroups": {
-        "PlaneOrientation": {
-          "ImageOrientationPatient": [
-            String(unitDirections[0][0]),
-            String(unitDirections[0][1]),
-            String(unitDirections[0][2]),
-            String(unitDirections[1][0]),
-            String(unitDirections[1][1]),
-            String(unitDirections[1][2])
-          ]
-        },
-        "PixelMeasures": {
-          "PixelSpacing": [ String(spacings[0]), String(spacings[1]) ],
-          "SpacingBetweenSlices": String(spacings[2])
-        },
-        "PixelValueTransformation": {
-          "RescaleIntercept": "0",
-          "RescaleSlope": "1",
-          "RescaleType": "US"
-        }
-      },
-      "PixelData": nrrd.data
-    };
+    let dataset = {}
 
-    dataset.PerFrameFunctionalGroups = [];
-    for (let frameIndex of Array(sizes[2]).keys()) {
-      dataset.PerFrameFunctionalGroups.push({
-        "PlanePosition": {
-          "ImagePositionPatient": [
-            String(origin[0] + frameIndex * directions[2][0]),
-            String(origin[1] + frameIndex * directions[2][1]),
-            String(origin[2] + frameIndex * directions[2][2])
-          ]
+    if (sizes.length == 3) {
+      // Scalar Volume, assume it's CT-like
+      dataset = {
+        "SOPClass": "EnhancedCTImage",
+        "Columns": String(sizes[0]),
+        "Rows": String(sizes[1]),
+        "NumberOfFrames": String(sizes[2]),
+        "SamplesPerPixel": 1,
+        "BitsStored": 16,
+        "HighBit": 15,
+        "WindowCenter": [ "84" ], // any better option?
+        "WindowWidth": [ "168" ], // any better option?
+        "BitsAllocated": 16,
+        "PixelRepresentation": 1,
+        "RescaleSlope": "1",
+        "RescaleIntercept": "0",
+        "SharedFunctionalGroups": {
+          "PlaneOrientation": {
+            "ImageOrientationPatient": [
+              String(unitDirections[0][0]),
+              String(unitDirections[0][1]),
+              String(unitDirections[0][2]),
+              String(unitDirections[1][0]),
+              String(unitDirections[1][1]),
+              String(unitDirections[1][2])
+            ]
+          },
+          "PixelMeasures": {
+            "PixelSpacing": [ String(spacings[0]), String(spacings[1]) ],
+            "SpacingBetweenSlices": String(spacings[2])
+          },
+          "PixelValueTransformation": {
+            "RescaleIntercept": "0",
+            "RescaleSlope": "1",
+            "RescaleType": "US"
+          }
         },
-      });
+        "PixelData": nrrd.data
+      };
+
+      dataset.PerFrameFunctionalGroups = [];
+      for (let frameIndex of Array(sizes[2]).keys()) {
+        dataset.PerFrameFunctionalGroups.push({
+          "PlanePosition": {
+            "ImagePositionPatient": [
+              String(origin[0] + frameIndex * directions[2][0]),
+              String(origin[1] + frameIndex * directions[2][1]),
+              String(origin[2] + frameIndex * directions[2][2])
+            ]
+          },
+        });
+      }
+    } else if (sizes.length == 4) {
+      // assume it's a DeformableSpatialRegistration
+      // TODO: need to deal with Frame of Reference and other issues
+      dataset = {
+        SOPClass: "DeformableSpatialRegistration",
+        DeformableRegistration: {
+          DeformableRegistrationGrid: {
+            ImageOrientationPatient: [
+              String(unitDirections[0][0]),
+              String(unitDirections[0][1]),
+              String(unitDirections[0][2]),
+              String(unitDirections[1][0]),
+              String(unitDirections[1][1]),
+              String(unitDirections[1][2])
+            ],
+            ImagePositionPatient: [
+              String(origin[0]),
+              String(origin[1]),
+              String(origin[2]),
+            ],
+            GridDimensions: sizes.slice(1),
+            GridResolution: [
+              String(spacings[0]),
+              String(spacings[1]),
+              String(spacings[2]),
+            ],
+            VectorGridData: nrrd.data,
+          },
+        },
+      };
+    } else {
+      console.error("Couldn't parse nrrd data", nrrd);
     }
 
     return(dataset);
   }
 
+  // TODO: remove this since it's only used for testing/demo
   static nrrdLinearMapPixels(nrrd, slope=1, intercept=0) {
     for (let index = 0; index < nrrd.data.length; index++) {
       nrrd.data[index] = slope * nrrd.data[index] + intercept;

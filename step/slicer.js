@@ -43,4 +43,17 @@ class Slicer {
     });
   }
 
+  transform(id, dataset) {
+    return new Promise( (resolve,reject) => {
+      this.request(`transform?id=${id}`, {
+        responseType: 'arraybuffer'
+      })
+      .then(arrayBuffer => {
+        let nrrd = NRRD.parse(arrayBuffer);
+        resolve(NRRD.nrrdToDICOMDataset(nrrd));
+      })
+      .catch(reject);
+    });
+  }
+
 }

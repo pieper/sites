@@ -28,7 +28,7 @@ class Controls {
     this.selectedImageField().rgba = [Math.random(), Math.random(), Math.random(), 1.];
   }
 
-  cycleImages(indexToDisplay) {
+  cycleVisibleImage(indexToDisplay) {
     if (indexToDisplay == undefined) {
       indexToDisplay = this.imageDisplayIndex;
       this.imageDisplayIndex++
@@ -38,8 +38,15 @@ class Controls {
     let index = 0;
     step.renderer.inputFields.forEach(inputField => {
       inputField.visible = Number(index == indexToDisplay);
-      console.log(index, inputField.constructor.name, inputField.visible);
+      console.log(index, inputField.visible, inputField.dataset.SeriesDescription, inputField.constructor.name);
       index++;
+    });
+    step.renderer.requestRender(step.view);
+  }
+
+  allImagesVisible() {
+    step.renderer.inputFields.forEach(inputField => {
+      inputField.visible = true;
     });
     step.renderer.requestRender(step.view);
   }
@@ -251,12 +258,19 @@ class Controls {
           step.view.look({at: step.renderer.center, bounds: step.renderer.bounds});
         }
         break;
+        case "R": {
+          this.allImagesVisible();
+        }
+        break;
         case "r": {
-          this.cycleImages();
+          this.cycleVisibleImage();
         }
         break;
         case "y": {
           this.randomColor();
+        }
+        case "Shift": {
+          // no op
         }
         break;
         default : {

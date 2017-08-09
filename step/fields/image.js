@@ -158,6 +158,7 @@ class ImageField extends PixelField {
           float gradientContribution = gradientMagnitude * gradientOpacityScale${this.id};
           color += gradientContribution * rgba${this.id}.rgb;
           opacity += gradientContribution;
+          opacity *= rgba${this.id}.a;
         }
         color *= rgba${this.id}.rgb;
       }

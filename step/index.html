@@ -86,27 +86,41 @@ let slicerURL = 'http://localhost:2016/slicer';
 function Patient3_setup() {
 
 
-  let volumeID = 'vtkMRMLScalarVolumeNode3';
-  let gridTransformID = 'vtkMRMLGridTransformNode2';
+  let preduraID = 'vtkMRMLScalarVolumeNode1';
+  let preMRID = 'vtkMRMLScalarVolumeNode2';
+  let gridTransformID = 'vtkMRMLGridTransformNode1';
 
   let slicer = new Slicer({url: slicerURL});
 
-  slicer.volume(volumeID).then(dataset=>{
+  slicer.volume(preduraID).then(dataset=>{
+    dataset.SeriesDescription = 'predura';
     loadDatasets([dataset]);
-    slicer.transform(gridTransformID).then(transformDataset=>{
-      let transformField = Field.fromDataset(transformDataset)[0];
-      transformField.visible = 1;
-      step.renderer.inputFields.unshift(transformField);
-      step.renderer.inputFields[1].transformField = transformField;
+    slicer.volume(preMRID).then(dataset=>{
+      dataset.SeriesDescription = 'preMR';
+      loadDatasets([dataset]);
+      step.renderer.inputFields[1].rgba = [0, 1, 0, 1]; // target is green
+      slicer.transform(gridTransformID).then(transformDataset=>{
+        let transformField = Field.fromDataset(transformDataset)[0];
+        transformField.visible = 0;
+        step.renderer.inputFields.unshift(transformField);
+        step.renderer.inputFields[1].transformField = transformField; // predura
 
-      step.renderer.updateProgram();
-      step.renderer.requestRender(step.view);
+        step.renderer.inputFields.forEach(field => field.gradientOpacityScale = 0.);
+        step.renderer.updateProgram();
+        step.renderer.requestRender(step.view);
+      });
     });
   });
+
+  step.controls.tool = 'trackball';
+  step.controls.gangWindow = 'trackball';
+  step.view.viewNear = 0;
+  step.view.viewFar = Linear.LARGE_NUMBER;
+  step.uniforms.sliceMode.value = 0;
 }
 
 
-// End hard coded
+// End hard coded neurosurgical ultrasound experiment
 
 
 function crossFade(options={}) {
@@ -246,15 +260,15 @@ function addTransformField() {
 function animateTransform() {
   let frame = 0;
   let frames = 100;
-  let maxGain = 10;
+  let maxGain = 1;
   let animationFrame = function (now) {
     step.renderer.inputFields[1].transformGain = maxGain * Math.sin(Math.PI*frame/frames);
     step.renderer.requestRender();
+    step.ui.bottomBar.progress = `Animation frame ${frame} of ${frames}`;
     frame = frame + 1;
-    if (frame < frames) {
+    if (frame <= frames) {
       requestAnimationFrame(animationFrame)
     }
-    step.ui.bottomBar.progress = `Animation frame ${frame} of ${frames}`;
   };
   requestAnimationFrame(animationFrame)
 }

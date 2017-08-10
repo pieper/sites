@@ -4,6 +4,7 @@ class Controls {
     this.touchEvents = ['touchstart', 'touchmove', 'touchend'];
     this.startPoint = undefined;
     this.startWindow = undefined;
+    this.gangWindow = false;
     this.tool = 'windowLevel';
     this.imageDisplayIndex = 0;
   }
@@ -135,6 +136,14 @@ class Controls {
                 imageField.windowWidth = this.startWindow[0] + pointDelta[0] * 1500.;
                 imageField.windowWidth = Math.max(imageField.windowWidth, 1.);
                 imageField.windowCenter = this.startWindow[1] + pointDelta[1] * 1500.;
+                if (this.gangWindow) {
+                  step.renderer.inputFields.forEach(field => {
+                    if (field.constructor.name == 'ImageField') {
+                      field.windowWidth = imageField.windowWidth;
+                      field.windowCenter = imageField.windowCenter;
+                    }
+                  });
+                }
                 if (this.onWindowLevel) {
                   this.onWindowLevel();
                 }
@@ -269,6 +278,21 @@ class Controls {
         case "y": {
           this.randomColor();
         }
+        case " ": { // Space
+          animateTransform(); // global
+        }
+        break;
+        case ".": {
+          console.log('.');
+          step.renderer.inputFields.forEach(field => field.transformGain = 1);
+          step.renderer.requestRender();
+        }
+        break;
+        case ",": {
+          step.renderer.inputFields.forEach(field => field.transformGain = 0);
+          step.renderer.requestRender();
+        }
+        break;
         case "Shift": {
           // no op
         }

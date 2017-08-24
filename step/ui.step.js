@@ -700,6 +700,30 @@ class stepViewMenu extends MenuPanel {
       step.renderer.requestRender(step.view);
     });
     this.menuPanel.add( option );
+
+    // spacer
+    this.menuPanel.add( new UI.HorizontalRule() );
+
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Ray Integration' );
+    option.onClick(() => {
+      step.renderer.rayCompositing = 'integration';
+      step.renderer.updateProgram();
+      step.renderer.requestRender(step.view);
+    });
+    this.menuPanel.add( option );
+
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Ray Maximum' );
+    option.onClick(() => {
+      step.renderer.rayCompositing = 'maximum';
+      step.renderer.updateProgram();
+      step.renderer.requestRender(step.view);
+    });
+    this.menuPanel.add( option );
+
   }
 }
 

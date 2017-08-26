@@ -19,6 +19,12 @@ class ImageField extends PixelField {
     if (! this.dataset.SamplesPerPixel in [1,3]) {
       console.error('Can only handle 1 or 3 samples per pixel');
     }
+
+    // array of control points in form [value, {r, g, b, a}]
+    this.transferFunction = [
+      [0, {r: 0, g: 0, b: 0, a: 0}],
+      [1, {r: 1, g: 1, b: 1, a: 1}],
+    ];
   }
 
   statistics(options={}) {
@@ -65,21 +71,75 @@ class ImageField extends PixelField {
 
   uniforms() {
     // TODO: need to be keyed to id (in a struct)
-
     let u = super.uniforms();
     u['windowCenter'+this.id] = {type: "1f", value: this.windowCenter};
     u['windowWidth'+this.id] = {type: "1f", value: this.windowWidth};
     u['rescaleSlope'+this.id] = {type: "1f", value: this.rescaleSlope};
     u['rescaleIntercept'+this.id] = {type: "1f", value: this.rescaleIntercept};
+    // add transfer function control point uniforms
+    for (let index = 0; index < this.transferFunction.length; index++) {
+      let [value, rgba] = this.transferFunction[index];
+      rgba = [rgba.r, rgba.g, rgba.b, rgba.a];
+      u['tfcp'+this.id+'value'+index] = {type: '1f', value: value};
+      u['tfcp'+this.id+'rgba'+index] = {type: '4fv', value: rgba};
+    }
     return(u);
   }
 
-  samplingShaderSource() {
+  rescaleSource() {
     return(`
-      uniform highp ${this.samplerType} textureUnit${this.id};
+      uniform float rescaleSlope${this.id};
+      uniform float rescaleIntercept${this.id};
+      float rescale${this.id}(const in float sampleValue) {
+        return(rescaleSlope${this.id} * sampleValue + rescaleIntercept${this.id});
+      }
+    `);
+  }
 
+  transferFunctionControlPointUniformSource() {
+    let uniformSource = '\n';
+    for (let index = 0; index < this.transferFunction.length; index++) {
+      uniformSource += `uniform float tfcp${this.id}value${index};\n`;
+      uniformSource += `uniform vec4 tfcp${this.id}rgba${index};\n`;
+    }
+    return(uniformSource);
+  }
+
+  transferFunctionControlPointLookupSource() {
+    let lookupSource = '\n';
+    let index = 0;
+    lookupSource += `
+      if (pixelValue < tfcp${this.id}value${index}) {
+        color = tfcp${this.id}rgba${index}.rgb;
+        opacity = tfcp${this.id}rgba${index}.a;
+      }\n`;
+    for (index = 1; index < this.transferFunction.length; index++) {
+      lookupSource += `
+        else if (pixelValue < tfcp${this.id}value${index}) {
+          float proportion = (pixelValue - tfcp${this.id}value${index-1}) /
+            (tfcp${this.id}value${index} - tfcp${this.id}value${index-1});
+          color = mix( tfcp${this.id}rgba${index-1}.rgb,
+                       tfcp${this.id}rgba${index}.rgb,
+                       proportion );
+          opacity = mix( tfcp${this.id}rgba${index-1}.a,
+                         tfcp${this.id}rgba${index}.a,
+                         proportion );
+        }\n`;
+    }
+    lookupSource += `
+      else {
+        color = tfcp${this.id}rgba${index-1}.rgb;
+      }\n`;
+    return(lookupSource);
+  }
+
+  transferFunctionSource() {
+    return(`
       uniform float windowCenter${this.id};
       uniform float windowWidth${this.id};
+      uniform vec4 rgba${this.id};
+      uniform float gradientOpacityScale${this.id};
+      ${this.transferFunctionControlPointUniformSource()}
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,
                                        out vec3 color,
@@ -89,96 +149,18 @@ class ImageField extends PixelField {
                 (sampleValue - (windowCenter${this.id}-0.5))
                   / (windowWidth${this.id}-1.);
         pixelValue = clamp( pixelValue, 0., 1. );
-        color = vec3(pixelValue);
-        opacity = gradientMagnitude * pixelValue / 1000.; // TODO
-      }
 
-      uniform int visible${this.id};
-      uniform float rescaleIntercept${this.id};
-      uniform float rescaleSlope${this.id};
-      uniform mat4 patientToPixel${this.id};
-      uniform mat4 pixelToPatient${this.id};
-      uniform mat3 normalPixelToPatient${this.id};
-      uniform ivec3 pixelDimensions${this.id};
-
-      vec3 patientToTexture${this.id}(const in vec3 patientPoint)
-      {
-        // stpPoint is in 0-1 texture coordinates, meaning that it
-        // is the patientToPixel transform scaled by the inverse
-        // pixel dimensions.
-        vec3 pixelDimensions = vec3(pixelDimensions${this.id});
-        vec3 dimensionsInverse = vec3(1.) / pixelDimensions;
-        vec3 stpPoint = (patientToPixel${this.id} * vec4(patientPoint, 1.)).xyz;
-        stpPoint *= dimensionsInverse;
-        return(stpPoint);
-      }
-
-      vec3 textureToPatient${this.id}(const in vec3 stpPoint)
-      {
-        // inverse operation of patientToTexture
-        vec3 pixelDimensions = vec3(pixelDimensions${this.id});
-        vec3 patientPoint = (pixelToPatient${this.id} * vec4(pixelDimensions * stpPoint, 1.)).xyz;
-        return(patientPoint);
-      }
-
-      void sampleTexture${this.id}(const in ${this.samplerType} textureUnit,
-                                   const in vec3 patientPoint,
-                                   const in float gradientSize,
-                                   out float sampleValue,
-                                   out vec3 normal,
-                                   out float gradientMagnitude)
-      {
-
-        #define RESCALE(s) (rescaleSlope${this.id} * (s) + rescaleIntercept${this.id})
-        #define SAMPLE(p) RESCALE(float( texture(textureUnit, p).r ))
-
-        vec3 stpPoint = patientToTexture${this.id}(patientPoint);
-        sampleValue = SAMPLE(stpPoint);
-
-        // central difference sample gradient (P is +1, N is -1)
-        // p : point in patient space
-        // o : offset vector in patient space along dimension
-        vec3 sN = vec3(0.);
-        vec3 sP = vec3(0.);
-        vec3 offset = vec3(0.);
-        for (int i = 0; i < 3; i++) {
-          offset[i] = gradientSize;
-          sP[i] = SAMPLE(patientToTexture${this.id}(patientPoint + offset));
-          offset[i] = -gradientSize;
-          sN[i] = SAMPLE(patientToTexture${this.id}(patientPoint + offset));
-          offset[i] = 0.;
-        }
-        vec3 gradient = vec3( (sP[0]-sN[0]),
-                              (sP[1]-sN[1]),
-                              (sP[2]-sN[2]) );
-        gradientMagnitude = length(gradient);
-        normal = gradient * 1./gradientMagnitude;
-
-        #undef SAMPLE
-        #undef RESCALE
-      }
-
-      void sampleField${this.id} (const in ${this.samplerType} textureUnit,
-                                  const in vec3 samplePointPatient,
-                                  const in float gradientSize,
-                                  out float sampleValue,
-                                  out vec3 normal,
-                                  out float gradientMagnitude)
-      {
-        // samplePoint is in patient coordinates, stp is texture coordinates
-        vec3 samplePoint = transformPoint${this.id}(samplePointPatient);
-        vec3 stpPoint = patientToTexture${this.id}(samplePoint);
-
-        // trivial reject outside
-        if (any(lessThan(stpPoint, vec3(0.)))
-             || any(greaterThan(stpPoint,vec3(1.)))) {
-          sampleValue = 0.;
-          normal = vec3(0.);
-          gradientMagnitude = 0.;
+        if (sliceMode == 1) {
+          color = vec3(pixelValue);
+          opacity = rgba${this.id}.a;
         } else {
-          sampleTexture${this.id}(textureUnit, samplePoint, gradientSize,
-                                  sampleValue, normal, gradientMagnitude);
+          ${this.transferFunctionControlPointLookupSource()}
+          float gradientContribution = gradientMagnitude * gradientOpacityScale${this.id};
+          color += gradientContribution * rgba${this.id}.rgb;
+          opacity += gradientContribution;
+          opacity *= rgba${this.id}.a;
         }
+        color *= rgba${this.id}.rgb;
       }
     `);
   }

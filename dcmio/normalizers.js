@@ -29,6 +29,7 @@ class Normalizer {
       "CTImage" : CTImageNormalizer,
       "MRImage" : MRImageNormalizer,
       "EnhancedMRImage" : EnhancedMRImageNormalizer,
+      "EnhancedCTImage" : EnhancedCTImageNormalizer,
       "EnhancedUSVolume" : EnhancedUSVolumeNormalizer,
       "PETImage" : PETImageNormalizer,
       "PositronEmissionTomographyImage" : PETImageNormalizer,
@@ -356,6 +357,12 @@ class MRImageNormalizer extends ImageNormalizer {
 }
 
 class EnhancedMRImageNormalizer extends ImageNormalizer {
+  normalize() {
+    super.normalize();
+  }
+}
+
+class EnhancedCTImageNormalizer extends ImageNormalizer {
   normalize() {
     super.normalize();
   }

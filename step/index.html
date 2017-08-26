@@ -16,6 +16,12 @@
   <script src="./js/pouchdb-5.1.0.js"></script>
   <script src="./js/pouchdb.memory.js"></script>
 
+  <link rel="stylesheet" href="js/TF/ui.css"/>
+  <script src="js/TF/ui.js"></script>
+  <script src="js/TF/CP_widget.js"></script>
+  <script src="js/TF/TF_panel.js"></script>
+
+
   <script type="text/javascript" src="../dcmio/FileSaver.min.js"></script>
   <script type="text/javascript" src="../dcmio/DicomMetaDictionary.js"></script>
   <script type="text/javascript" src="../dcmio/BufferStream.js"></script>
@@ -27,12 +33,17 @@
   <script type="text/javascript" src="../dcmio/colors.js"></script>
 
   <script type="text/javascript" src="./linear.js"></script>
+
   <script type="text/javascript" src="./fields/field.js"></script>
   <script type="text/javascript" src="./fields/fiducial.js"></script>
   <script type="text/javascript" src="./fields/pixel.js"></script>
   <script type="text/javascript" src="./fields/image.js"></script>
   <script type="text/javascript" src="./fields/segmentation.js"></script>
   <script type="text/javascript" src="./fields/transform.js"></script>
+
+  <script type="text/javascript" src="./formats.js"></script>
+  <script type="text/javascript" src="./slicer.js"></script>
+
   <script type="text/javascript" src="./view.js"></script>
   <script type="text/javascript" src="./generators.js"></script>
   <script type="text/javascript" src="./renderer.js"></script>
@@ -60,6 +71,94 @@
 
 <script>
 'use strict'
+
+let slicerURL = 'http://localhost:2016/slicer';
+
+//
+// Hard coded for the neurosurgical ultrasound experiment
+//
+
+// assumes:
+// - specific volumes loaded
+// - LandmarkRegistration performed with ThinPlateSpline
+// - grid transform exported
+
+function Patient3_setup() {
+
+
+  let preduraID = 'vtkMRMLScalarVolumeNode1';
+  let preMRID = 'vtkMRMLScalarVolumeNode2';
+  let gridTransformID = 'vtkMRMLGridTransformNode1';
+
+  let slicer = new Slicer({url: slicerURL});
+
+  slicer.volume(preduraID).then(dataset=>{
+    dataset.SeriesDescription = 'predura';
+    loadDatasets([dataset]);
+    slicer.volume(preMRID).then(dataset=>{
+      dataset.SeriesDescription = 'preMR';
+      loadDatasets([dataset]);
+      step.renderer.inputFields[1].rgba = [0, 1, 0, 1]; // target is green
+      slicer.transform(gridTransformID).then(transformDataset=>{
+        let transformField = Field.fromDataset(transformDataset)[0];
+        transformField.visible = 0;
+        step.renderer.inputFields.unshift(transformField);
+        step.renderer.inputFields[1].transformField = transformField; // predura
+
+        step.renderer.inputFields.forEach(field => field.gradientOpacityScale = 0.);
+        step.renderer.updateProgram();
+        step.renderer.requestRender(step.view);
+      });
+    });
+  });
+
+  step.controls.tool = 'trackball';
+  step.controls.gangWindow = 'trackball';
+  step.view.viewNear = 0;
+  step.view.viewFar = Linear.LARGE_NUMBER;
+  step.uniforms.sliceMode.value = 0;
+}
+
+
+// End hard coded neurosurgical ultrasound experiment
+
+
+function crossFade(options={}) {
+
+  options.timepoint = (options.timepoint == undefined) ? .5 : options.timepoint;
+  options.fields = options.fields || step.renderer.inputFields;
+  options.fields.forEach(field => {
+    field.rgba[3] = 0;
+  });
+  let frameCount = options.fields.length;
+  let frameTime = options.timepoint * frameCount;
+  let frame = Math.floor(frameTime);
+  let blend = frameTime - frame;
+  options.fields[frame%frameCount].rgba[3] = 1. - blend;
+  options.fields[(frame+1)%frameCount].rgba[3] = blend;
+}
+
+function loadVolumeFromSlicer(options) {
+  options.id = options.id || 'vtkMRMLScalarVolumeNode1';
+  options.name = options.name || 'SlicerVolume1';
+  // pull over a dataset from SlicerWeb and render it
+  let slicer = new Slicer({url: slicerURL});
+  slicer.volume(options.id).then(dataset=>{
+    dataset.SeriesDescription = options.name;
+    loadDatasets([dataset]);
+  });
+}
+
+function loadVolumesFromSlicer(ids) {
+  if (ids) {
+    ids.forEach(loadVolumeFromSlicer);
+  } else {
+    let slicer = new Slicer({url: slicerURL});
+    slicer.volumes().then(function(volumes) {
+      volumes.forEach(volume => loadVolumeFromSlicer(volume));
+    });
+  }
+}
 
 function addRandomFiducials() {
   //
@@ -161,15 +260,33 @@ function addTransformField() {
 function animateTransform() {
   let frame = 0;
   let frames = 100;
-  let maxGain = 10;
+  let maxGain = 1;
   let animationFrame = function (now) {
     step.renderer.inputFields[1].transformGain = maxGain * Math.sin(Math.PI*frame/frames);
     step.renderer.requestRender();
+    step.ui.bottomBar.progress = `Animation frame ${frame} of ${frames}`;
     frame = frame + 1;
-    if (frame < frames) {
+    if (frame <= frames) {
       requestAnimationFrame(animationFrame)
     }
-    step.ui.bottomBar.progress = `Animation frame ${frame} of ${frames}`;
+  };
+  requestAnimationFrame(animationFrame)
+}
+
+function animateCrossFade(options={}) {
+  options.frames = options.frames || 100;
+  let frame = 0;
+  let animationFrame = function (now) {
+    crossFade({ 
+      //timepoint: (1. + Math.sin(Math.PI*frame/options.frames)) / 2.
+      timepoint: frame/options.frames
+    });
+    step.renderer.requestRender();
+    frame = frame + 1;
+    step.ui.bottomBar.progress = `Animation frame ${frame} of ${options.frames}`;
+    if (frame <= options.frames) {
+      requestAnimationFrame(animationFrame)
+    }
   };
   requestAnimationFrame(animationFrame)
 }
@@ -261,6 +378,32 @@ function requestSeries(instanceURLs) {
   });
 }
 
+function updateGradientOpacity(value) {
+  updateTransferFunction({gradientOpacityScale: value});
+}
+
+function updateTransferFunction(options = {}) {
+  let field = options.field || step.controls.selectedImageField();
+  if (field) {
+    let oldTFLength = field.transferFunction.length;
+    let transferFunction = step.tf.getTF();
+    let fixedTransferFunction = JSON.parse(JSON.stringify(transferFunction));
+    fixedTransferFunction.forEach(point => {
+      point[1].r /= 255;
+      point[1].g /= 255;
+      point[1].b /= 255;
+    });
+    field.transferFunction = fixedTransferFunction;
+    if (oldTFLength != field.transferFunction.length) {
+      step.renderer.updateProgram();
+    }
+    if (options.gradientOpacityScale) {
+      field.gradientOpacityScale = options.gradientOpacityScale;
+    }
+    step.renderer.requestRender();
+  }
+}
+
 function performImageFilter( generator, options ) {
   options.filterField = options.filterField || step.renderer.inputFields[step.renderer.inputFields.length-1];
   if (!options.filterField || options.filterField.constructor.name != "ImageField") {
@@ -278,7 +421,7 @@ function performImageFilter( generator, options ) {
 
   step.renderer.inputFields = [options.filterField, options.derivedField0];
   step.renderer.updateProgram();
-  
+
   options.generator = new generator({
     gl: step.renderer.gl,
     inputFields: [options.filterField],
@@ -599,6 +742,10 @@ let step = {
     renderCanvasWidth: { type: '1f', value: 512 },
     renderCanvasHeight: { type: '1f', value: 512 },
     sliceMode: { type: '1i', value: 1 },
+    Kambient: { type: '1f', value: 1.5 },
+    Kdiffuse: { type: '1f', value: .95 },
+    Kspecular: { type: '1f', value: .8 },
+    Shininess: { type: '1f', value: 10 },
   },
 };
 
@@ -615,6 +762,7 @@ $(function () {
     alert('Sorry, it looks like your browser does not support webgl2.  Try firefox.');
     return;
   }
+  $('#noWebGLAlert').remove();
 
 
   // check if our gl supports float textures and if
@@ -683,6 +831,8 @@ $(function () {
   step.ui.menubar = new stepMenubar(step, {
     chronicle : step.chronicle,
     requestSeries : requestSeries,
+    updateTransferFunction : updateTransferFunction,
+    onGradientOpacityScaleChange : (event) => {updateGradientOpacity(event.target.value)},
     performFilter : performFilter,
     performPDE : performPDE,
     performGrowCut : performGrowCut,
@@ -691,6 +841,7 @@ $(function () {
     performNonlocalmeans : performNonlocalmeans,
     performRasterizeSegments : performRasterizeSegments,
     addRandomFiducials : addRandomFiducials,
+    loadVolumeFromSlicer : loadVolumeFromSlicer,
     addTransformField : addTransformField,
     animateTransform : animateTransform,
     save : saveFieldsAsDICOM,
@@ -731,9 +882,12 @@ window.onresize = onResize;
 
 </script>
 
-<p>
-This demo uses <a href='https://www.khronos.org/registry/webgl/specs/latest/2.0/'>WebGL2</a>.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.  <a href='https://www.khronos.org/webgl/wiki/Getting_a_WebGL_Implementation'>See this page for details.</a>
-</p>
+<div id="noWebGLAlert">
+  <p>
+  This demo uses <a href='https://www.khronos.org/registry/webgl/specs/latest/2.0/'>WebGL2</a>.  Not all devices and browsers are supported.  As of this writing only the latest Chrome Canary or Firefox Nightly will work.  <a href='https://www.khronos.org/webgl/wiki/Getting_a_WebGL_Implementation'>See this page for details.</a>
+  </p>
+  <p>This <a href='http://www.youtube.com/embed/wMkuwzA7RDo'>video</a> shows what the project looks like when WebGL2 is available.</p>
+</div>
 
 </body>
 </html>

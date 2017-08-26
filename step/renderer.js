@@ -1,10 +1,18 @@
 class RayCastRenderer extends ProgrammaticGenerator {
   // Last link in a chain, renders to the default frame buffer
   // using ray cast shader program
+  //
   constructor(options={}) {
     super(options);
     this.canvas = options.canvas;
+    this.rayCompositing = options.rayCompositing || 'integration';
+    if (!this.rayCompositing in ['integration', 'maximum', 'minimum']) {
+      console.error(`Unknown rayCompositing option ${this.rayCompositing}, using integration`);
+      this.rayCompositing = 'integration';
+    }
+    this.maximumCompositingField = options.maximumCompositingField || 0;
     this.renderRequestTimeout = options.renderRequestTimeout || 100.;
+
     this.pendingRenderRequest = false; // a handle to the ongoing render
     this.requestAnotherRender = false; // trigger another when this completes
 
@@ -170,6 +178,67 @@ class RayCastRenderer extends ProgrammaticGenerator {
     return(fieldCompositingShaderSource);
   }
 
+  rayCompositingShaderSource() {
+    if (this.rayCompositing == 'integration') {
+      return (`
+        // http://graphicsrunner.blogspot.com/2009/01/volume-rendering-101.html
+        if (opacity > 0.) {
+          opacity *= adjustedStep;
+          integratedPixel.rgb += (1. - integratedPixel.a) * opacity * litColor;
+          integratedPixel.a += (1. - integratedPixel.a) * opacity;
+          integratedPixel = clamp(integratedPixel, 0.0001, 0.9999);
+        }
+
+        if (sliceMode == 1) {
+          integratedPixel.rgb = colorSum;
+          integratedPixel.a = 1.;
+        }
+
+        tCurrent += adjustedStep;
+        if (
+            tCurrent >= tFar  // stepped out of the volume
+              ||
+            tCurrent >= viewFar // far clip plane
+              ||
+            integratedPixel.a >= .99  // pixel is saturated
+        ) {
+          break; // we can stop now
+        }
+      `);
+    } else if (this.rayCompositing == 'maximum') {
+      return (`
+
+        // MIP rendering using alpha to store max pixel value
+        // - re-sample selected field
+        // - if its r component is max, then use summed color for this sample point
+        sampleField${this.maximumCompositingField}(textureUnit${this.maximumCompositingField},
+                                samplePoint, gradientSize,
+                                sampleValue, normal, gradientMagnitude);
+        transferFunction${this.maximumCompositingField}(sampleValue, gradientMagnitude,
+                                color, fieldOpacity);
+        if (sampleValue > integratedPixel.a) {
+          integratedPixel.rgb = colorSum;
+          integratedPixel.a = sampleValue;
+        }
+
+        if (sliceMode == 1) {
+          integratedPixel.rgb = colorSum;
+          integratedPixel.a = 1.;
+        }
+
+        tCurrent += adjustedStep;
+        if (
+            tCurrent >= tFar  // stepped out of the volume
+              ||
+            tCurrent >= viewFar // far clip plane
+        ) {
+          integratedPixel.a = 1.; // always returns a fully opaque value of the max sample
+          break; // we can stop now
+        }
+      `);
+    }
+  }
+
   _vertexShaderSource() {
     return (`${this.headerSource()}
       in vec3 coordinate;
@@ -202,11 +271,16 @@ class RayCastRenderer extends ProgrammaticGenerator {
       uniform float renderCanvasWidth;
       uniform float renderCanvasHeight;
       uniform int sliceMode;
+      uniform float Kambient; // TODO: move to per-field
+      uniform float Kdiffuse;
+      uniform float Kspecular;
+      uniform float Shininess;
 
       bool intersectBox(const in vec3 rayOrigin, const in vec3 rayDirection,
                         const in vec3 boxMin, const in vec3 boxMax,
                         out float tNear, out float tFar)
         // intersect ray with a box
+        // https://github.com/bozorgi/VTKMultiVolumeRayCaster/blob/master/README.pdf
         // http://www.siggraph.org/education/materials/HyperGraph/raytrace/rtinter3.htm
       {
           // compute intersection of ray with all six bbox planes
@@ -235,10 +309,6 @@ class RayCastRenderer extends ProgrammaticGenerator {
         vec3 Cambient = color;
         vec3 Cdiffuse = color;
         vec3 Cspecular = vec3(1.,1.,1.);
-        float Kambient = .30;
-        float Kdiffuse = .95;
-        float Kspecular = .80;
-        float Shininess = 10.;
 
         vec3 litColor = Kambient * Cambient;
         vec3 pointToEye = normalize(viewPoint - samplePoint);
@@ -266,7 +336,7 @@ class RayCastRenderer extends ProgrammaticGenerator {
       //
       vec4 rayCast( in vec3 sampleCoordinate )
       {
-        vec4 backgroundRGBA = vec4(0.2,0.,.5,1.); // TODO: mid blue background for now
+        vec4 backgroundRGBA = vec4(.25, .25, .25, 1.);
 
         float aspect = renderCanvasWidth / renderCanvasHeight;
         vec2 normalizedCoordinate = 2. * (sampleCoordinate.st -.5);
@@ -308,30 +378,9 @@ class RayCastRenderer extends ProgrammaticGenerator {
           // from all the inputFields in the space
           ${this.fieldCompositingShaderSource()}
 
-          // http://graphicsrunner.blogspot.com/2009/01/volume-rendering-101.html
-          if (opacity > 0.) {
-            opacity *= adjustedStep;
-            integratedPixel.rgb += (1. - integratedPixel.a) * opacity * litColor;
-            integratedPixel.a += (1. - integratedPixel.a) * opacity;
-            integratedPixel = clamp(integratedPixel, 0.0001, 0.9999);
-          }
-
-          if (sliceMode == 1) {
-            integratedPixel.rgb = colorSum;
-            integratedPixel.a = 1.;
-          }
-
-          tCurrent += adjustedStep;
-          if (
-              tCurrent >= tFar  // stepped out of the volume
-                ||
-              tCurrent >= viewFar // far clip plane
-                ||
-              integratedPixel.a >= .99  // pixel is saturated
-          ) {
-            break; // we can stop now
-          }
+          ${this.rayCompositingShaderSource()}
         }
+
         return(vec4(mix(backgroundRGBA.rgb, integratedPixel.rgb, integratedPixel.a), 1.));
       }
 

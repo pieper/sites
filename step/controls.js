@@ -4,6 +4,7 @@ class Controls {
     this.touchEvents = ['touchstart', 'touchmove', 'touchend'];
     this.startPoint = undefined;
     this.startWindow = undefined;
+    this.gangWindow = false;
     this.tool = 'windowLevel';
     this.imageDisplayIndex = 0;
   }
@@ -20,7 +21,15 @@ class Controls {
     return field;
   }
 
-  cycleImages(indexToDisplay) {
+  toggleField(index) {
+    step.renderer.inputFields[index].visible ^= 1; // xor equals toggles
+  }
+
+  randomColor() {
+    this.selectedImageField().rgba = [Math.random(), Math.random(), Math.random(), 1.];
+  }
+
+  cycleVisibleImage(indexToDisplay) {
     if (indexToDisplay == undefined) {
       indexToDisplay = this.imageDisplayIndex;
       this.imageDisplayIndex++
@@ -30,8 +39,15 @@ class Controls {
     let index = 0;
     step.renderer.inputFields.forEach(inputField => {
       inputField.visible = Number(index == indexToDisplay);
-      console.log(index, inputField.constructor.name, inputField.visible);
+      console.log(index, inputField.visible, inputField.dataset.SeriesDescription, inputField.constructor.name);
       index++;
+    });
+    step.renderer.requestRender(step.view);
+  }
+
+  allImagesVisible() {
+    step.renderer.inputFields.forEach(inputField => {
+      inputField.visible = true;
     });
     step.renderer.requestRender(step.view);
   }
@@ -120,6 +136,14 @@ class Controls {
                 imageField.windowWidth = this.startWindow[0] + pointDelta[0] * 1500.;
                 imageField.windowWidth = Math.max(imageField.windowWidth, 1.);
                 imageField.windowCenter = this.startWindow[1] + pointDelta[1] * 1500.;
+                if (this.gangWindow) {
+                  step.renderer.inputFields.forEach(field => {
+                    if (field.constructor.name == 'ImageField') {
+                      field.windowWidth = imageField.windowWidth;
+                      field.windowCenter = imageField.windowCenter;
+                    }
+                  });
+                }
                 if (this.onWindowLevel) {
                   this.onWindowLevel();
                 }
@@ -190,60 +214,93 @@ class Controls {
         key = key.toLowerCase();
       }
     }
-    switch (key) {
-      case "ArrowUp": {
-        step.view.orbit(0, 1);
-      }
-      break;
-      case "ArrowRight": {
-        step.view.orbit(1, 0);
-      }
-      break;
-      case "ArrowLeft": {
-        step.view.orbit(-1, 0);
-      }
-      break;
-      case "ArrowDown": {
-        step.view.orbit(0, -1);
-      }
-      break;
-      case "a": {
-        step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
-        step.uniforms.sliceMode.value = 1;
-      }
-      break;
-      case "s": {
-        step.view.slice({plane: "sagittal", offset: 0.5, thickness: 1});
-        step.uniforms.sliceMode.value = 1;
-      }
-      break;
-      case "c": {
-        step.view.slice({plane: "coronal", offset: 0.5, thickness: 1});
-        step.uniforms.sliceMode.value = 1;
-      }
-      break;
-      case "v": {
-        step.view.viewNear = 0;
-        step.view.viewFar = Linear.LARGE_NUMBER;
-        step.uniforms.sliceMode.value = 0;
-      }
-      break;
-      case "t": {
-        if (this.tool == "trackball") {
-          this.tool = "windowLevel";
-        } else {
-          this.tool = "trackball";
+    if (key.match(/[0-9]/)) { // isdigit
+      this.toggleField(Number(key));
+    } else {
+      switch (key) {
+        case "ArrowUp": {
+          step.view.orbit(0, 1);
+        }
+        break;
+        case "ArrowRight": {
+          step.view.orbit(1, 0);
+        }
+        break;
+        case "ArrowLeft": {
+          step.view.orbit(-1, 0);
+        }
+        break;
+        case "ArrowDown": {
+          step.view.orbit(0, -1);
+        }
+        break;
+        case "a": {
+          step.view.slice({plane: "axial", offset: 0.5, thickness: 1});
+          step.uniforms.sliceMode.value = 1;
+        }
+        break;
+        case "s": {
+          step.view.slice({plane: "sagittal", offset: 0.5, thickness: 1});
+          step.uniforms.sliceMode.value = 1;
+        }
+        break;
+        case "c": {
+          step.view.slice({plane: "coronal", offset: 0.5, thickness: 1});
+          step.uniforms.sliceMode.value = 1;
+        }
+        break;
+        case "v": {
+          step.view.viewNear = 0;
+          step.view.viewFar = Linear.LARGE_NUMBER;
+          step.uniforms.sliceMode.value = 0;
+        }
+        break;
+        case "t": {
+          if (this.tool == "trackball") {
+            this.tool = "windowLevel";
+          } else {
+            this.tool = "trackball";
+          }
+        }
+        break;
+        case "f": {
+          step.view.look({at: step.renderer.center, bounds: step.renderer.bounds});
+        }
+        break;
+        case "R": {
+          this.allImagesVisible();
+        }
+        break;
+        case "r": {
+          this.cycleVisibleImage();
+        }
+        break;
+        case "y": {
+          this.randomColor();
+        }
+        case " ": { // Space
+          animateTransform(); // global
+        }
+        break;
+        case ".": {
+          console.log('.');
+          step.renderer.inputFields.forEach(field => field.transformGain = 1);
+          step.renderer.requestRender();
+        }
+        break;
+        case ",": {
+          step.renderer.inputFields.forEach(field => field.transformGain = 0);
+          step.renderer.requestRender();
+        }
+        break;
+        case "Shift": {
+          // no op
+        }
+        break;
+        default : {
+          console.log(`No mapping for "${key}"`);
         }
       }
-      break;
-      case "f": {
-        step.view.look({at: step.renderer.center, bounds: step.renderer.bounds});
-      }
-      break;
-      case "r": {
-        this.cycleImages();
-      }
-      break;
     }
     step.renderer.requestRender(step.view);
   }

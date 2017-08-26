@@ -33,8 +33,9 @@ class stepMenubar extends Menubar {
     super();
     this.container.add(new stepFileMenu(step,options).container);
     this.container.add(new stepDatabaseMenu(step,options).container);
-    this.container.add(new stepOperationMenu(step,options).container);
     this.container.add(new stepViewMenu(step,options).container);
+    this.container.add(new stepDisplayMenu(step,options).container);
+    this.container.add(new stepOperationMenu(step,options).container);
     this.container.add(new stepAboutMenu(step,options).container);
   }
 }
@@ -67,17 +68,25 @@ class stepFileMenu extends MenuPanel {
         seriesKeys: ['[["UnspecifiedInstitution","QIN-PROSTATE-01-0002"],["MS2197/BD/PRO   Pelvis w&w/o","1.3.6.1.4.1.14519.5.2.1.3671.7001.267069126134560539593081476574"],["MR","AX FRFSE-XL T2","1.3.6.1.4.1.14519.5.2.1.3671.7001.311804128593572138452599822764"]]'],
       },
       */
+      { name: "Prostate Example",
+        seriesKeys: [
+          '[["UnspecifiedInstitution","QIN-PROSTATE-01-0001"],["PELVIS W/O CONT","1.3.6.1.4.1.14519.5.2.1.3671.7001.133687106572018334063091507027"],["MR","Apparent Diffusion Coefficient (mm?/s)","1.3.6.1.4.1.14519.5.2.1.3671.7001.261913302903961139526297576821"]]',
+          '[["UnspecifiedInstitution","QIN-PROSTATE-01-0001"],["PELVIS W/O CONT","1.3.6.1.4.1.14519.5.2.1.3671.7001.133687106572018334063091507027"],["SEG","UnspecifiedSeriesDescription","1.2.276.0.7230010.3.1.3.0.19185.1476720200.384250"]]',
+          ],
+      },
       { name: "Head and Neck Example",
         seriesKeys: ['[["UnspecifiedInstitution","QIN-HEADNECK-01-0003"],["Thorax^1HEAD_NECK_PETCT","1.3.6.1.4.1.14519.5.2.1.2744.7002.150059977302243314164020079415"],["CT","CT WB 5.0 B40s_CHEST","1.3.6.1.4.1.14519.5.2.1.2744.7002.248974378224961074547541151175"]]'],
       },
-      /*
-      { name: "QIN 139 Segmentation",
+      { name: "QIN 139 PET Segmentation",
         seriesKeys: [
           '[["UnspecifiedInstitution","QIN-HEADNECK-01-0139"],["CT CHEST W/O CONTRAST","1.3.6.1.4.1.14519.5.2.1.2744.7002.373729467545468642229382466905"],["SEG","tumor segmentation - User3 SemiAuto trial 1","1.2.276.0.7230010.3.1.3.8323329.20009.1440004784.9295"]]',
+          /* the PT */
+          '[["UnspecifiedInstitution","QIN-HEADNECK-01-0139"],["CT CHEST W/O CONTRAST","1.3.6.1.4.1.14519.5.2.1.2744.7002.373729467545468642229382466905"],["PT","PET HeadNeck_0","1.3.6.1.4.1.14519.5.2.1.2744.7002.886851941687931416391879144903"]]'
+          /* the CT
           '[["UnspecifiedInstitution","QIN-HEADNECK-01-0139"],["CT CHEST W/O CONTRAST","1.3.6.1.4.1.14519.5.2.1.2744.7002.373729467545468642229382466905"],["CT","CT HeadNeck  3.0  B30f_CHEST","1.3.6.1.4.1.14519.5.2.1.2744.7002.182837959725425690842769990419"]]',
+          */
         ],
       },
-      */
       { name: "MRHead",
         seriesKeys: [
           '[["UnspecifiedInstitution","123456"],["Slicer Sample Data","1.2.826.0.1.3680043.2.1125.1.34027065691713096181869243555208536"],["MR","No series description","1.2.826.0.1.3680043.2.1125.1.60570920072252354871500178658621494"]]',
@@ -101,6 +110,18 @@ class stepFileMenu extends MenuPanel {
       });
       this.menuPanel.add( option );
     });
+
+    // spacer - tests
+    this.menuPanel.add( new UI.HorizontalRule() );
+
+    // File -> Add Fiducials
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Load volume from Slicer' );
+    option.onClick( function () {
+      options.loadVolumeFromSlicer();
+    } );
+    this.menuPanel.add( option );
 
     // spacer - tests
     this.menuPanel.add( new UI.HorizontalRule() );
@@ -296,6 +317,77 @@ class stepDatabaseMenu extends MenuPanel {
         operation: options.requestSeries
       });
     };
+  }
+}
+
+// Transfer function editor
+class stepDisplayMenu extends MenuPanel {
+  constructor(step, options) {
+    options = options || {};
+    options.updateTransferFunction = options.updateTransferFunction || function(){};
+    super(step, {title: 'Display'});
+    this.menuPanel.setClass('display');
+
+    // TODO:
+    // - add field selector
+    // - add visibility toggle
+    // - populate ui from field
+    // - add save and restore presets with preview rendering
+    // gradientOpacityScale
+    let toolText = new UI.Text('Gradient Opacity: ').setWidth('150px');
+    toolText.dom.style.textAlign = 'right';
+    this.menuPanel.add(toolText);
+    this.gradientOpacityScale = new UI.Number();
+    this.gradientOpacityScale.min = 0;
+    this.gradientOpacityScale.precision = 6;
+    this.gradientOpacityScale.step = .00001;
+    if (options.onGradientOpacityScaleChange) {
+      this.gradientOpacityScale.onChange(options.onGradientOpacityScaleChange);
+    }
+    this.gradientOpacityScale.setValue(0.0001);
+    this.menuPanel.add( this.gradientOpacityScale );
+
+    // scalar transfer function editor
+    let transferFunctionUI = new UI.Span();
+    this.menuPanel.add( transferFunctionUI );
+    let tfDiv = document.createElement('div');
+    tfDiv.style.position = 'relative';
+    tfDiv.style.width = '750px';
+    tfDiv.style.height = '150px';
+    transferFunctionUI.dom.appendChild(tfDiv);
+    step.tf = new TF_panel({
+      container: tfDiv,
+      width: 750,
+      height: 150,
+      widgets : [{
+        controlPoints: [
+          {value: 0, alpha: 0, color: {r: 0, g: 0,b: 0}},
+          {value: 1, alpha: 1, color: {r: 255, g: 255,b: 255}},
+        ],
+      }],
+    });
+    step.tf.registerCallback(options.updateTransferFunction);
+
+    toolText = new UI.Text('Field: ').setWidth('50px');
+    toolText.dom.style.textAlign = 'right';
+    this.menuPanel.add(toolText);
+    this.fieldSelect = new UI.Select().setOptions({
+      selectField: "Select a field",
+    }).setValue('selectField');
+    this.menuPanel.add( this.fieldSelect );
+  }
+
+  // TODO:
+  populateFieldSelector() {
+    let fieldOptions = { selectField: "Select a field" };
+    step.renderer.inputFields.forEach(field => {
+      fieldOptions[field.id] = field.id;
+    });
+    this.fieldSelect.setOptions(fieldOptions);
+    this.fieldSelect.setValue('selectField');
+  }
+
+  selectField(field) {
   }
 }
 
@@ -608,6 +700,30 @@ class stepViewMenu extends MenuPanel {
       step.renderer.requestRender(step.view);
     });
     this.menuPanel.add( option );
+
+    // spacer
+    this.menuPanel.add( new UI.HorizontalRule() );
+
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Ray Integration' );
+    option.onClick(() => {
+      step.renderer.rayCompositing = 'integration';
+      step.renderer.updateProgram();
+      step.renderer.requestRender(step.view);
+    });
+    this.menuPanel.add( option );
+
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Ray Maximum' );
+    option.onClick(() => {
+      step.renderer.rayCompositing = 'maximum';
+      step.renderer.updateProgram();
+      step.renderer.requestRender(step.view);
+    });
+    this.menuPanel.add( option );
+
   }
 }
 

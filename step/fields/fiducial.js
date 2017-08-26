@@ -9,10 +9,7 @@ class Fiducial {
 class FiducialField extends Field {
   constructor(options={}) {
     super(options);
-    this.rgba = options.rgba || [1., 0., 0., 0.5];
-    this.rgba = this.rgba.map(e=>e*1.00001); // hack to make it floating point
-    this.opacityScale = options.opacityScale || 1.;
-    this.opacityScale *= 1.00001; // hack to make it floating point
+    this.gradientOpacityScale = options.gradientOpacityScale || 1.;
     this.fiducials = options.fiducials || [];
     this.analyze();
   }
@@ -60,13 +57,16 @@ class FiducialField extends Field {
 
     let source = `
 
+      uniform vec4 rgba${this.id};
+      uniform float gradientOpacityScale${this.id};
       void transferFunction${this.id} (const in float sampleValue,
                                        const in float gradientMagnitude,
                                        out vec3 color,
                                        out float opacity)
       {
-          color = vec3( ${this.rgba[0]}, ${this.rgba[1]}, ${this.rgba[2]} );
-          opacity = ${this.opacityScale} * gradientMagnitude * sampleValue * ${this.rgba[3]};
+          color = vec3(rgba${this.id});
+          opacity = gradientOpacityScale${this.id} * gradientMagnitude *
+                    sampleValue * rgba${this.id}.a;
       }
 
       uniform ${this.samplerType} textureUnit${this.id};

@@ -138,7 +138,7 @@ function crossFade(options={}) {
   options.fields[(frame+1)%frameCount].rgba[3] = blend;
 }
 
-function loadVolumeFromSlicer(options) {
+function loadVolumeFromSlicer(options={}) {
   options.id = options.id || 'vtkMRMLScalarVolumeNode1';
   options.name = options.name || 'SlicerVolume1';
   // pull over a dataset from SlicerWeb and render it

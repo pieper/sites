@@ -37,6 +37,9 @@ class NRRD {
       nrrd.data = new Int16Array(nrrdArrayBuffer.slice(dataOffset));
     } else if (nrrd.header['type'] == 'float') {
       nrrd.data = new Float32Array(nrrdArrayBuffer.slice(dataOffset));
+    } else if (nrrd.header['type'] == 'double') {
+      // we need a float32, so convert binary to 64, then back to 32
+      nrrd.data = new Float32Array(new Float64Array(nrrdArrayBuffer.slice(dataOffset)));
     }
     return (nrrd);
   }
@@ -101,7 +104,7 @@ class NRRD {
     let dataset = {}
 
     if (sizes.length == 3) {
-      // Scalar Volume, assume it's CT-like
+      // Scalar Volume, assume it's CT-like - TODO: should be secondary capture
       dataset = {
         "SOPClass": "EnhancedCTImage",
         "Columns": String(sizes[0]),
@@ -110,7 +113,7 @@ class NRRD {
         "SamplesPerPixel": 1,
         "BitsStored": 16,
         "HighBit": 15,
-        "WindowCenter": [ "84" ], // any better option?
+        "WindowCenter": [ "84" ], // any better option? - TODO: estimate from random sample histogram
         "WindowWidth": [ "168" ], // any better option?
         "BitsAllocated": 16,
         "PixelRepresentation": 1,
@@ -188,12 +191,4 @@ class NRRD {
 
     return(dataset);
   }
-
-  // TODO: remove this since it's only used for testing/demo
-  static nrrdLinearMapPixels(nrrd, slope=1, intercept=0) {
-    for (let index = 0; index < nrrd.data.length; index++) {
-      nrrd.data[index] = slope * nrrd.data[index] + intercept;
-    }
-  }
-
 }

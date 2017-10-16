@@ -350,4 +350,11 @@ class FilterGenerator extends ProgrammaticGenerator {
     let pixelToTexture = pixelDimensions.map(e=>1./e);
     u['pixelToTexture'] = {type: '3fv', value: pixelToTexture};
   };
+
+  headerSource() {
+    return (`${super.headerSource()}
+      const int sliceMode = 1; // used for texture sampling (get value not transfer function)
+    `);
+  }
+
 }

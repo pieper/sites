@@ -50,6 +50,7 @@
   <script type="text/javascript" src="./growcut.js"></script>
   <script type="text/javascript" src="./gaussian.js"></script>
   <script type="text/javascript" src="./bilateral.js"></script>
+  <script type="text/javascript" src="./similarity.js"></script>
   <script type="text/javascript" src="./nonlocalmeans.js"></script>
   <script type="text/javascript" src="./rasterizer.js"></script>
   <script type="text/javascript" src="./pde.js"></script>
@@ -277,7 +278,7 @@ function animateCrossFade(options={}) {
   options.frames = options.frames || 100;
   let frame = 0;
   let animationFrame = function (now) {
-    crossFade({ 
+    crossFade({
       //timepoint: (1. + Math.sin(Math.PI*frame/options.frames)) / 2.
       timepoint: frame/options.frames
     });
@@ -432,14 +433,11 @@ function performImageFilter( generator, options ) {
   options.generator.gl = step.renderer.gl;
   options.generator.inputFields = [options.filterField];
   options.generator.outputFields = [options.derivedField0];
-
-  options.generator.uniforms.sigmaSpace = {type: '1f', value: options.sigmaSpace};
-  options.generator.uniforms.sigmaRange = {type: '1f', value: options.sigmaRange};
-  options.generator.uniforms.kernelSize = {type: '1i', value: options.kernelSize};
-
+  Object.keys(options.uniforms).forEach(uniformKey =>
+    options.generator.uniforms[uniformKey] = options.uniforms[uniformKey]);
   options.generator.updateProgram();
 
-  console.log(`image filtering`);
+  console.log(`image filtering with `, options.generator);
   options.generator.generate();
   step.renderer._render();
   options.filterField.visible = 0;
@@ -449,17 +447,30 @@ function performImageFilter( generator, options ) {
   return (options);
 }
 
-function performGaussian(options) {
-  return (performImageFilter(GaussianGenerator, options));
-}
-
 function performBilateral(options) {
   options = options || {
     sigmaRange : 1000.,
     sigmaSpace : 5.,
     kernelSize : 3,
   };
+  options.uniforms = {};
+  options.uniforms.sigmaRange = {type: '1f', value: options.sigmaRange};
+  options.uniforms.sigmaSpace = {type: '1f', value: options.sigmaSpace};
+  options.uniforms.kernelSize = {type: '1i', value: options.kernelSize};
   return (performImageFilter(BilateralGenerator, options));
+}
+
+function performSimilarity(options) {
+  options = options || {
+    referenceTextureCoordinate : [.5, .5, .5],
+    rotationSamples : 10,
+    kernelSize : 5,
+  };
+  options.uniforms = {};
+  options.uniforms.referenceTextureCoordinate = {type: '3fv', value: options.referenceTextureCoordinate};
+  options.uniforms.rotationSamples = {type: '1i', value: options.rotationSamples};
+  options.uniforms.kernelSize = {type: '1i', value: options.kernelSize};
+  return (performImageFilter(SimilarityGenerator, options));
 }
 
 function performNonlocalmeans(options) {
@@ -577,61 +588,6 @@ function performRasterizeSegments() {
 
   step.renderer.requestRender(step.view);
 }
-
-function performFilter() {
-  let filterField = step.renderer.inputFields[step.renderer.inputFields.length-1];
-  if (!filterField || filterField.constructor.name != "ImageField") {
-    alert('Need to load an image field');
-    return;
-  }
-
-  let derivedImage = new DerivedImage([filterField.dataset]);
-  let derivedField0 = Field.fromDataset(derivedImage.dataset)[0];
-  let derivedField1 = Field.fromDataset(derivedImage.dataset)[0];
-
-  // override default calculation
-  derivedField0.windowCenter = filterField.windowCenter;
-  derivedField0.windowWidth = filterField.windowWidth;
-  derivedField1.windowCenter = filterField.windowCenter;
-  derivedField1.windowWidth = filterField.windowWidth;
-
-  step.renderer.inputFields = [filterField, derivedField0, derivedField1];
-  step.renderer.updateProgram();
-
-  step.generator = new ProgrammaticGenerator({
-    gl: step.renderer.gl,
-    inputFields: [filterField],
-    outputFields: [derivedField0, derivedField1],
-  });
-  step.generator.updateProgram();
-
-  let iterations = 20;
-  let iteration = 0;
-  let renderRate = 1;
-  let animationFrame = function() {
-    console.log(`iteration ${iteration} of ${iterations}`);
-    step.generator.uniforms.amplitude.value = iteration;
-    step.generator.uniforms.frequency.value = 30.;
-    step.generator.generate();
-    if (iteration % renderRate == 0) {
-      step.renderer._render();
-    }
-    iteration++;
-    if (iteration < iterations) {
-      derivedField0.visible = (iteration+1) % 2;
-      derivedField1.visible = iteration % 2;
-      requestAnimationFrame(animationFrame);
-    } else {
-      derivedField0.visible = 1;
-      derivedField1.visible = 1;
-      step.renderer.requestRender(step.view);
-    }
-  }
-  requestAnimationFrame(animationFrame);
-
-  step.renderer.requestRender(step.view);
-}
-
 
 function performGrowCut() {
   console.log('starting performGrowCut');
@@ -833,11 +789,10 @@ $(function () {
     requestSeries : requestSeries,
     updateTransferFunction : updateTransferFunction,
     onGradientOpacityScaleChange : (event) => {updateGradientOpacity(event.target.value)},
-    performFilter : performFilter,
     performPDE : performPDE,
     performGrowCut : performGrowCut,
-    performGaussian : performGaussian,
     performBilateral : performBilateral,
+    performSimilarity : performSimilarity,
     performNonlocalmeans : performNonlocalmeans,
     performRasterizeSegments : performRasterizeSegments,
     addRandomFiducials : addRandomFiducials,

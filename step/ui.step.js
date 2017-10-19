@@ -394,41 +394,26 @@ class stepDisplayMenu extends MenuPanel {
 class stepOperationMenu extends MenuPanel {
   constructor(step, options) {
     options = options || {};
-    options.performFilter = options.performFilter || function(){};
     options.performPDE = options.performPDE || function(){};
     options.performGrowCut = options.performGrowCut || function(){};
-    options.performGaussian = options.performGaussian || function(){};
     options.performRasterizeSegments = options.performRasterizeSegments || function(){};
     super(step, {title: 'Operations'});
     this.options = options;
 
     let option;
 
-    /*
-    // Operations -> FilterTest
-    option = new UI.Row();
-    option.setClass( 'option' );
-    option.setTextContent( 'FilterTest' );
-    option.onClick( function () {
-      options.performFilter();
-    } );
-    this.menuPanel.add( option );
-
-    // Operations -> Gaussian
-    option = new UI.Row();
-    option.setClass( 'option' );
-    option.setTextContent( 'Gaussian' );
-    option.onClick( function () {
-      options.performGaussian();
-    } );
-    this.menuPanel.add( option );
-    */
-
     // Operations -> bilateral
     option = new UI.Row();
     option.setClass( 'option' );
     option.setTextContent( 'Bilateral' );
     option.onClick(this.bilateralPanel.bind(this));
+    this.menuPanel.add( option );
+
+    // Operations -> similarity
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Similarity' );
+    option.onClick(this.similarityPanel.bind(this));
     this.menuPanel.add( option );
 
     // Operations -> nonlocalmeans
@@ -513,6 +498,56 @@ class stepOperationMenu extends MenuPanel {
       this.bilateralOptions.sigmaSpace = this.sigmaSpaceUI.getValue();
       this.bilateralOptions.sigmaRange = this.sigmaRangeUI.getValue();
       this.bilateralOptions = this.options.performBilateral(this.bilateralOptions);
+    }
+    this.applyButton = new UI.Button("Apply");
+    this.container.add( this.applyButton );
+    this.applyButton.onClick(apply.bind(this));
+
+    let cancel = function() {
+      step.ui.sideBar.dom.removeChild(this.container.dom);
+    }
+    this.cancelButton = new UI.Button("Cancel");
+    this.container.add( this.cancelButton );
+    this.cancelButton.onClick(cancel.bind(this));
+
+    step.ui.sideBar.dom.appendChild(this.container.dom);
+  }
+
+  similarityPanel() {
+
+    this.container = new UI.Panel();
+    this.container.setId('similarityPanel');
+
+    this.similarityOptions = this.similarityOptions || {
+      referenceTextureCoordinate : [.5, .5, .5],
+      rotationSamples : 10,
+      kernelSize : 5,
+    };
+
+    // kernel size integer
+    this.kernelUI = new UI.Integer();
+    this.kernelUI.min = 1;
+    this.kernelUI.max = 50;
+    this.kernelUI.precision = 1;
+    this.kernelUI.step = 1;
+    this.kernelUI.unit = "pixels";
+    this.container.add( this.kernelUI );
+    this.kernelUI.setValue(this.similarityOptions.kernelSize);
+
+    // rotationSamples
+    this.rotationSamples = new UI.Integer();
+    this.rotationSamples.min = 1;
+    this.rotationSamples.max = 500;
+    this.rotationSamples.precision = 1;
+    this.rotationSamples.step = 1;
+    this.rotationSamples.unit = "rotation samples";
+    this.container.add( this.rotationSamples );
+    this.rotationSamples.setValue(this.similarityOptions.rotationSamples);
+
+    let apply = function() {
+      this.similarityOptions.kernelSize = this.kernelUI.getValue();
+      this.similarityOptions.rotationSamples = this.rotationSamples.getValue();
+      this.similarityOptions = this.options.performSimilarity(this.similarityOptions);
     }
     this.applyButton = new UI.Button("Apply");
     this.container.add( this.applyButton );

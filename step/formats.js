@@ -50,18 +50,18 @@ class NRRD {
     let nrrdHeader = `NRRD0004
 # Complete NRRD file format specification at:
 # http://teem.sourceforge.net/nrrd/format.html
-  type: short
-  dimension: 3
-  space: left-posterior-superior
-  sizes: ${nrrd.header['sizes']}
-  space directions: ${nrrd.header['space directions']}
-  kinds: domain domain domain
-  endian: little
-  encoding: raw
-  space origin: ${nrrd.header['space origin']}
+type: short
+dimension: 3
+space: left-posterior-superior
+sizes: ${nrrd.header['sizes']}
+space directions: ${nrrd.header['space directions']}
+kinds: domain domain domain
+endian: little
+encoding: raw
+space origin: ${nrrd.header['space origin']}
 
-  `;
-    let headerBytes = stringToUint8Array(nrrdHeader);
+`;
+    let headerBytes = NRRD.stringToUint8Array(nrrdHeader);
 
     // account for old header values in nrrd data buffer
     let bufferSize = nrrd.data.buffer.byteLength;

@@ -13,6 +13,12 @@ class GrowCutGenerator extends ProgrammaticGenerator {
     this.uniforms.iterations = { type: '1i', value: 0 };
   }
 
+  headerSource() {
+    return (`${super.headerSource()}
+      const int sliceMode = 1; // used for texture sampling (get value not transfer function)
+    `);
+  }
+
   updateProgram() {
     // recreate the program and textures for the current field list
     super.updateProgram();
@@ -34,37 +40,37 @@ class GrowCutGenerator extends ProgrammaticGenerator {
         }.bind(this)()
       }
 
-      #define MAX_STRENGTH 10000
+      #define MAX_STRENGTH ${this.bufferType}(10000)
 
       uniform int iterations;
       uniform int iteration;
       uniform ivec3 pixelDimensions;
 
-      uniform isampler3D inputTexture0; // background
-      uniform isampler3D inputTexture1; // label
-      uniform isampler3D inputTexture2; // strength
+      uniform ${this.samplerType} inputTexture0; // background
+      uniform ${this.samplerType} inputTexture1; // label
+      uniform ${this.samplerType} inputTexture2; // strength
 
       in vec3 interpolatedTextureCoordinate;
 
-      layout(location = 0) out int label;
-      layout(location = 1) out int strength;
+      layout(location = 0) out ${this.bufferType} label;
+      layout(location = 1) out ${this.bufferType} strength;
 
       void main()
       {
         ivec3 size = textureSize(inputTexture0, 0);
         ivec3 texelIndex = ivec3(floor(interpolatedTextureCoordinate * vec3(size)));
-        int background = texelFetch(inputTexture0, texelIndex, 0).r;
+        ${this.bufferType} background = texelFetch(inputTexture0, texelIndex, 0).r;
 
         if (iteration == 0) {
-          if (background < 50) {
-            label = 100;
+          if (background < ${this.bufferType}(30)) {
+            label = ${this.bufferType}(100);
             strength = MAX_STRENGTH;
-          } else if (background > 100) {
-            label = 2000;
+          } else if (background > ${this.bufferType}(60)) {
+            label = ${this.bufferType}(2000);
             strength = MAX_STRENGTH;
           } else {
-            label = 0;
-            strength = 0;
+            label = ${this.bufferType}(0);
+            strength = ${this.bufferType}(0);
           }
         } else {
           label = texelFetch(inputTexture1, texelIndex, 0).r;
@@ -74,10 +80,10 @@ class GrowCutGenerator extends ProgrammaticGenerator {
               for (int i = -1; i <= 1; i++) {
                 if (i != 0 && j != 0 && k != 0) {
                   ivec3 neighborIndex = texelIndex + ivec3(i,j,k);
-                  int neighborBackground = texelFetch(inputTexture0, neighborIndex, 0).r;
-                  int neighborStrength = texelFetch(inputTexture2, neighborIndex, 0).r;
-                  int strengthCost = abs(neighborBackground - background);
-                  int takeoverStrength = neighborStrength - strengthCost;
+                  ${this.bufferType} neighborBackground = texelFetch(inputTexture0, neighborIndex, 0).r;
+                  ${this.bufferType} neighborStrength = texelFetch(inputTexture2, neighborIndex, 0).r;
+                  ${this.bufferType} strengthCost = abs(neighborBackground - background);
+                  ${this.bufferType} takeoverStrength = neighborStrength - strengthCost;
                   if (takeoverStrength > strength) {
                     strength = takeoverStrength;
                     label = texelFetch(inputTexture1, neighborIndex, 0).r;

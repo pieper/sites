@@ -1,3 +1,6 @@
+//
+// this class handles routine interactions with chronicle's dicom context views
+//
 class Chronicle {
   constructor(options={}) {
     this.url = options.url || 'http://quantome.org:5984/chronicle';
@@ -62,6 +65,10 @@ class Chronicle {
 }
 
 
+//
+// Uses the operations database to manage requests for
+// performance of operations
+//
 class OperationHandler {
   constructor(payload) {
     this.payload = payload;
@@ -109,6 +116,7 @@ class OperationHandler {
           statusText: getRequest.statusText
         });
       };
+      console.log('Posting');
       postRequest.open("POST", payload.prov.outputData.url, true);
       postRequest.send(new Uint8Array(payload.resultArrayBuffer));
     });
@@ -118,6 +126,7 @@ class OperationHandler {
     this.getInputData()
     .then(this.perform.bind(this))
     .then(this.postOutputData.bind(this))
+    .then(console.log)
     .catch( error => {
       console.log('Something went wrong...', error);
     });
@@ -147,7 +156,7 @@ class FilterHandler extends OperationHandler {
     let dataset = NRRD.nrrdToDICOMDataset(nrrd);
     options.filterField = Field.fromDataset(dataset)[0];
 
-    options = performBilateral(options);
+    options = this.filterFunction(options);
 
     // TODO: possibly changed nrrd header
     nrrd.data = new Uint16Array(options.derivedField0.generatedPixelData);
@@ -156,13 +165,25 @@ class FilterHandler extends OperationHandler {
   perform() {
     let payload =  this.payload;
     let executor = function(resolve,reject) {
-      if (payload.prov.inputData.type == 'bilateral') {
-        this.nrrdPerformFilter(payload.nrrd);
-      }
+      this.nrrdPerformFilter(payload.nrrd);
       payload.resultArrayBuffer = NRRD.format(payload.nrrd);
       resolve(payload);
     }
     return new Promise(executor.bind(this));
+  }
+}
+
+class BilateralHandler extends FilterHandler {
+  constructor(payload) {
+    super(payload);
+    this.filterFunction = performBilateral; // globally defined
+  }
+}
+
+class SimilarityHandler extends FilterHandler {
+  constructor(payload) {
+    super(payload);
+    this.filterFunction = performSimilarity; // globally defined
   }
 }
 
@@ -222,7 +243,8 @@ class OperationPerformer {
     this.dbURL = options.dbURL || 'http://localhost:5984/operations';
 
     this.operations = {
-      'filter': FilterHandler,
+      'bilateral': BilateralHandler,
+      'similarity': SimilarityHandler,
       'growcut': GrowCutHandler,
       // TODO: add operation handlers from options
     };
@@ -284,14 +306,13 @@ class OperationPerformer {
 
   testOperations(operationsDB) {
 
-    let filterOperationsDoc = {
+    let similarityOperationsDoc = {
       type: "ch.step",
       status: "open",
       desiredProvenance: {
         application: "step",
-        operation: "filter",
+        operation: "similarity",
         inputData: {
-          type: 'bilateral',
           url: "http://localhost:2016/slicer/volume?id=MRHead"
         },
         outputData: {
@@ -318,6 +339,6 @@ class OperationPerformer {
     };
 
     //this.operationsDB.post(growcutOperationsDoc);
-    this.operationsDB.post(filterOperationsDoc);
+    this.operationsDB.post(similarityOperationsDoc);
   }
 }

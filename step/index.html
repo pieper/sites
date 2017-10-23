@@ -448,11 +448,10 @@ function performImageFilter( generator, options ) {
 }
 
 function performBilateral(options) {
-  options = options || {
-    sigmaRange : 1000.,
-    sigmaSpace : 5.,
-    kernelSize : 3,
-  };
+  options.sigmaRange = options.sigmaRange || 1000.;
+  options.sigmaSpace = options.sigmaSpace || 5.;
+  options.kernelSize = options.kernelSize || 3.;
+
   options.uniforms = {};
   options.uniforms.sigmaRange = {type: '1f', value: options.sigmaRange};
   options.uniforms.sigmaSpace = {type: '1f', value: options.sigmaSpace};
@@ -461,11 +460,10 @@ function performBilateral(options) {
 }
 
 function performSimilarity(options) {
-  options = options || {
-    referenceTextureCoordinate : [.5, .5, .5],
-    rotationSamples : 10,
-    kernelSize : 5,
-  };
+  options.referenceTextureCoordinate = options.referenceTextureCoordinate || [.5, .5, .5];
+  options.rotationSamples = options.rotationSamples || 10;
+  options.kernelSize = options.kernelSize || 5;
+
   options.uniforms = {};
   options.uniforms.referenceTextureCoordinate = {type: '3fv', value: options.referenceTextureCoordinate};
   options.uniforms.rotationSamples = {type: '1i', value: options.rotationSamples};
@@ -777,8 +775,11 @@ $(function () {
 
   //
   // chronicle
+  // - database selection interface
+  // - operation performer
   //
   step.chronicle = new Chronicle({url: 'http://quantome.org:5984/chronicle'});
+  step.operationPerformer = new OperationPerformer({dbURL: 'http://quantome.org:5984/operations'});
 
   //
   // user interface elements

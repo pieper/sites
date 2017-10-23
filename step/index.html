@@ -52,7 +52,6 @@
   <script type="text/javascript" src="./bilateral.js"></script>
   <script type="text/javascript" src="./similarity.js"></script>
   <script type="text/javascript" src="./nonlocalmeans.js"></script>
-  <script type="text/javascript" src="./rasterizer.js"></script>
   <script type="text/javascript" src="./pde.js"></script>
 
 
@@ -546,47 +545,6 @@ function performPDE(options) {
   return(options);
 }
 
-function performRasterizeSegments() {
-  let targetField = undefined;
-  let segmentationFields = []
-  step.renderer.inputFields.forEach(field=>{
-    if (field.constructor.name == "ImageField") {
-      targetField = field;
-    }
-    if (field.constructor.name == "SegmentationField") {
-      segmentationFields.push(field);
-      field.visible = 0;
-    }
-  });
-  if (!targetField) {
-    alert('Need to load an image field');
-    return;
-  }
-  if (segmentationFields.length == 0) {
-    alert('Need at least one segmentation field');
-    return;
-  }
-
-  let derivedImage = new DerivedImage([targetField.dataset]);
-  let derivedField = Field.fromDataset(derivedImage.dataset)[0];
-  derivedField.windowCenter = -1;
-  derivedField.windowWidth = 2 * segmentationFields.length;
-  derivedField.generatedPixelData = derivedImage.dataset.PixelData;
-
-  step.renderer.inputFields.push(derivedField);
-  step.renderer.updateProgram();
-
-  step.generator = new RasterizerGenerator({
-    gl: step.renderer.gl,
-    inputFields: segmentationFields,
-    outputFields: [derivedField],
-  });
-  step.generator.updateProgram();
-  step.generator.generate();
-
-  step.renderer.requestRender(step.view);
-}
-
 function performGrowCut() {
   console.log('starting performGrowCut');
   let backgroundField = step.renderer.inputFields[step.renderer.inputFields.length-1];
@@ -795,7 +753,6 @@ $(function () {
     performBilateral : performBilateral,
     performSimilarity : performSimilarity,
     performNonlocalmeans : performNonlocalmeans,
-    performRasterizeSegments : performRasterizeSegments,
     addRandomFiducials : addRandomFiducials,
     loadVolumeFromSlicer : loadVolumeFromSlicer,
     addTransformField : addTransformField,

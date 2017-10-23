@@ -396,7 +396,6 @@ class stepOperationMenu extends MenuPanel {
     options = options || {};
     options.performPDE = options.performPDE || function(){};
     options.performGrowCut = options.performGrowCut || function(){};
-    options.performRasterizeSegments = options.performRasterizeSegments || function(){};
     super(step, {title: 'Operations'});
     this.options = options;
 
@@ -438,17 +437,6 @@ class stepOperationMenu extends MenuPanel {
       options.performGrowCut();
     } );
     this.menuPanel.add( option );
-
-    /*
-    // Operations -> RasterizeSegments
-    option = new UI.Row();
-    option.setClass( 'option' );
-    option.setTextContent( 'RasterizeSegments' );
-    option.onClick( function () {
-      options.performRasterizeSegments();
-    } );
-    this.menuPanel.add( option );
-    */
   }
 
   bilateralPanel() {
@@ -707,7 +695,6 @@ class stepOperationMenu extends MenuPanel {
 class stepViewMenu extends MenuPanel {
   constructor(step, options) {
     options = options || {};
-    options.performRasterizeSegments = options.performRasterizeSegments || function(){};
     super(step, {title: 'View'});
     this.options = options;
 

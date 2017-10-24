@@ -53,6 +53,7 @@
   <script type="text/javascript" src="./similarity.js"></script>
   <script type="text/javascript" src="./nonlocalmeans.js"></script>
   <script type="text/javascript" src="./pde.js"></script>
+  <script type="text/javascript" src="./registration.js"></script>
 
 
   <link rel="stylesheet" href="./css/step.css" />
@@ -257,6 +258,7 @@ function addTransformField() {
     vectorGrid[10+3*k+2] = 15.; // translate middle less upward
   }
   let transformDataset = {
+    SeriesDescription: "Deformation from addTransformField method",
     SOPClass: "DeformableSpatialRegistration",
     DeformableRegistration: {
       DeformableRegistrationGrid: {
@@ -273,7 +275,8 @@ function addTransformField() {
   if (referenceField) {
     let grid = transformDataset.DeformableRegistration.DeformableRegistrationGrid;
     let bounds = referenceField.bounds;
-    grid.ImagePositionPatient = bounds.min.slice();
+    let position = bounds.min.slice();
+    grid.ImagePositionPatient = [ position[0], position[1], position[2] ];
     grid.GridResolution = [
       (bounds.max[0] - bounds.min[0]) / w,
       (bounds.max[1] - bounds.min[1]) / h,
@@ -283,10 +286,8 @@ function addTransformField() {
 
   let transformField = Field.fromDataset(transformDataset)[0];
   transformField.visible = 1;
+  referenceField.transformField = transformField;
 
-  step.renderer.inputFields.forEach(field => {
-    field.transformField = transformField;
-  });
   step.renderer.inputFields.unshift(transformField); // TODO: generalize dependencies
   step.renderer.updateProgram();
   step.renderer.requestRender(step.view);
@@ -605,6 +606,7 @@ function performGrowCut() {
 
   console.log('updated program');
 
+  let iterationMode = 'animated';
   backgroundField.visible = 0;
   let iterations = 50;
   let iteration = 0;
@@ -656,7 +658,9 @@ function performGrowCut() {
     if (iteration < iterations) {
       // not finished, trigger another itertion
       step.ui.bottomBar.progress = `Iteration ${iteration} of ${iterations}`;
-      //requestAnimationFrame(animationFrame); // continue iterating
+      if (iterationMode == 'animated') {
+        requestAnimationFrame(animationFrame); // continue iterating
+      }
     } else {
       step.ui.bottomBar.progress = `Finished ${iterations} iterations`;
       [0,1].forEach(index=>{
@@ -669,9 +673,114 @@ function performGrowCut() {
       console.log('finished');
     }
   }
-  //requestAnimationFrame(animationFrame); // start the iterations
-  for (let i = 0; i < iterations; i++) {
-    animationFrame();
+  if (iterationMode == 'animated') {
+    requestAnimationFrame(animationFrame); // start the iterations
+  } else {
+    for (let i = 0; i < iterations; i++) {
+      animationFrame();
+    }
+  }
+
+  step.renderer.requestRender(step.view);
+}
+
+// hard coded for testing
+function performRegistration() {
+  console.log('starting performRegistration');
+
+  // for easier testing: last field with transform is moving, last without is fixed
+  // - compatible with data loaded from slicer or manually created
+  let fixedField, movingField, deformationField;
+  step.renderer.inputFields.forEach(inputField => {
+    if (inputField.constructor.name == "ImageField") {
+      if (inputField.transformField) {
+        movingField = inputField;
+        deformationField = inputField.transformField;
+      } else {
+        fixedField = inputField;
+      }
+    }
+  });
+
+  if ( !(fixedField && movingField && deformationField) ) {
+    alert("Couldn't find fields for registration");
+    return;
+  }
+
+  let datasetCopy = JSON.parse(JSON.stringify(deformationField.dataset));
+  let grid = datasetCopy.DeformableRegistration.DeformableRegistrationGrid;
+  grid.VectorGridData = new Float32Array(Object.keys(grid.VectorGridData).length);
+  datasetCopy.SeriesDescription = "Copied Deformation";
+  let deformationFieldCopy = Field.fromDataset(datasetCopy)[0];
+
+  step.renderer.inputFields.unshift(deformationFieldCopy);
+
+  let deformationFields = [deformationField, deformationFieldCopy];
+  deformationFields.forEach(deformationField => deformationField.visible = 0);
+
+  step.renderer.updateProgram();
+  step.renderer.requestRender(step.view);
+
+  let iterationMode = 'animated';
+  let iterations = 50;
+  let iteration = 0;
+  let animationFrame = function() {
+
+    let inBuffer = iteration%2;
+    let outBuffer = (iteration+1)%2;
+
+    let needUpdate = false;
+    if (!step.registration) {
+      step.registration = new RegistrationGenerator({
+        gl: step.renderer.gl,
+      });
+      needUpdate = true;
+    }
+    step.registration.uniforms.iterations.value = iterations;
+    step.registration.inputFields = [deformationFields[inBuffer],
+                                     fixedField,
+                                     movingField];
+    step.registration.outputFields = [deformationFields[outBuffer]];
+    if (needUpdate) {
+      step.registration.updateProgram();
+    }
+
+    // for the final iteration, save the calculation result to CPU
+    /* TODO: handle generated VectorGridData
+    if (iteration == iterations-1) {
+      step.registration.outputFields.forEach(outputField => {
+        outputField.generatedPixelData = outputField.dataset.PixelData;
+      });
+    }
+    */
+
+    console.log(iteration,'generating');
+
+    step.registration.generate();
+
+    console.log(iteration,'rendering');
+    step.renderer._render();
+
+    iteration++;
+
+    if (iteration < iterations) {
+      // not finished, trigger another itertion
+      step.ui.bottomBar.progress = `Iteration ${iteration} of ${iterations}`;
+      if (iterationMode == 'animated') {
+        requestAnimationFrame(animationFrame); // continue iterating
+      }
+    } else {
+      step.ui.bottomBar.progress = `Finished ${iterations} iterations`;
+      step.renderer._render();
+      console.log('finished');
+    }
+  }
+  if (iterationMode == 'animated') {
+    requestAnimationFrame(animationFrame); // start the iterations
+  } else {
+    for (let i = 0; i < iterations; i++) {
+      animationFrame();
+    }
   }
 
   step.renderer.requestRender(step.view);
@@ -788,6 +897,7 @@ $(function () {
     performBilateral : performBilateral,
     performSimilarity : performSimilarity,
     performNonlocalmeans : performNonlocalmeans,
+    performRegistration : performRegistration,
     addRandomFiducials : addRandomFiducials,
     loadVolumeFromSlicer : loadVolumeFromSlicer,
     addTransformField : addTransformField,

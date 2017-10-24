@@ -437,6 +437,15 @@ class stepOperationMenu extends MenuPanel {
       options.performGrowCut();
     } );
     this.menuPanel.add( option );
+
+    // Operations -> Registration
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Registration' );
+    option.onClick( function () {
+      options.performRegistration();
+    } );
+    this.menuPanel.add( option );
   }
 
   bilateralPanel() {

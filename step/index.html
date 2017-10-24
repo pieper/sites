@@ -119,6 +119,41 @@ function Patient3_setup() {
   step.uniforms.sliceMode.value = 0;
 }
 
+function Patient17_setup() {
+
+  let premri1ID = 'vtkMRMLScalarVolumeNode1';
+  let postdura1ID = 'vtkMRMLScalarVolumeNode2';
+  let gridTransformID = 'vtkMRMLGridTransformNode1';
+
+  let slicer = new Slicer({url: slicerURL});
+
+  slicer.volume(postdura1ID).then(dataset=>{
+    dataset.SeriesDescription = 'postdura1';
+    loadDatasets([dataset]);
+    slicer.volume(premri1ID).then(dataset=>{
+      dataset.SeriesDescription = 'premri1ID';
+      loadDatasets([dataset]);
+      slicer.transform(gridTransformID).then(transformDataset=>{
+        step.renderer.inputFields[1].rgba = [0, 1, 0, 1]; // premri1 target is green
+        let transformField = Field.fromDataset(transformDataset)[0];
+        transformField.visible = 0;
+        step.renderer.inputFields[0].transformField = transformField; // postdura1 is transformed
+        step.renderer.inputFields.unshift(transformField);
+
+        step.renderer.inputFields.forEach(field => field.gradientOpacityScale = 0.);
+        step.renderer.updateProgram();
+        step.renderer.requestRender(step.view);
+      });
+    });
+  });
+
+  step.controls.tool = 'trackball';
+  step.controls.gangWindow = 'trackball';
+  step.view.viewNear = 0;
+  step.view.viewFar = Linear.LARGE_NUMBER;
+  step.uniforms.sliceMode.value = 0;
+}
+
 
 // End hard coded neurosurgical ultrasound experiment
 

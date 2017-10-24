@@ -62,11 +62,11 @@ class GrowCutGenerator extends ProgrammaticGenerator {
         ${this.bufferType} background = texelFetch(inputTexture0, texelIndex, 0).r;
 
         if (iteration == 0) {
-          if (background < ${this.bufferType}(30)) {
-            label = ${this.bufferType}(100);
+          if (background < ${this.bufferType}(10)) {
+            label = ${this.bufferType}(30);
             strength = MAX_STRENGTH;
-          } else if (background > ${this.bufferType}(60)) {
-            label = ${this.bufferType}(2000);
+          } else if (background > ${this.bufferType}(100)) {
+            label = ${this.bufferType}(100);
             strength = MAX_STRENGTH;
           } else {
             label = ${this.bufferType}(0);

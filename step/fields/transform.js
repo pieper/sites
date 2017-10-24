@@ -24,7 +24,6 @@ class TransformField extends PixelField {
     let grid = this.dataset.DeformableRegistration.DeformableRegistrationGrid;
     let origin = grid.ImagePositionPatient.map(Number);
     let sliceStep = this.sliceStepFromOrientation(this.orientation());
-    console.log(`sliceStep: ${sliceStep}`);
     let sliceSpacing = this.spacing()[2];
     vec3.scale(sliceStep, sliceStep, frame * sliceSpacing);
     let framePosition = vec3.create();

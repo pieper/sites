@@ -11,6 +11,7 @@ class Generator {  // TODO: unify with Space
     // * for now, all PixelData in datasets is of type short
     // * pixel readback of float textures requires casting
     // * gl may allow read back of single component, but may only do rgba
+    // TODO: support for reading back transform arrays
     this.sliceViewArrayType = Int16Array;
     this.sliceViewBytesPerElement = 2;
     if (this.useIntegerTextures) {

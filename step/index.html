@@ -837,6 +837,8 @@ $(function () {
   let hasColorBufferFloat = 'EXT_color_buffer_float' in glExtensions;
   Field.useIntegerTextures = !(hasTextureFloatLinear && hasColorBufferFloat);
   if (Field.useIntegerTextures) {
+    # TODO: this mode should probably go away in order to simplify the code
+    # https://webglstats.com/webgl2/extension/OES_texture_float_linear
     console.warn('Floating texture support not available');
   }
   Generator.useIntegerTextures = Field.useIntegerTextures;

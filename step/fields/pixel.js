@@ -24,15 +24,11 @@ class PixelField extends Field {
 
   spacing() {
     let pixelMeasures = this.dataset.SharedFunctionalGroups.PixelMeasures;
-    return([pixelMeasures.PixelSpacing[0],
-            pixelMeasures.PixelSpacing[1],
-            pixelMeasures.SpacingBetweenSlices].map(Number));
-  }
-
-  spacing() {
-    let pixelMeasures = this.dataset.SharedFunctionalGroups.PixelMeasures;
-    return([pixelMeasures.PixelSpacing[0],
-            pixelMeasures.PixelSpacing[1],
+    // NB: DICOM PixelSpacing is defined as Row then Column, unlike ImageOrientationPatient
+    // Convention for fields is always that pixel space is column, row, slice so we swap
+    // the first two entries here.
+    return([pixelMeasures.PixelSpacing[1],
+            pixelMeasures.PixelSpacing[0],
             pixelMeasures.SpacingBetweenSlices].map(Number));
   }
 

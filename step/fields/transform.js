@@ -132,13 +132,23 @@ class TransformField extends PixelField {
       let grid = this.dataset.DeformableRegistration.DeformableRegistrationGrid;
       
       let [w,h,d] = this.pixelDimensions;
-      gl.texStorage3D(gl.TEXTURE_3D, 1, gl.RGB32F, w, h, d);
+      gl.texStorage3D(gl.TEXTURE_3D, 1, gl.RGBA32F, w, h, d);
       if (!this.generator) {
         // only transfer the data if there's no generator that will fill it in
+        // the texture must be rgba so it can be rendered into
+        // so we make a new buffer with 4 components
+        let vectorCount = w*h*d;
+        let rgbaArray = new Float32Array(vectorCount*4);
+        for (let vectorIndex of Array(vectorCount).keys()) {
+          rgbaArray[4*vectorIndex  ] = grid.VectorGridData[3*vectorIndex];
+          rgbaArray[4*vectorIndex+1] = grid.VectorGridData[3*vectorIndex+1];
+          rgbaArray[4*vectorIndex+2] = grid.VectorGridData[3*vectorIndex+2];
+          rgbaArray[4*vectorIndex+3] = 0.;
+        }
         gl.texSubImage3D(gl.TEXTURE_3D,
                          0, 0, 0, 0, // level, offsets
                          w, h, d,
-                         gl.RGB, gl.FLOAT, grid.VectorGridData);
+                         gl.RGBA, gl.FLOAT, rgbaArray);
       }
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);

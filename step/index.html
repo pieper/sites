@@ -736,6 +736,7 @@ function performRegistration() {
       });
       needUpdate = true;
     }
+    step.registration.uniforms.iteration.value = iteration;
     step.registration.uniforms.iterations.value = iterations;
     step.registration.inputFields = [deformationFields[inBuffer],
                                      fixedField,
@@ -747,6 +748,7 @@ function performRegistration() {
 
     // for the final iteration, save the calculation result to CPU
     /* TODO: handle generated VectorGridData
+       - note that texture is 4 component RGBA but transformField.dataset grid is 3 component
     if (iteration == iterations-1) {
       step.registration.outputFields.forEach(outputField => {
         outputField.generatedPixelData = outputField.dataset.PixelData;
@@ -767,6 +769,7 @@ function performRegistration() {
       // not finished, trigger another itertion
       step.ui.bottomBar.progress = `Iteration ${iteration} of ${iterations}`;
       if (iterationMode == 'animated') {
+        step.renderer.requestRender(step.view);
         requestAnimationFrame(animationFrame); // continue iterating
       }
     } else {
@@ -775,6 +778,10 @@ function performRegistration() {
       console.log('finished');
     }
   }
+
+  //
+  // perform the iteration using either requestAnimationFrame or loop
+  //
   if (iterationMode == 'animated') {
     requestAnimationFrame(animationFrame); // start the iterations
   } else {
@@ -837,8 +844,8 @@ $(function () {
   let hasColorBufferFloat = 'EXT_color_buffer_float' in glExtensions;
   Field.useIntegerTextures = !(hasTextureFloatLinear && hasColorBufferFloat);
   if (Field.useIntegerTextures) {
-    # TODO: this mode should probably go away in order to simplify the code
-    # https://webglstats.com/webgl2/extension/OES_texture_float_linear
+    // TODO: this mode should probably go away in order to simplify the code
+    // https://webglstats.com/webgl2/extension/OES_texture_float_linear
     console.warn('Floating texture support not available');
   }
   Generator.useIntegerTextures = Field.useIntegerTextures;

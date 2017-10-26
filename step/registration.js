@@ -39,6 +39,9 @@ class RegistrationGenerator extends ProgrammaticGenerator {
         }.bind(this)()
       }
 
+      uniform int iteration;
+      uniform int iterations;
+
       uniform float stepSize;
 
       uniform ${this.samplerType} inputTexture0; // fixed
@@ -47,7 +50,7 @@ class RegistrationGenerator extends ProgrammaticGenerator {
 
       in vec3 interpolatedTextureCoordinate;
 
-      layout(location = 0) out ${this.bufferType} deformation; // new deformation
+      layout(location = 0) out vec3 deformation; // new deformation
 
       void main()
       {
@@ -70,7 +73,8 @@ class RegistrationGenerator extends ProgrammaticGenerator {
         // second, look at neighborhood around estimated step to see if there is a place you match better
         // - for now, just look at image intensity
 
-        deformation = vec3(accumulatedDisplacement + vec3(texelIndex)).r; // stub for testing
+        //deformation = vec3(accumulatedDisplacement + vec3(texelIndex)).r; // stub for testing
+        deformation = float(iteration)/float(iterations) * 50. * interpolatedTextureCoordinate;
 
       }
     `);

@@ -124,7 +124,7 @@ function Patient17_setup() {
 
   let premri1ID = 'vtkMRMLScalarVolumeNode1';
   let postdura1ID = 'vtkMRMLScalarVolumeNode2';
-  let gridTransformID = 'vtkMRMLGridTransformNode1';
+  let gridTransformID = 'Transform-grid';
 
   let slicer = new Slicer({url: slicerURL});
 
@@ -293,34 +293,26 @@ function addTransformField() {
   step.renderer.requestRender(step.view);
 }
 
-function animateTransform() {
+function animateTransform(options={}) {
+  // animate passed in field or first render field with a transform
+  let animatingField = options.field || (() => {
+    let returnField;
+    step.renderer.inputFields.forEach(field => {
+      if (field.transformField) {
+        returnField = field;
+      }
+    });
+    return returnField;
+  })();
   let frame = 0;
-  let frames = 100;
-  let maxGain = 1;
+  let frames = options.frames || 100;
+  let maxGain = options.maxGain || 1;
   let animationFrame = function (now) {
-    step.renderer.inputFields[1].transformGain = maxGain * Math.sin(Math.PI*frame/frames);
+    animatingField.transformGain = maxGain * Math.sin(Math.PI*frame/frames);
     step.renderer.requestRender();
     step.ui.bottomBar.progress = `Animation frame ${frame} of ${frames}`;
     frame = frame + 1;
     if (frame <= frames) {
-      requestAnimationFrame(animationFrame)
-    }
-  };
-  requestAnimationFrame(animationFrame)
-}
-
-function animateCrossFade(options={}) {
-  options.frames = options.frames || 100;
-  let frame = 0;
-  let animationFrame = function (now) {
-    crossFade({
-      //timepoint: (1. + Math.sin(Math.PI*frame/options.frames)) / 2.
-      timepoint: frame/options.frames
-    });
-    step.renderer.requestRender();
-    frame = frame + 1;
-    step.ui.bottomBar.progress = `Animation frame ${frame} of ${options.frames}`;
-    if (frame <= options.frames) {
       requestAnimationFrame(animationFrame)
     }
   };
@@ -707,25 +699,35 @@ function performRegistration() {
     return;
   }
 
-  let savedGridData = deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData;
-  deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData = undefined;
-  let datasetCopy = JSON.parse(JSON.stringify(deformationField.dataset));
-  deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData = savedGridData;
-  let grid = datasetCopy.DeformableRegistration.DeformableRegistrationGrid;
-  grid.VectorGridData = new Float32Array(Object.keys(savedGridData).length);
-  datasetCopy.SeriesDescription = "Copied Deformation";
-  let deformationFieldCopy = Field.fromDataset(datasetCopy)[0];
+  // if there's a second transform already, use it otherwise create one
+  let secondDeformationField;
+  step.renderer.inputFields.forEach(inputField => {
+    if (inputField.constructor.name == "TransformField" && inputField != deformationField) {
+      secondDeformationField = inputField;
+    }
+  });
+  if (!secondDeformationField) {
+    let savedGridData = deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData;
+    deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData = undefined;
+    let datasetCopy = JSON.parse(JSON.stringify(deformationField.dataset));
+    deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData = savedGridData;
+    let grid = datasetCopy.DeformableRegistration.DeformableRegistrationGrid;
+    grid.VectorGridData = new Float32Array(Object.keys(savedGridData).length);
+    datasetCopy.SeriesDescription = "Copied Deformation";
+    let deformationFieldCopy = Field.fromDataset(datasetCopy)[0];
+    step.renderer.inputFields.unshift(deformationFieldCopy);
+    secondDeformationField = deformationFieldCopy;
+  }
 
-  step.renderer.inputFields.unshift(deformationFieldCopy);
-
-  let deformationFields = [deformationField, deformationFieldCopy];
+  let deformationFields = [deformationField, secondDeformationField];
   deformationFields.forEach(deformationField => deformationField.visible = 0);
+  movingField.transformGain = 1.;
 
   step.renderer.updateProgram();
   step.renderer.requestRender(step.view);
 
   let iterationMode = 'animated';
-  let iterations = 50;
+  let iterations = 51;
   let iteration = 0;
   let animationFrame = function() {
 
@@ -919,7 +921,9 @@ $(function () {
   document.body.insertBefore(step.ui.menubar.dom, document.body.firstChild);
 
   step.ui.bottomBar = new stepBottomBar(step, {
-    onSliceOffetChange : function(){},
+    onSliceOffetChange : function(event){
+      console.log(event.target.value);
+    },
   });
   document.body.appendChild(step.ui.bottomBar.dom);
 

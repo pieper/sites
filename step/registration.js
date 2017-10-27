@@ -10,6 +10,7 @@ class RegistrationGenerator extends ProgrammaticGenerator {
     super(options);
     this.uniforms.iteration = { type: '1i', value: 0 };
     this.uniforms.iterations = { type: '1i', value: 0 };
+    this.uniforms.neighborSearchStepSize = { type: '1f', value: 1 };
   }
 
   headerSource() {
@@ -42,7 +43,7 @@ class RegistrationGenerator extends ProgrammaticGenerator {
       uniform int iteration;
       uniform int iterations;
 
-      uniform float stepSize;
+      uniform float neighborSearchStepSize;
 
       uniform ${this.samplerType} inputTexture0; // fixed
       uniform ${this.samplerType} inputTexture1; // moving
@@ -56,9 +57,12 @@ class RegistrationGenerator extends ProgrammaticGenerator {
       {
         ivec3 size = textureSize(inputTexture0, 0);
         ivec3 texelIndex = ivec3(floor(interpolatedTextureCoordinate * vec3(size)));
-        ${this.bufferType} background = texelFetch(inputTexture0, texelIndex, 0).r;
+        ${this.bufferType} movingValue = texelFetch(inputTexture0, texelIndex, 1).r;
+        ${this.bufferType} neighborValue;
+        float minNeighborDifference = 1e100; // effectively inf
+        vec3 minNeighborDirection = vec3(0);
 
-        // first, average the displacements at all neighbors to get estimated step
+        // first, average the displacements at all neighbors to get current averaged step
         vec3 accumulatedDisplacement = vec3(0.);
         for (int k = -1; k <= 1; k++) {
           for (int j = -1; j <= 1; j++) {
@@ -70,11 +74,35 @@ class RegistrationGenerator extends ProgrammaticGenerator {
         }
         accumulatedDisplacement /= 27.;
 
-        // second, look at neighborhood around estimated step to see if there is a place you match better
+        // second, look at neighborhood of fixed image around where moving point is currently displaced to
+        // to see if there is a neighbor that better matches the moving value
         // - for now, just look at image intensity
+        vec3 patientMovingPoint = textureToPatient${this.inputFields[0].id}(interpolatedTextureCoordinate);
+        vec3 movedPoint = patientMovingPoint + accumulatedDisplacement;
 
-        //deformation = vec3(accumulatedDisplacement + vec3(texelIndex)).r; // stub for testing
-        deformation = float(iteration)/float(iterations) * 50. * interpolatedTextureCoordinate;
+        for (int k = -1; k <= 1; k++) {
+          for (int j = -1; j <= 1; j++) {
+            for (int i = -1; i <= 1; i++) {
+              vec3 neighorDirection = neighborSearchStepSize * vec3(i,j,k);
+              vec3 neighorPoint = neighorDirection + movedPoint;
+              vec3 neighborTextureCoordinate = patientToTexture${this.inputFields[1].id}(neighorPoint);
+              neighborValue = texture(inputTexture1, neighborTextureCoordinate).r;
+              float neighborDifference = abs(neighborValue - movingValue);
+              if (neighborDifference < minNeighborDifference) {
+                minNeighborDifference = neighborDifference;
+                minNeighborDirection = neighorDirection;
+              }
+            }
+          }
+        }
+
+        //deformation = accumulatedDisplacement + minNeighborDirection;
+        deformation = minNeighborDirection;
+
+        if (iteration == 0) {
+          // ignore any initial deformation
+          deformation = vec3(0.);
+        }
 
       }
     `);

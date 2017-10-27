@@ -707,9 +707,12 @@ function performRegistration() {
     return;
   }
 
+  let savedGridData = deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData;
+  deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData = undefined;
   let datasetCopy = JSON.parse(JSON.stringify(deformationField.dataset));
+  deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData = savedGridData;
   let grid = datasetCopy.DeformableRegistration.DeformableRegistrationGrid;
-  grid.VectorGridData = new Float32Array(Object.keys(grid.VectorGridData).length);
+  grid.VectorGridData = new Float32Array(Object.keys(savedGridData).length);
   datasetCopy.SeriesDescription = "Copied Deformation";
   let deformationFieldCopy = Field.fromDataset(datasetCopy)[0];
 

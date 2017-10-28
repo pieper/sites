@@ -45,9 +45,9 @@ class RegistrationGenerator extends ProgrammaticGenerator {
 
       uniform float neighborSearchStepSize;
 
-      uniform ${this.samplerType} inputTexture0; // fixed
-      uniform ${this.samplerType} inputTexture1; // moving
-      uniform ${this.samplerType} inputTexture2; // current deformation
+      uniform ${this.samplerType} inputTexture0; // current deformation
+      uniform ${this.samplerType} inputTexture1; // fixed
+      uniform ${this.samplerType} inputTexture2; // moving
 
       in vec3 interpolatedTextureCoordinate;
 
@@ -55,30 +55,30 @@ class RegistrationGenerator extends ProgrammaticGenerator {
 
       void main()
       {
-        ivec3 size = textureSize(inputTexture0, 0);
-        ivec3 texelIndex = ivec3(floor(interpolatedTextureCoordinate * vec3(size)));
-        ${this.bufferType} movingValue = texelFetch(inputTexture0, texelIndex, 1).r;
-        ${this.bufferType} neighborValue;
-        float minNeighborDifference = 1e100; // effectively inf
-        vec3 minNeighborDirection = vec3(0);
+        ivec3 deformationSize = textureSize(inputTexture0, 0);
+        ivec3 texelIndex = ivec3(floor(interpolatedTextureCoordinate * vec3(deformationSize)));
 
         // first, average the displacements at all neighbors to get current averaged step
-        vec3 accumulatedDisplacement = vec3(0.);
+        vec3 regularizedDisplacement = vec3(0.);
         for (int k = -1; k <= 1; k++) {
           for (int j = -1; j <= 1; j++) {
             for (int i = -1; i <= 1; i++) {
               ivec3 neighborIndex = texelIndex + ivec3(i,j,k);
-              accumulatedDisplacement += texelFetch(inputTexture2, neighborIndex, 0).xyz;
+              regularizedDisplacement += texelFetch(inputTexture0, neighborIndex, 0).xyz;
             }
           }
         }
-        accumulatedDisplacement /= 27.;
+        regularizedDisplacement /= 27.;
 
         // second, look at neighborhood of fixed image around where moving point is currently displaced to
         // to see if there is a neighbor that better matches the moving value
         // - for now, just look at image intensity
+        ${this.bufferType} movingValue = texture(inputTexture2, interpolatedTextureCoordinate).r;
+        ${this.bufferType} neighborValue;
+        float minNeighborDifference = 1e10; // effectively inf
+        vec3 minNeighborDirection = vec3(0);
         vec3 patientMovingPoint = textureToPatient${this.inputFields[0].id}(interpolatedTextureCoordinate);
-        vec3 movedPoint = patientMovingPoint + accumulatedDisplacement;
+        vec3 movedPoint = patientMovingPoint + regularizedDisplacement;
 
         for (int k = -1; k <= 1; k++) {
           for (int j = -1; j <= 1; j++) {
@@ -96,12 +96,15 @@ class RegistrationGenerator extends ProgrammaticGenerator {
           }
         }
 
-        //deformation = accumulatedDisplacement + minNeighborDirection;
-        deformation = minNeighborDirection;
+        vec3 previousDisplacement = texture(inputTexture0, interpolatedTextureCoordinate).xyz;
+
+        //deformation = previousDisplacement + minNeighborDirection;
+
+        deformation = regularizedDisplacement + minNeighborDirection;
 
         if (iteration == 0) {
           // ignore any initial deformation
-          deformation = vec3(0.);
+          //deformation = vec3(0.);
         }
 
       }

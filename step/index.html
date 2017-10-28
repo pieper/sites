@@ -707,12 +707,13 @@ function performRegistration() {
     }
   });
   if (!secondDeformationField) {
-    let savedGridData = deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData;
-    deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData = undefined;
+    let sourceGrid = deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid;
+    let savedGridData = sourceGrid.VectorGridData;
+    sourceGrid.VectorGridData = undefined;
     let datasetCopy = JSON.parse(JSON.stringify(deformationField.dataset));
-    deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid.VectorGridData = savedGridData;
-    let grid = datasetCopy.DeformableRegistration.DeformableRegistrationGrid;
-    grid.VectorGridData = new Float32Array(Object.keys(savedGridData).length);
+    sourceGrid.VectorGridData = savedGridData;
+    let copyGrid = datasetCopy.DeformableRegistration.DeformableRegistrationGrid;
+    copyGrid.VectorGridData = new Float32Array(savedGridData);
     datasetCopy.SeriesDescription = "Copied Deformation";
     let deformationFieldCopy = Field.fromDataset(datasetCopy)[0];
     step.renderer.inputFields.unshift(deformationFieldCopy);
@@ -727,7 +728,7 @@ function performRegistration() {
   step.renderer.requestRender(step.view);
 
   let iterationMode = 'animated';
-  let iterations = 51;
+  let iterations = 50;
   let iteration = 0;
   let animationFrame = function() {
 
@@ -761,13 +762,8 @@ function performRegistration() {
     }
     */
 
-    console.log(iteration,'generating');
-
     step.registration.generate();
-
-    console.log(iteration,'rendering');
     step.renderer._render();
-
     iteration++;
 
     if (iteration < iterations) {

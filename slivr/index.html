@@ -12,9 +12,10 @@
 
 
     <input id='AFcb' type="checkbox" disabled='true'>AF</input>
-    <input id='CST-M1cb' type="checkbox" disabled='true'>CST-M1</input>
-    <input id='IFOFcb' type="checkbox" disabled='true'>IFOF</input>
+    <input id='CSTcb' type="checkbox" disabled='true'>CST</input>
     <input id='ILFcb' type="checkbox" disabled='true'>ILF</input>
+    <input id='IOFFcb' type="checkbox" disabled='true'>IOFF</input>
+    <input id='SLFIIcb' type="checkbox" disabled='true'>SLFII</input>
     <input id='UFcb' type="checkbox" disabled='true'>UF</input>
     <label id='status'>Waiting for downloads...</label>
 
@@ -38,13 +39,33 @@
 
       <a-entity id="target">
         <a-entity id="tracts" position="0 0 0" scale="15 15 15" rotation="-90 180 0">
+
+          <a-gltf-model id='AF' src="data/tracts/AF.gltf"></a-gltf-model>
+          <a-gltf-model id='CST' src="data/tracts/CST.gltf"></a-gltf-model>
+          <a-gltf-model id='IOFF' src="data/tracts/IOFF.gltf"></a-gltf-model>
+          <a-gltf-model id='SLFII' src="data/tracts/SLFII.gltf"></a-gltf-model>
+          <a-gltf-model id='ILF' src="data/tracts/ILF.gltf"></a-gltf-model>
+          <a-gltf-model id='UF' src="data/tracts/UF.gltf"></a-gltf-model>
+
+          <!--
+
+          curl "http://localhost:2016/slicer/mrml?id=vtkMRMLFiberBundleNode1" > AF.gltf
+          curl "http://localhost:2016/slicer/mrml?id=vtkMRMLFiberBundleNode2" > CST.gltf
+          curl "http://localhost:2016/slicer/mrml?id=vtkMRMLFiberBundleNode3" > ILF.gltf
+          curl "http://localhost:2016/slicer/mrml?id=vtkMRMLFiberBundleNode4" > IOFF.gltf
+          curl "http://localhost:2016/slicer/mrml?id=vtkMRMLFiberBundleNode5" > SLFII.gltf
+          curl "http://localhost:2016/slicer/mrml?id=vtkMRMLFiberBundleNode6" > UF.gltf
+
+
           <a-gltf-model id='AF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/AF.gltf"></a-gltf-model>
-          <a-gltf-model id='CST-M1' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/CST-M1.gltf"></a-gltf-model>
-          <a-gltf-model id='IFOF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/IFOF.gltf"></a-gltf-model>
+          <a-gltf-model id='CST' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/CST.gltf"></a-gltf-model>
+          <a-gltf-model id='IOFF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/IOFF.gltf"></a-gltf-model>
           <a-gltf-model id='ILF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/ILF.gltf"></a-gltf-model>
           <a-gltf-model id='UF' src="https://s3.amazonaws.com/IsomicsPublic/SampleData/gltf/tracts/UF.gltf"></a-gltf-model>
 
-          <!--
+
+
+
           <a-gltf-model id='perth' src="data/perth/perth.gltf"></a-gltf-model>
           <a-plane position="0 0 0" rotation="-90 0 0" width=".4" height=".4" color="#7BC8A4"></a-plane>
           -->
@@ -54,7 +75,7 @@
     </a-scene>
 
     <script>
-      var tracts = ['AF', 'CST-M1', 'IFOF', 'ILF', 'UF'];
+      var tracts = ['AF', 'CST', 'IOFF', 'SLFII', 'ILF', 'UF'];
       document.addEventListener("DOMContentLoaded", function(event) {
         var downloadCount = 0;
         tracts.forEach(tract => {

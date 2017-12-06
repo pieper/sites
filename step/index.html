@@ -51,6 +51,7 @@
   <script type="text/javascript" src="./gaussian.js"></script>
   <script type="text/javascript" src="./bilateral.js"></script>
   <script type="text/javascript" src="./similarity.js"></script>
+  <script type="text/javascript" src="./gabor.js"></script>
   <script type="text/javascript" src="./nonlocalmeans.js"></script>
   <script type="text/javascript" src="./pde.js"></script>
   <script type="text/javascript" src="./registration.js"></script>
@@ -498,6 +499,25 @@ function performSimilarity(options) {
   return (performImageFilter(SimilarityGenerator, options));
 }
 
+function performGabor(options) {
+  options.sigma = options.sigma || 1;
+  options.frequency = options.frequency || 1;
+  options.phase = options.phase || 0;
+  options.kernelSize = options.kernelSize || 5;
+
+  options.uniforms = {};
+  options.uniforms.sigma = {type: '1f', value: options.sigma};
+  options.uniforms.frequency = {type: '1f', value: options.frequency};
+  options.uniforms.phase = {type: '1f', value: options.phase};
+  options.uniforms.kernelSize = {type: '1i', value: options.kernelSize};
+  options = performImageFilter(GaborGenerator, options);
+  options.generator.outputFields[0].windowCenter = 500;
+  options.generator.outputFields[0].windowWidth = 10;
+  options.generator.outputFields[0].gradientOpacityScale = 0.;
+
+  return (options);
+}
+
 function performNonlocalmeans(options) {
   return (performImageFilter(NonLocalMeansGenerator, options));
 }
@@ -906,6 +926,7 @@ $(function () {
     performGrowCut : performGrowCut,
     performBilateral : performBilateral,
     performSimilarity : performSimilarity,
+    performGabor : performGabor,
     performNonlocalmeans : performNonlocalmeans,
     performRegistration : performRegistration,
     addRandomFiducials : addRandomFiducials,

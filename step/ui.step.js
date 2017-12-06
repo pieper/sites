@@ -415,6 +415,13 @@ class stepOperationMenu extends MenuPanel {
     option.onClick(this.similarityPanel.bind(this));
     this.menuPanel.add( option );
 
+    // Operations -> gabor
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Gabor' );
+    option.onClick(this.gaborPanel.bind(this));
+    this.menuPanel.add( option );
+
     // Operations -> nonlocalmeans
     option = new UI.Row();
     option.setClass( 'option' );
@@ -545,6 +552,79 @@ class stepOperationMenu extends MenuPanel {
       this.similarityOptions.kernelSize = this.kernelUI.getValue();
       this.similarityOptions.rotationSamples = this.rotationSamples.getValue();
       this.similarityOptions = this.options.performSimilarity(this.similarityOptions);
+    }
+    this.applyButton = new UI.Button("Apply");
+    this.container.add( this.applyButton );
+    this.applyButton.onClick(apply.bind(this));
+
+    let cancel = function() {
+      step.ui.sideBar.dom.removeChild(this.container.dom);
+    }
+    this.cancelButton = new UI.Button("Cancel");
+    this.container.add( this.cancelButton );
+    this.cancelButton.onClick(cancel.bind(this));
+
+    step.ui.sideBar.dom.appendChild(this.container.dom);
+  }
+
+  gaborPanel() {
+
+    this.container = new UI.Panel();
+    this.container.setId('gaborPanel');
+
+    this.gaborOptions = this.gaborOptions || {
+      sigma : 1,
+      frequency : 1,
+      phase : 0,
+      kernelSize : 5,
+    };
+
+    // kernel size integer
+    this.kernelUI = new UI.Integer();
+    this.kernelUI.min = 1;
+    this.kernelUI.max = 50;
+    this.kernelUI.precision = 1;
+    this.kernelUI.step = 1;
+    this.kernelUI.unit = "pixels";
+    this.container.add( this.kernelUI );
+    this.kernelUI.setValue(this.gaborOptions.kernelSize);
+
+    // space sigma number
+    this.sigmaUI = new UI.Number();
+    this.sigmaUI.min = 0.1;
+    this.sigmaUI.max = 50;
+    this.sigmaUI.precision = 1;
+    this.sigmaUI.step = 0.1;
+    this.sigmaUI.unit = "sigma (pixels)";
+    this.container.add( this.sigmaUI );
+    this.sigmaUI.setValue(this.gaborOptions.sigma);
+
+    // space frequency number
+    this.frequencyUI = new UI.Number();
+    this.frequencyUI.min = 0.1;
+    this.frequencyUI.max = 50;
+    this.frequencyUI.precision = 1;
+    this.frequencyUI.step = 0.1;
+    this.frequencyUI.unit = "frequency (pixels)";
+    this.container.add( this.frequencyUI );
+    this.frequencyUI.setValue(this.gaborOptions.frequency);
+
+    // space phase number
+    this.phaseUI = new UI.Number();
+    this.phaseUI.min = 0;
+    this.phaseUI.max = 50;
+    this.phaseUI.precision = 1;
+    this.phaseUI.step = 0.1;
+    this.phaseUI.unit = "phase (pixels)";
+    this.container.add( this.phaseUI );
+    this.phaseUI.setValue(this.gaborOptions.phase);
+
+    let apply = function() {
+      this.gaborOptions.kernelSize = this.kernelUI.getValue();
+      this.gaborOptions.sigma = this.sigmaUI.getValue();
+      this.gaborOptions.frequency = this.frequencyUI.getValue();
+      this.gaborOptions.phase = this.phaseUI.getValue();
+      this.gaborOptions = this.options.performGabor(this.gaborOptions);
     }
     this.applyButton = new UI.Button("Apply");
     this.container.add( this.applyButton );

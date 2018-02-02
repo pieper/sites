@@ -80,17 +80,20 @@ class RegistrationGenerator extends ProgrammaticGenerator {
         vec3 patientMovingPoint = textureToPatient${this.inputFields[0].id}(interpolatedTextureCoordinate);
         vec3 movedPoint = patientMovingPoint + regularizedDisplacement;
 
+        // TODO:
+        // - gradient of similarity function
+        // - gradient similarity => mangnitude of summed gradients
         for (int k = -1; k <= 1; k++) {
           for (int j = -1; j <= 1; j++) {
             for (int i = -1; i <= 1; i++) {
-              vec3 neighorDirection = neighborSearchStepSize * vec3(i,j,k);
-              vec3 neighorPoint = neighorDirection + movedPoint;
-              vec3 neighborTextureCoordinate = patientToTexture${this.inputFields[1].id}(neighorPoint);
+              vec3 neighborDirection = neighborSearchStepSize * vec3(i,j,k);
+              vec3 neighborPoint = neighborDirection + movedPoint;
+              vec3 neighborTextureCoordinate = patientToTexture${this.inputFields[1].id}(neighborPoint);
               neighborValue = texture(inputTexture1, neighborTextureCoordinate).r;
               float neighborDifference = abs(neighborValue - movingValue);
               if (neighborDifference < minNeighborDifference) {
                 minNeighborDifference = neighborDifference;
-                minNeighborDirection = neighorDirection;
+                minNeighborDirection = neighborDirection;
               }
             }
           }
@@ -98,14 +101,8 @@ class RegistrationGenerator extends ProgrammaticGenerator {
 
         vec3 previousDisplacement = texture(inputTexture0, interpolatedTextureCoordinate).xyz;
 
-        //deformation = previousDisplacement + minNeighborDirection;
+        deformation = /*previousDisplacement +*/ regularizedDisplacement + minNeighborDirection;
 
-        deformation = regularizedDisplacement + minNeighborDirection;
-
-        if (iteration == 0) {
-          // ignore any initial deformation
-          //deformation = vec3(0.);
-        }
 
       }
     `);

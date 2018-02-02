@@ -114,12 +114,20 @@ class stepFileMenu extends MenuPanel {
     // spacer - tests
     this.menuPanel.add( new UI.HorizontalRule() );
 
-    // File -> Add Fiducials
+    // File -> Slicer Volumes
     option = new UI.Row();
     option.setClass( 'option' );
     option.setTextContent( 'Load volume from Slicer' );
     option.onClick( function () {
       options.loadVolumeFromSlicer();
+    } );
+    this.menuPanel.add( option );
+
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Load all volumes from Slicer' );
+    option.onClick( function () {
+      options.loadVolumesFromSlicer();
     } );
     this.menuPanel.add( option );
 
@@ -591,10 +599,10 @@ class stepOperationMenu extends MenuPanel {
 
     // space sigma number
     this.sigmaUI = new UI.Number();
-    this.sigmaUI.min = 0.1;
+    this.sigmaUI.min = 0.001;
     this.sigmaUI.max = 50;
-    this.sigmaUI.precision = 1;
-    this.sigmaUI.step = 0.1;
+    this.sigmaUI.precision = 3;
+    this.sigmaUI.step = 0.001;
     this.sigmaUI.unit = "sigma (pixels)";
     this.container.add( this.sigmaUI );
     this.sigmaUI.setValue(this.gaborOptions.sigma);

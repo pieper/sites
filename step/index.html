@@ -237,7 +237,7 @@ function addRandomFiducials() {
   step.renderer.requestRender(step.view);
 }
 
-function addTransformField() {
+function addTransformField(options={}) {
   //
   // Create a vector transform field and apply it to all the renderers fields
   // - make a dummy dataset containing the transform
@@ -247,47 +247,32 @@ function addTransformField() {
   // - add it to the renderer and set it as input field on other fields
   //
 
-  let [w,h,d] = [3,3,3];
+  options.referenceField = options.referenceField || step.renderer.inputFields[0];
+
+  let referenceDataset = options.referenceField.dataset;
+  let [w,h,d] = [referenceDataset.Columns, referenceDataset.Rows, referenceDataset.NumberOfFrames];
   let arrayElementCount = [w,h,d].reduce((p,e)=>p*e);
   let vectorGrid = new Float32Array(3 * arrayElementCount);
-  let centerElement = 3 * Math.floor(arrayElementCount / 2);
-  vectorGrid[centerElement+0] = -10.;
-  vectorGrid[centerElement+1] = 10.;
-  vectorGrid[centerElement+2] = 10.;
-  for (let k of Array(9).keys()) {
-    vectorGrid[3*k+2] = 20.; // translate bottom plane upward
-    vectorGrid[10+3*k+2] = 15.; // translate middle less upward
-  }
+  let pixelMeasures = referenceDataset.SharedFunctionalGroups.PixelMeasures;
+  let resolution = [pixelMeasures.PixelSpacing[1], pixelMeasures.PixelSpacing[0], pixelMeasures.SpacingBetweenSlices];
+
   let transformDataset = {
     SeriesDescription: "Deformation from addTransformField method",
     SOPClass: "DeformableSpatialRegistration",
     DeformableRegistration: {
       DeformableRegistrationGrid: {
-        ImageOrientationPatient: [1,0,0, 0,1,0],
-        ImagePositionPatient: [-20, -20, -20],
+        ImageOrientationPatient: referenceDataset.SharedFunctionalGroups.PlaneOrientation.ImageOrientationPatient,
+        ImagePositionPatient: Array.prototype.slice.call(options.referenceField.pixelToPatient.slice(12,15)),
         GridDimensions: [w, h, d],
-        GridResolution: [20., 20., 20.],
+        GridResolution: resolution,
         VectorGridData: vectorGrid,
       },
     },
   };
 
-  let referenceField = step.renderer.inputFields[0];
-  if (referenceField) {
-    let grid = transformDataset.DeformableRegistration.DeformableRegistrationGrid;
-    let bounds = referenceField.bounds;
-    let position = bounds.min.slice();
-    grid.ImagePositionPatient = [ position[0], position[1], position[2] ];
-    grid.GridResolution = [
-      (bounds.max[0] - bounds.min[0]) / w,
-      (bounds.max[1] - bounds.min[1]) / h,
-      (bounds.max[2] - bounds.min[2]) / d,
-    ];
-  };
-
   let transformField = Field.fromDataset(transformDataset)[0];
   transformField.visible = 1;
-  referenceField.transformField = transformField;
+  options.referenceField.transformField = transformField;
 
   step.renderer.inputFields.unshift(transformField); // TODO: generalize dependencies
   step.renderer.updateProgram();
@@ -511,8 +496,8 @@ function performGabor(options) {
   options.uniforms.phase = {type: '1f', value: options.phase};
   options.uniforms.kernelSize = {type: '1i', value: options.kernelSize};
   options = performImageFilter(GaborGenerator, options);
-  options.generator.outputFields[0].windowCenter = 500;
-  options.generator.outputFields[0].windowWidth = 10;
+  options.generator.outputFields[0].windowCenter = 0;
+  options.generator.outputFields[0].windowWidth = 200;
   options.generator.outputFields[0].gradientOpacityScale = 0.;
 
   return (options);
@@ -714,6 +699,13 @@ function performRegistration() {
     }
   });
 
+  if ( !deformationField && step.renderer.inputFields.length > 1 ) {
+    fixedField = step.renderer.inputFields[0];
+    movingField = step.renderer.inputFields[1];
+    addTransformField({referenceField: movingField});
+    deformationField = movingField.transformField;
+  }
+
   if ( !(fixedField && movingField && deformationField) ) {
     alert("Couldn't find fields for registration");
     return;
@@ -727,6 +719,7 @@ function performRegistration() {
     }
   });
   if (!secondDeformationField) {
+    // when making a copy, handle the heavyweight vector data independently
     let sourceGrid = deformationField.dataset.DeformableRegistration.DeformableRegistrationGrid;
     let savedGridData = sourceGrid.VectorGridData;
     sourceGrid.VectorGridData = undefined;
@@ -931,6 +924,7 @@ $(function () {
     performRegistration : performRegistration,
     addRandomFiducials : addRandomFiducials,
     loadVolumeFromSlicer : loadVolumeFromSlicer,
+    loadVolumesFromSlicer : loadVolumesFromSlicer,
     addTransformField : addTransformField,
     animateTransform : animateTransform,
     save : saveFieldsAsDICOM,

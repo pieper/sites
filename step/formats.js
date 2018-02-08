@@ -80,8 +80,6 @@ space origin: ${nrrd.header['space origin']}
     // by filling in only what is needed for filtering
     // TODO: get valid data from nrrd for data type to pixel info
 
-    console.log('converting', nrrd);
-
     let sizes = nrrd.header['sizes'].split(" ").map(Number);
     let origin = nrrd.header['space origin'].replace('(','').replace(')','').split(",").map(Number);
 

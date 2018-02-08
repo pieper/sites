@@ -66,21 +66,9 @@ class SimilarityGenerator extends FilterGenerator {
       uniform int rotationSamples;
       uniform vec3 referenceTextureCoordinate;
 
-      // from:
-      // https://stackoverflow.com/questions/9600801/evenly-distributing-n-points-on-a-sphere
-      vec3 fibonacciSphere(in int rotationSample)
-      {
-        const float pi = 3.1415926535897932384626433832795;
-        const float increment = pi * (3. - sqrt(5.));
-        float offset = 2. / float(rotationSamples);
-        float offsetOverTwo = offset / 2.;
+      ${CommonGL.fibonacciSphere()}
 
-        float y = ((float(rotationSample) * offset) -1.) + offsetOverTwo;
-        float r = sqrt(1. - pow(y,2.));
-        float phi = float(rotationSample) * increment;
-
-        return(vec3( r*cos(phi), y, r*sin(phi) ));
-      }
+      ${CommonGL.rotationFromVector()}
 
       void main()
       {
@@ -88,14 +76,16 @@ class SimilarityGenerator extends FilterGenerator {
         float maxSimilarity = 0.;
         for (int rotationSample = 0; rotationSample <= rotationSamples; rotationSample++) {
           // make a rotation matrix for each unit sphere surface sample
-          vec3 sampleRotation = fibonacciSphere(rotationSample);
+          vec3 sphereVector = fibonacciSphere(rotationSample);
+          /*
           vec3 axis = vec3(1.,0.,0.);
           if (dot(sampleRotation, axis) > .9) {
             vec3 axis = vec3(0., 1., 0.);
           }
           vec3 crossAxis = cross(sampleRotation, axis);
           vec3 crossAxis2 = cross(crossAxis, sampleRotation);
-          mat3 rotation = mat3(sampleRotation, crossAxis, crossAxis2);
+          */
+          mat3 rotation = rotationFromVector(sphereVector);
           // calculate summed absolute difference of rotated patch to reference
           float rotationSampleSimilarity = 0.;
           for (int i = -kernelSize; i <= kernelSize; i++) {

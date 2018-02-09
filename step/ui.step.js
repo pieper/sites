@@ -627,11 +627,22 @@ class stepOperationMenu extends MenuPanel {
     this.container.add( this.phaseUI );
     this.phaseUI.setValue(this.gaborOptions.phase);
 
+    // rotation sample integer
+    this.rotationSampleUI = new UI.Integer();
+    this.rotationSampleUI.min = 0;
+    this.rotationSampleUI.max = 50;
+    this.rotationSampleUI.precision = 1;
+    this.rotationSampleUI.step = 1;
+    this.rotationSampleUI.unit = "index";
+    this.container.add( this.rotationSampleUI );
+    this.rotationSampleUI.setValue(this.gaborOptions.rotationSample);
+
     let apply = function() {
       this.gaborOptions.kernelSize = this.kernelUI.getValue();
       this.gaborOptions.sigma = this.sigmaUI.getValue();
       this.gaborOptions.frequency = this.frequencyUI.getValue();
       this.gaborOptions.phase = this.phaseUI.getValue();
+      this.gaborOptions.rotationSample = this.rotationSampleUI.getValue();
       this.gaborOptions = this.options.performGabor(this.gaborOptions);
     }
     this.applyButton = new UI.Button("Apply");

@@ -490,18 +490,35 @@ function performGabor(options) {
   options.frequency = options.frequency || 1;
   options.phase = options.phase || 0;
   options.kernelSize = options.kernelSize || 5;
+  options.rotationSample = options.rotationSample || 0;
 
   options.uniforms = {};
   options.uniforms.sigma = {type: '1f', value: options.sigma};
   options.uniforms.frequency = {type: '1f', value: options.frequency};
   options.uniforms.phase = {type: '1f', value: options.phase};
   options.uniforms.kernelSize = {type: '1i', value: options.kernelSize};
+  options.uniforms.rotationSample = {type: '1i', value: options.rotationSample};
   options = performImageFilter(GaborGenerator, options);
   options.generator.outputFields[0].windowCenter = 0;
   options.generator.outputFields[0].windowWidth = 200;
   options.generator.outputFields[0].gradientOpacityScale = 0.;
 
   return (options);
+}
+
+function animateGabor(options={}) {
+  let frame = 0;
+  let frames = options.frames || 7;
+  let animationFrame = function (now) {
+    performGabor({rotationSample: frame});
+    step.renderer.requestRender();
+    step.ui.bottomBar.progress = `Gabor sampleNumber ${frame} of ${frames}`;
+    frame = frame + 1;
+    if (frame <= frames) {
+      requestAnimationFrame(animationFrame)
+    }
+  };
+  requestAnimationFrame(animationFrame)
 }
 
 function performNonlocalmeans(options) {

@@ -17,6 +17,7 @@ class GaborGenerator extends FilterGenerator {
     this.uniforms.frequency = {type: '1f', value: this.options.frequency};
     this.uniforms.phase = {type: '1f', value: this.options.phase};
     this.uniforms.kernelSize = {type: '1i', value: this.options.kernelSize};
+    this.uniforms.rotationSample = {type: '1i', value: this.options.rotationSample};
   }
 
   _fragmentShaderSource() {
@@ -30,8 +31,7 @@ class GaborGenerator extends FilterGenerator {
       //
 
       // consts
-      const bool REAL = true;
-      const float PI = 3.1415926;
+      ${CommonGL.pi()}
 
       // output into first Field
       layout(location = 0) out ${this.bufferType} value;
@@ -41,33 +41,24 @@ class GaborGenerator extends FilterGenerator {
 
       // parameters
       uniform int kernelSize;
-      uniform float sigma;
-      uniform float frequency;
-      uniform float phase;
+      uniform int rotationSample;
 
-      // based on http://www.insight-journal.org/browse/publication/150
-      float gaborEvaluate(in float u) {
-        float envelope = exp( -0.5 * u/sigma * u/sigma );
-        float angle = 2.0 * PI * frequency * u + phase;
-        if (REAL) {
-          return( envelope * cos(angle) );
-        } else {
-          return( envelope * sin(angle) );
-        }
-      }
+      // CommonGL code
+      ${CommonGL.fibonacciSphere()}
+      ${CommonGL.isoCorners()}
+      ${CommonGL.rotationFromVector()}
+      ${CommonGL.rotateAroundPoint()}
+      ${CommonGL.gabor()}
 
       void main()
       {
         const vec3 center = vec3(0.5);
-        float signal, gaussian, waves;
 
-        gaussian = exp( -0.5 * ( pow(interpolatedTextureCoordinate.x - center.x, 2.) +
-                               pow(interpolatedTextureCoordinate.y - center.y, 2.) +
-                               pow(interpolatedTextureCoordinate.z - center.z, 2.) ) / sigma );
-
-        waves = gaborEvaluate( interpolatedTextureCoordinate.x - center.x );
+        mat3 rotation = rotationFromVector(isoCorners(rotationSample));
+        mat4 transform = rotateAroundPoint(rotation, center);
+        vec3 samplePoint = (transform * vec4(interpolatedTextureCoordinate, 1.)).xyz;
         
-        signal = gaussian * waves;
+        float signal = gabor(samplePoint, center);
 
         value = ${this.bufferType} (1000. * signal);
       }

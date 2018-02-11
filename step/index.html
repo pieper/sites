@@ -198,6 +198,61 @@ function loadVolumesFromSlicer(ids) {
   }
 }
 
+function sendVolumesToSlicer(options={}) {
+  // send currently visible fields to Slicer
+  let slicer = new Slicer({url: slicerURL});
+  step.renderer.inputFields.filter(field =>
+    field.constructor.name == "ImageField" && field.visible
+  ).forEach(field => {
+    console.log('sending ', field);
+    slicer.postPixelFieldAsVolume(field).then(console.log);
+  });
+}
+
+
+// create a FiducialField from mrml fiducial nodes
+function addFiducialNodes(fiducialNodes) {
+  // currently makes one uniformly colored field
+  // for all fiducial nodes
+  let fiducials = [];
+  let rgba;
+  Object.values(fiducialNodes).forEach(fiducialNode => {
+    rgba = fiducialNode.color.slice();
+    rgba.push(1.);
+    fiducialNode.markups.forEach(markup => {
+      let point = markup.position.slice();
+      point[0] *= -1; point[1] *= -1; // RAS to LPS
+      fiducials.push(new Fiducial({
+        point: point,
+        radius: fiducialNode.scale / 2. + 0.000001,
+      }));
+    });
+  });
+
+  let fiducialField = new FiducialField({
+    fiducials,
+    rgba: rgba,
+    opacityScale: 1.,
+  });
+
+  let bounds = step.renderer.bounds || {min: [-200,-200,-200], max: [200,200,200]};
+  step.renderer.inputFields.push(fiducialField);
+  step.renderer.updateProgram();
+  step.renderer.requestRender(step.view);
+}
+
+// create or update fiducials
+function fiducialsFromSlicer() {
+  let slicer = new Slicer({url: slicerURL});
+  slicer.fiducials().then(fiducialNodes => {
+    // remove old fiducials
+    step.renderer.inputFields = step.renderer.inputFields.filter(field => {
+      return field.constructor.name != "FiducialField";
+    });
+    addFiducialNodes(fiducialNodes);
+  });
+}
+
 function addRandomFiducials() {
   //
   // Initial field for rendering
@@ -420,7 +475,9 @@ function updateTransferFunction(options = {}) {
 }
 
 function performImageFilter( generator, options ) {
-  options.filterField = options.filterField || step.renderer.inputFields[step.renderer.inputFields.length-1];
+  options.filterField = options.filterField ||
+    step.renderer.inputFields.find((field) => field.constructor.name == "ImageField");
+
   if (!options.filterField || options.filterField.constructor.name != "ImageField") {
     alert('Need to load an image field');
     return (options);
@@ -434,6 +491,7 @@ function performImageFilter( generator, options ) {
   options.derivedField0.windowWidth = options.filterField.windowWidth;
   options.derivedField0.generatedPixelData = options.derivedField0.dataset.PixelData;
 
+  let originalInputFields = step.renderer.inputFields.slice();
   step.renderer.inputFields = [options.filterField, options.derivedField0];
   step.renderer.updateProgram();
 
@@ -453,9 +511,13 @@ function performImageFilter( generator, options ) {
 
   console.log(`image filtering with `, options.generator);
   options.generator.generate();
+  options.derivedField0.dataset.PixelData = new Int16Array(options.derivedField0.generatedPixelData);
+
   step.renderer._render();
   options.filterField.visible = 0;
   options.derivedField0.visible = 1;
+  step.renderer.inputFields = originalInputFields;
+  step.renderer.inputFields.push(options.derivedField0);
   step.renderer.requestRender(step.view);
 
   return (options);
@@ -474,12 +536,17 @@ function performBilateral(options) {
 }
 
 function performSimilarity(options) {
-  options.referenceTextureCoordinate = options.referenceTextureCoordinate || [.5, .5, .5];
+  options.fiducialField = options.fiducialField ||
+    step.renderer.inputFields.find((field) => field.constructor.name == "FiducialField");
+  if (options.fiducialField) {
+    options.referencePatientCoordinate = options.fiducialField.fiducials[0].point;
+  }
+  options.referencePatientCoordinate = options.referencePatientCoordinate || [.5, .5, .5];
   options.rotationSamples = options.rotationSamples || 10;
   options.kernelSize = options.kernelSize || 5;
 
   options.uniforms = {};
-  options.uniforms.referenceTextureCoordinate = {type: '3fv', value: options.referenceTextureCoordinate};
+  options.uniforms.referencePatientCoordinate = {type: '3fv', value: options.referencePatientCoordinate};
   options.uniforms.rotationSamples = {type: '1i', value: options.rotationSamples};
   options.uniforms.kernelSize = {type: '1i', value: options.kernelSize};
   return (performImageFilter(SimilarityGenerator, options));
@@ -943,7 +1010,9 @@ $(function () {
     addRandomFiducials : addRandomFiducials,
     loadVolumeFromSlicer : loadVolumeFromSlicer,
     loadVolumesFromSlicer : loadVolumesFromSlicer,
+    sendVolumesToSlicer : sendVolumesToSlicer,
     addTransformField : addTransformField,
+    fiducialsFromSlicer : fiducialsFromSlicer,
     animateTransform : animateTransform,
     save : saveFieldsAsDICOM,
   });

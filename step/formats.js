@@ -189,4 +189,32 @@ space origin: ${nrrd.header['space origin']}
 
     return(dataset);
   }
+
+  static pixelFieldToNRRD(pixelField) {
+    // make a rough conversion of a pixel field to nrrd
+    // Only supports a very limited type (short, one component...)
+
+    let dimensions = pixelField.dimensions();
+    let sizes = `${dimensions[0]} ${dimensions[1]} ${dimensions[2]}`;
+
+    let column = pixelField.pixelToPatient.slice(12);
+    let origin = `(${column[0]}, ${column[1]}, ${column[2]})`;
+
+    let directions = "";
+    column = pixelField.pixelToPatient.slice(0,3);
+    directions += `(${column[0]}, ${column[1]}, ${column[2]}) `;
+    column = pixelField.pixelToPatient.slice(4,7);
+    directions += `(${column[0]}, ${column[1]}, ${column[2]}) `;
+    column = pixelField.pixelToPatient.slice(8,11);
+    directions += `(${column[0]}, ${column[1]}, ${column[2]})`;
+
+    let nrrd = {};
+    nrrd.header = {
+      sizes : sizes,
+      "space origin" : origin,
+      "space directions" : directions,
+    };
+    nrrd.data = pixelField.dataset.PixelData;
+    return(nrrd);
+  }
 }

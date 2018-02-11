@@ -25,7 +25,7 @@ class SimilarityGenerator extends FilterGenerator {
       // Similarity
       //
       // Perform rotation invariant image similarity of kernel sized sample at each pixel
-      // - compares 'kernelSize' rectangular patch around 'referenceTextureCoordinate'
+      // - compares 'kernelSize' rectangular patch around 'referencePatientCoordinate'
       //   to a set of 'rotationSamples' rotated patches around each voxel and creates
       //   a map of the maximum summed differene across the patches.
       // - goal is to create a parametric map where brighter voxels are more likely to
@@ -64,7 +64,7 @@ class SimilarityGenerator extends FilterGenerator {
       // parameters
       uniform int kernelSize;
       uniform int rotationSamples;
-      uniform vec3 referenceTextureCoordinate;
+      uniform vec3 referencePatientCoordinate;
 
       // commongl shader source code
       ${CommonGL.fibonacciSphere()}
@@ -72,11 +72,13 @@ class SimilarityGenerator extends FilterGenerator {
 
       void main()
       {
+        vec3 referenceTextureCoordinate = pixelToTexture *
+                                            (patientToPixel0 * vec4(referencePatientCoordinate, 1.)).xyz;
         // find max across a set of rotation samples
         float maxSimilarity = 0.;
         for (int rotationSample = 0; rotationSample <= rotationSamples; rotationSample++) {
           // make a rotation matrix for each unit sphere surface sample
-          vec3 sphereVector = fibonacciSphere(rotationSample);
+          vec3 sphereVector = fibonacciSphere(rotationSample, rotationSamples);
           mat3 rotation = rotationFromVector(sphereVector);
           // calculate summed absolute difference of rotated patch to reference
           float rotationSampleSimilarity = 0.;
@@ -94,7 +96,13 @@ class SimilarityGenerator extends FilterGenerator {
           }
           maxSimilarity = max(maxSimilarity, rotationSampleSimilarity);
         }
-        value = ${this.bufferType} ( maxSimilarity / 1000. ); // rescale and cast if needed
+        maxSimilarity /= pow(float(kernelSize)*2., 3.); // normalize
+        float textureKernelRadius = length(vec3(kernelSize) * pixelToTexture);
+        float distance = length(referenceTextureCoordinate - interpolatedTextureCoordinate);
+        if (distance > textureKernelRadius * .8 && distance < textureKernelRadius) {
+          maxSimilarity *= 3.;
+        }
+        value = ${this.bufferType} ( maxSimilarity ); // rescale and cast if needed
       }
     `);
   }

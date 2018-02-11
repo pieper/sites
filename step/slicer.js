@@ -30,7 +30,23 @@ class Slicer {
     });
   }
 
-  volume(id, dataset) {
+  postPixelFieldAsVolume(pixelField) {
+    let nrrdArrayBuffer = NRRD.format(NRRD.pixelFieldToNRRD(pixelField));
+    return new Promise( (resolve,reject) => {
+      this.request(`volume?id=undefined`, {
+        responseType: 'json',
+        command: "POST",
+        payload: nrrdArrayBuffer
+      })
+      .then(response => {
+        resolve(response)
+      })
+      .catch(reject);
+    });
+
+  }
+
+  volume(id) {
     return new Promise( (resolve,reject) => {
       this.request(`volume?id=${id}`, {
         responseType: 'arraybuffer'
@@ -43,7 +59,19 @@ class Slicer {
     });
   }
 
-  transform(id, dataset) {
+  fiducials() {
+    return new Promise( (resolve,reject) => {
+      this.request(`fiducials`, {
+        responseType: 'json'
+      })
+      .then(fiducials => {
+        resolve(fiducials);
+      })
+      .catch(reject);
+    });
+  }
+
+  transform(id) {
     return new Promise( (resolve,reject) => {
       this.request(`transform?id=${id}`, {
         responseType: 'arraybuffer'

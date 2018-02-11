@@ -131,6 +131,14 @@ class stepFileMenu extends MenuPanel {
     } );
     this.menuPanel.add( option );
 
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Send visible volumes to Slicer' );
+    option.onClick( function () {
+      options.sendVolumesToSlicer();
+    } );
+    this.menuPanel.add( option );
+
     // spacer - tests
     this.menuPanel.add( new UI.HorizontalRule() );
 
@@ -140,6 +148,15 @@ class stepFileMenu extends MenuPanel {
     option.setTextContent( 'Add 3 Random Fiducials' );
     option.onClick( function () {
       options.addRandomFiducials();
+    } );
+    this.menuPanel.add( option );
+
+    // File -> Fiducials from Slicer
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Fiducials from Slicer' );
+    option.onClick( function () {
+      options.fiducialsFromSlicer();
     } );
     this.menuPanel.add( option );
 

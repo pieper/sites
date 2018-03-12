@@ -39,14 +39,10 @@ class GaussianGenerator extends FilterGenerator {
         }.bind(this)()
       }
 
-      // Number of pixels in each dimension
-      uniform ivec3 pixelDimensions;
-
-      // scaling between texture coordinates and pixels, i.e. 1/256.0
-      uniform vec3 pixelToTexture;
-
       // integer sampler for first input Field
       uniform ${this.samplerType} inputTexture0;
+      // scaling between texture coordinates and pixels, i.e. 1/256.0
+      uniform vec3 pixelToTexture0;
 
       // output into first Field
       layout(location = 0) out ${this.bufferType} value;
@@ -74,7 +70,7 @@ class GaussianGenerator extends FilterGenerator {
             for (int k = -r; k <= r; k++) {
               float kkernel = kernel[k + r];
 
-              vec3 offset = vec3(i,j,k) * pixelToTexture;
+              vec3 offset = vec3(i,j,k) * pixelToTexture0;
               vec3 neighbor = interpolatedTextureCoordinate + offset;
               float neighborStrength = float(texture(inputTexture0, neighbor).r);
 

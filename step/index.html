@@ -216,7 +216,7 @@ function sendVolumesToSlicer(options={}) {
   // send currently visible fields to Slicer
   let slicer = new Slicer({url: slicerURL});
   step.renderer.inputFields.filter(field =>
-    field.constructor.name == "ImageField" && field.visible
+    (field.constructor.name == "ImageField") && field.visible
   ).forEach(field => {
     console.log('sending ', field);
     slicer.postPixelFieldAsVolume(field).then(console.log);
@@ -488,7 +488,8 @@ function updateTransferFunction(options = {}) {
   }
 }
 
-function performImageFilter( generator, options ) {
+function performImageFilter( generator, options={} ) {
+  options.uniforms = options.uniforms || {};
   options.filterField = options.filterField ||
     step.renderer.inputFields.find((field) => field.constructor.name == "ImageField");
 
@@ -602,7 +603,7 @@ function animateGabor(options={}) {
   requestAnimationFrame(animationFrame)
 }
 
-function performNonlocalmeans(options) {
+function performNonlocalmeans(options={}) {
   return (performImageFilter(NonLocalMeansGenerator, options));
 }
 
@@ -1022,6 +1023,7 @@ $(function () {
     performNonlocalmeans : performNonlocalmeans,
     performRegistration : performRegistration,
     addRandomFiducials : addRandomFiducials,
+    loadNRRDFromURL : loadNRRDFromURL,
     loadVolumeFromSlicer : loadVolumeFromSlicer,
     loadVolumesFromSlicer : loadVolumesFromSlicer,
     sendVolumesToSlicer : sendVolumesToSlicer,

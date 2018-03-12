@@ -83,6 +83,7 @@ class RegistrationGenerator extends ProgrammaticGenerator {
         // TODO:
         // - gradient of similarity function
         // - gradient similarity => mangnitude of summed gradients
+        // - gabor feature vector comparison
         for (int k = -1; k <= 1; k++) {
           for (int j = -1; j <= 1; j++) {
             for (int i = -1; i <= 1; i++) {
@@ -101,7 +102,10 @@ class RegistrationGenerator extends ProgrammaticGenerator {
 
         vec3 previousDisplacement = texture(inputTexture0, interpolatedTextureCoordinate).xyz;
 
+        deformation = previousDisplacement + regularizedDisplacement;
+
         deformation = /*previousDisplacement +*/ regularizedDisplacement + minNeighborDirection;
+
 
 
       }

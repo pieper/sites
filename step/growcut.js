@@ -44,7 +44,6 @@ class GrowCutGenerator extends ProgrammaticGenerator {
 
       uniform int iterations;
       uniform int iteration;
-      uniform ivec3 pixelDimensions;
 
       uniform ${this.samplerType} inputTexture0; // background
       uniform ${this.samplerType} inputTexture1; // label

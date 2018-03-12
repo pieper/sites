@@ -46,14 +46,10 @@ class SimilarityGenerator extends FilterGenerator {
         }.bind(this)()
       }
 
-      // Number of pixels in each dimension
-      uniform ivec3 pixelDimensions;
-
-      // scaling between texture coordinates and pixels, i.e. 1/256.0
-      uniform vec3 pixelToTexture;
-
       // integer sampler for first input Field
       uniform ${this.samplerType} inputTexture0;
+      // scaling between texture coordinates and pixels, i.e. 1/256.0
+      uniform vec3 pixelToTexture0;
 
       // output into first Field
       layout(location = 0) out ${this.bufferType} value;
@@ -72,37 +68,38 @@ class SimilarityGenerator extends FilterGenerator {
 
       void main()
       {
-        vec3 referenceTextureCoordinate = pixelToTexture *
+        vec3 referenceTextureCoordinate = pixelToTexture0 *
                                             (patientToPixel0 * vec4(referencePatientCoordinate, 1.)).xyz;
-        // find max across a set of rotation samples
-        float maxSimilarity = 0.;
+        // find min across a set of rotation samples
+        float minDissimilarity = 1.e6;
         for (int rotationSample = 0; rotationSample <= rotationSamples; rotationSample++) {
           // make a rotation matrix for each unit sphere surface sample
           vec3 sphereVector = fibonacciSphere(rotationSample, rotationSamples);
           mat3 rotation = rotationFromVector(sphereVector);
           // calculate summed absolute difference of rotated patch to reference
-          float rotationSampleSimilarity = 0.;
+          float rotationSampleDissimilarity = 0.;
           for (int i = -kernelSize; i <= kernelSize; i++) {
             for (int j = -kernelSize; j <= kernelSize; j++) {
               for (int k = -kernelSize; k <= kernelSize; k++) {
-                vec3 offset = vec3(i,j,k) * pixelToTexture;
+                vec3 offset = vec3(i,j,k) * pixelToTexture0;
                 vec3 neighbor = interpolatedTextureCoordinate + offset;
                 vec3 referenceNeighbor = referenceTextureCoordinate + rotation * offset;
                 float neighborStrength = float(texture(inputTexture0, neighbor).r);
                 float referenceNeighborStrength = float(texture(inputTexture0, referenceNeighbor).r);
-                rotationSampleSimilarity += abs(referenceNeighborStrength - neighborStrength);
+                rotationSampleDissimilarity += abs(referenceNeighborStrength - neighborStrength);
               }
             }
           }
-          maxSimilarity = max(maxSimilarity, rotationSampleSimilarity);
+          minDissimilarity = min(minDissimilarity, rotationSampleDissimilarity);
         }
-        maxSimilarity /= pow(float(kernelSize)*2., 3.); // normalize
-        float textureKernelRadius = length(vec3(kernelSize) * pixelToTexture);
+        minDissimilarity /= pow(float(kernelSize)*2.+1., 3.); // normalize
+        // ring around the reference spot
+        float textureKernelRadius = length(vec3(kernelSize) * pixelToTexture0);
         float distance = length(referenceTextureCoordinate - interpolatedTextureCoordinate);
         if (distance > textureKernelRadius * .8 && distance < textureKernelRadius) {
-          maxSimilarity *= 3.;
+          minDissimilarity *= 3.;
         }
-        value = ${this.bufferType} ( maxSimilarity ); // rescale and cast if needed
+        value = ${this.bufferType} ( minDissimilarity ); // rescale and cast if needed
       }
     `);
   }

@@ -143,7 +143,7 @@ class DerivedPixels extends DerivedDataset {
     }
 
     // make an array of zeros for the pixels
-    this.dataset.PixelData = new ArrayBuffer(this.referencedDataset.PixelData.byteLength);
+    this.dataset.PixelData = new Int16Array(this.referencedDataset.PixelData.length);
   }
 }
 

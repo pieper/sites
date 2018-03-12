@@ -70,14 +70,10 @@ class NonLocalMeansGenerator extends FilterGenerator {
         }.bind(this)()
       }
 
-      // Number of pixels in each dimension
-      uniform ivec3 pixelDimensions;
-
-      // scaling between texture coordinates and pixels, i.e. 1/256.0
-      uniform vec3 pixelToTexture;
-
       // integer sampler for first input Field
       uniform ${this.samplerType} inputTexture0;
+      // scaling between texture coordinates and pixels, i.e. 1/256.0
+      uniform vec3 pixelToTexture0;
 
       // output into first Field
       layout(location = 0) out ${this.bufferType} value;
@@ -114,7 +110,7 @@ class NonLocalMeansGenerator extends FilterGenerator {
           for (int j = -searchRadius; j <= searchRadius; ++j) {
             for (int k = -searchRadius; k <= searchRadius; ++k) {
 
-              vec3 patchCenter = interpolatedTextureCoordinate + vec3(i,j,k) * pixelToTexture;
+              vec3 patchCenter = interpolatedTextureCoordinate + vec3(i,j,k) * pixelToTexture0;
 
               float sumOfDifferences = 0.0;
 
@@ -123,7 +119,7 @@ class NonLocalMeansGenerator extends FilterGenerator {
                   for (int z = -patchRadius; z <= patchRadius; ++z) {
 
                     // calculate the difference between this patch and the pixel to filter
-                    vec3 offset = vec3(x,y,z) * pixelToTexture;
+                    vec3 offset = vec3(x,y,z) * pixelToTexture0;
                     float diff = float (
                         texture(inputTexture0, interpolatedTextureCoordinate+offset).r -
                         texture(inputTexture0, patchCenter+offset).r );
@@ -151,7 +147,7 @@ class NonLocalMeansGenerator extends FilterGenerator {
       void main() {
         doNLM();
         if ( false ) {
-          vec3 patchCenter = vec3(50, 50, 50) * pixelToTexture;
+          vec3 patchCenter = vec3(50, 50, 50) * pixelToTexture0;
           float outputValue  = float(texture(inputTexture0, interpolatedTextureCoordinate - patchCenter).r);
           value = ${this.bufferType} ( outputValue ); // cast if needed
         }

@@ -119,7 +119,7 @@ class PixelField extends Field {
     u['patientToPixel'+this.id] = {type: "Matrix4fv", value: this.patientToPixel};
     u['pixelToPatient'+this.id] = {type: "Matrix4fv", value: this.pixelToPatient};
     u['pixelDimensions'+this.id] = {type: '3iv', value: this.pixelDimensions};
-    let pixelToTexture = this.pixelDimensions.map(e=>1./e).reverse();
+    let pixelToTexture = this.pixelDimensions.map(e=>1./e);
     u['pixelToTexture'+this.id] = {type: '3fv', value: pixelToTexture};
     return(u);
   }

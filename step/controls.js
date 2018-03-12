@@ -39,7 +39,8 @@ class Controls {
     let index = 0;
     step.renderer.inputFields.forEach(inputField => {
       inputField.visible = Number(index == indexToDisplay);
-      console.log(index, inputField.visible, inputField.dataset.SeriesDescription, inputField.constructor.name);
+      let description = inputField.dataset ? inputField.dataset.SeriesDescription : "";
+      console.log(index, inputField.visible, description, inputField.constructor.name);
       index++;
     });
     step.renderer.requestRender(step.view);

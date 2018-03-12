@@ -176,6 +176,20 @@ function crossFade(options={}) {
   options.fields[(frame+1)%frameCount].rgba[3] = blend;
 }
 
+
+function loadNRRDFromURL(options={}) {
+  options.url = options.url || 'https://s3.amazonaws.com/IsomicsPublic/SampleData/MRHead/MRHead.nrrd';
+  let request = new XMLHttpRequest();
+  request.responseType = 'arraybuffer';
+  request.onload = function(event) {
+    let nrrd = NRRD.parse(event.target.response);
+    loadDatasets([NRRD.nrrdToDICOMDataset(nrrd)]);
+  };
+  request.onerror = console.error;
+  request.open('GET', options.url, true);
+  request.send();
+}
+
 function loadVolumeFromSlicer(options={}) {
   options.id = options.id || 'vtkMRMLScalarVolumeNode1';
   options.name = options.name || 'SlicerVolume1';

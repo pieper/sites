@@ -114,6 +114,15 @@ class stepFileMenu extends MenuPanel {
     // spacer - tests
     this.menuPanel.add( new UI.HorizontalRule() );
 
+    // File -> load from github
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent( 'Load MRHead from NRRD' );
+    option.onClick( function () {
+      options.loadNRRDFromURL();
+    } );
+    this.menuPanel.add( option );
+
     // File -> Slicer Volumes
     option = new UI.Row();
     option.setClass( 'option' );

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script type="text/javascript" src="https://unpkg.com/vtk.js">
+  </script>
+  <script type="text/javascript">
+
+    function vtkMyInteractorStyleTrackballExtender(publicAPI, model) {
+      // Set our className
+      model.classHierarchy.push('vtkMyInteractorStyleTrackball');
+
+      // Capture "parentClass" api for internal use
+      const superClass = Object.assign({}, publicAPI);
+
+      // Public API methods
+      publicAPI.sayHello = () => {
+        // This is a publicly exposed method of this object
+        console.log('hello from my custom subclass method');
+      };
+
+      publicAPI.handleKeyPress = (callData) => {
+
+        console.log(callData);
+
+        publicAPI.sayHello();
+
+        superClass.handleKeyPress(callData);
+      };
+
+      publicAPI.handleLeftButtonPress = (callData) => {
+
+        publicAPI.sayHello();
+
+        superClass.handleLeftButtonPress(callData);
+      };
+    }
+
+
+    // ----------------------------------------------------------------------------
+
+    function extend(publicAPI, model, initialValues = {}) {
+
+      // Inheritance
+      vtk.Interaction.Style.vtkInteractorStyleTrackballCamera.extend(publicAPI, model, initialValues);
+
+      // Create get-set macros
+      vtk.macro.setGet(publicAPI, model, ['interactionMode']);
+
+      // For more macro methods, see "Sources/macro.js"
+
+      // Object specific methods
+      vtkMyInteractorStyleTrackballExtender(publicAPI, model);
+    }
+
+
+    // ----------------------------------------------------------------------------
+
+    const newInstance = vtk.macro.newInstance(extend, 'vtkMyInteractorStyleTrackball');
+    const vtkMyInteractorStyleTrackball = {newInstance};
+
+    // ----------------------------------------------------------------------------
+
+    Object.assign({ newInstance, extend });
+
+    let renderWindow;
+    let interactorStyle;
+
+    window.addEventListener('DOMContentLoaded', function(e) {
+
+      var fullScreenRenderer = vtk.Rendering.Misc.vtkFullScreenRenderWindow.newInstance();
+      var actor              = vtk.Rendering.Core.vtkActor.newInstance();
+      var mapper             = vtk.Rendering.Core.vtkMapper.newInstance();
+      var cone               = vtk.Filters.Sources.vtkConeSource.newInstance();
+
+      actor.setMapper(mapper);
+      mapper.setInputConnection(cone.getOutputPort());
+
+      var renderer = fullScreenRenderer.getRenderer();
+      renderer.addActor(actor);
+      renderer.resetCamera();
+
+      renderWindow = fullScreenRenderer.getRenderWindow();
+
+      interactorStyle = vtkMyInteractorStyleTrackball.newInstance();
+      renderWindow.getInteractor().setInteractorStyle(interactorStyle);
+
+      renderWindow.render();
+
+    });
+
+</script>
+</body>
+</html>

@@ -40,3 +40,6 @@ Values that map from one space to another are named to indicate
 the direction of mapping.  E.g. patientToPixel is a 4x4 matrix
 that maps from LPS space to slice,row,colum space and textureToPixel
 is a vec3 that goes from stp space to slice,row,colum.
+
+## Acknowledgments
+This work is supported in part by the [Neuroimage Analysis Center, 4P41EB015902](https://projectreporter.nih.gov/project_info_description.cfm?aid=9115586&icde=31485398).

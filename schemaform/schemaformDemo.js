@@ -59,8 +59,11 @@ function schemaformDemo() {
   const customOnChange = (data) => {
     // note: this works with the "dependencies" but adds hiding when unchecked
     const titleEleement = document.getElementById('root_additionalComments__title');
-    const fieldElement = titleEleement.parentElement.parentElement;
-    fieldElement.hidden = ! data.formData.addAdditionalComments;
+    // TODO: make this work for newer schemaform code https://github.com/mozilla-services/react-jsonschema-form/issues/1042
+    if (titleElement && titleElement.parentElement && titleElement.parentElement.parentElement) {
+      const fieldElement = titleEleement.parentElement.parentElement;
+      fieldElement.hidden = ! data.formData.addAdditionalComments;
+    }
   }
 
   const log = (type) => console.log.bind(console, type);

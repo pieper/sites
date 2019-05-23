@@ -75,6 +75,9 @@
 <script>
 'use strict'
 
+// for easy console reference to anything for debugging
+let globals = {};
+
 let slicerURL = 'http://localhost:2016/slicer';
 
 //
@@ -323,8 +326,19 @@ function addTransformField(options={}) {
   let [w,h,d] = [referenceDataset.Columns, referenceDataset.Rows, referenceDataset.NumberOfFrames];
   let arrayElementCount = [w,h,d].reduce((p,e)=>p*e);
   let vectorGrid = new Float32Array(3 * arrayElementCount);
+  globals.vectorGrid = vectorGrid;
   let pixelMeasures = referenceDataset.SharedFunctionalGroups.PixelMeasures;
   let resolution = [pixelMeasures.PixelSpacing[1], pixelMeasures.PixelSpacing[0], pixelMeasures.SpacingBetweenSlices];
+
+  let thisIsADemo = true;
+  if (thisIsADemo) {
+    console.log('Setting up a dummy transform');
+    vectorGrid.forEach( (value,index) => {
+      vectorGrid[index] = index/1e6;
+    });
+    console.log(vectorGrid);
+  }
+
 
   let transformDataset = {
     SeriesDescription: "Deformation from addTransformField method",

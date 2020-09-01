@@ -33,7 +33,23 @@ function lnqSchemaForm() {
           { "type": "string", "enum": [ "8928004" ], "title": "Lymph Node Inguinal" },
         ]
       },
+      "CervicalLymphNodeSubtypes": {
+        title: "Cervical Lymph Node Subtypes",
+        type: "string",
+        oneOf: [
+          { "type": "string", "enum": [ "9659009" ], "title": "Infraclavicular lymph node" },
+          { "type": "string", "enum": [ "245324000" ], "title": "Posterior triangle cervical lymph node" },
+          { "type": "string", "enum": [ "5727003" ], "title": "Anterior cervical lymph node" },
+          { "type": "string", "enum": [ "155237005" ], "title": "Inferior auricular lymph node" },
+          { "type": "string", "enum": [ "58130000" ], "title": "Jugular lymph node" },
+          { "type": "string", "enum": [ "81132008" ], "title": "Scalene lymph node" },
+          { "type": "string", "enum": [ "59503006" ], "title": "Submandibular lymph node" },
+          { "type": "string", "enum": [ "76838003" ], "title": "Supraclavicular lymph node" },
+          { "type": "string", "enum": [ "279144003" ], "title": "Superficial cervical lymph node" },
+        ]
+      },
     },
+
     properties: {
       location: { title: "Location", "$ref": "#/definitions/Location" },
       modifiers: { title: "Modifiers", type: "array",
@@ -55,6 +71,26 @@ function lnqSchemaForm() {
           studyInstanceUID: {type: "string", title: "StudyInstanceUID"},
         },
         required: ["annotatorID", "software", "softwareVersion", "contentCreationDate", "studyInstanceUID"],
+      }
+    },
+    dependencies: {
+      location: {
+        oneOf: [ {
+          properties: {
+            location: {
+              enum: [ "1", "59441001" ]
+            },
+            subtype: {
+              type: "string"
+            }
+          },
+          properties: {
+            location: {
+              enum: [ "81105003" ]
+            },
+            subtype: { "$ref": "#/definitions/CervicalLymphNodeSubtypes"}
+          }
+        }]
       }
     },
     required: ["location", "metadata"],

@@ -61,10 +61,10 @@ function lnqSchemaForm() {
   };
 
   const uiSchema = {
-    "ui:order": ["location", "subtype", "modifiers", "comments", "metadata"],
+    "ui:order": ["location", "modifiers", "comments", "metadata"],
     location: {
       "ui:help": "Choose the optionthat best describes the location of the lymph node",
-      "ui:emptyValue": "Select a location"
+      "ui:emptyValue": "Select a location",
     },
     modifiers: {
       "ui:widget": "checkboxes"
@@ -72,9 +72,6 @@ function lnqSchemaForm() {
     comments: {
       "ui:widget": "textarea"
     },
-    subtype: {
-      "ui:widget": "radio"
-    }
   }
 
   const formData = {

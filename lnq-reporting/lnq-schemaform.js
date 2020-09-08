@@ -16,9 +16,9 @@ function lnqSchemaForm() {
 
           { "type": "string", "enum": [ "59441001" ], "title": "Lymph Node Other" },
           { "type": "string", "enum": [ "81105003" ], "title": "Lymph Node Cervical" },
-          { "type": "string", "enum": [ "312501005" ], "title": "Lymph Node of Head and Neck" },
+          { "type": "string", "enum": [ "312501005" ], "title": "Lymph Node Head and Neck" },
           { "type": "string", "enum": [ "76838003" ], "title": "Lymph Node Supraclavicular" },
-          { "type": "string", "enum": [ "47109002" ], "title": "Lymph Node of Thorax" },
+          { "type": "string", "enum": [ "47109002" ], "title": "Lymph Node Thorax" },
           { "type": "string", "enum": [ "62683002" ], "title": "Lymph Node Mediastinal" },
           { "type": "string", "enum": [ "53074004" ], "title": "Lymph Node Hilar" },
           { "type": "string", "enum": [ "196751009" ], "title": "Lymph Node Pericardial" },

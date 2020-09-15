@@ -63,7 +63,7 @@ function lnqSchemaForm() {
   const uiSchema = {
     "ui:order": ["location", "modifiers", "comments", "metadata"],
     location: {
-      "ui:help": "Choose the optionthat best describes the location of the lymph node",
+      "ui:help": "Choose the option that best describes the location of the lymph node",
       "ui:emptyValue": "Select a location",
     },
     modifiers: {
@@ -99,6 +99,11 @@ function lnqSchemaForm() {
   const log = (type) => console.log.bind(console, type);
 
   const displayResult = (submitted) => {
+    // Can do more custom processing here, like adding schema version and also
+    // mapping display names to include SNOMED ids.  Would be better to include ids
+    // in schema if possible.
+    //"$id": "https://github.com/ImagingDataCommons/schemas/v0.0.1/LNQ-LymphNode.schema.json",
+    //"$schema": "http://json-schema.org/draft-04/schema",
     const paragraph = document.createElement("p");
     paragraph.innerText = JSON.stringify(submitted.formData);
     document.body.appendChild(paragraph);

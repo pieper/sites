@@ -895,6 +895,14 @@ class stepAboutMenu extends MenuPanel {
     option.setClass( 'option' );
     option.setTextContent('This is a very experimental implementation of image viewing and manipulation using WebGL 2.0.' );
     this.menuPanel.add( option );
+
+    option = new UI.Row();
+    option.setClass( 'option' );
+    option.setTextContent('Open on github' );
+    option.onClick(() => {
+      window.open("https://github.com/pieper/sites", '_blank').focus();
+    });
+    this.menuPanel.add( option );
   }
 }
 

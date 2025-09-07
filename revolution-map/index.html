@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Map of the American Revolution</title>
+    
+    <!-- Leaflet CSS for the map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+     
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family+Playfair+Display:wght@700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f8f4e3; /* Parchment-like background */
+        }
+        h1 {
+            font-family: 'Playfair Display', serif;
+        }
+        #map {
+            height: calc(100vh - 220px); /* Adjusted height for new timeline */
+            width: 100%;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border: 3px solid #8b4513; /* SaddleBrown */
+        }
+        .leaflet-popup-content-wrapper {
+            background: #f8f4e3;
+            color: #333;
+            border-radius: 5px;
+        }
+        .leaflet-popup-content h3 {
+            font-family: 'Playfair Display', serif;
+            margin-top: 0;
+            margin-bottom: 5px;
+            color: #8B0000; /* DarkRed */
+        }
+        .controls-container {
+            background-color: rgba(248, 244, 227, 0.8);
+            backdrop-filter: blur(5px);
+            border: 2px solid #8b4513;
+        }
+        #battle-timeline {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            position: relative;
+        }
+        #battle-timeline::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background-color: #a0522d; /* Sienna */
+            transform: translateY(-50%);
+            z-index: 1;
+        }
+        .battle-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #8b4513;
+            cursor: pointer;
+            position: relative;
+            z-index: 2;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .battle-icon:hover {
+            transform: scale(1.3);
+        }
+        .battle-icon.active {
+            transform: scale(1.5);
+            box-shadow: 0 0 10px 3px gold;
+        }
+        .battle-icon .tooltip {
+            visibility: hidden;
+            width: 120px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 0;
+            position: absolute;
+            z-index: 3;
+            bottom: 150%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .battle-icon .tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+        .battle-icon:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-[#f8f4e3] text-gray-800 p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-6">
+            <h1 class="text-4xl md:text-5xl font-bold text-[#8B0000]">The American Revolution: An Interactive History</h1>
+            <p class="text-lg text-gray-600 mt-2">Explore major battles and troop movements from 1775 to 1783.</p>
+        </header>
+
+        <div class="controls-container p-4 mb-6 rounded-lg shadow-lg">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+                <div class="flex items-center space-x-4">
+                    <button id="timeline-control-btn" class="bg-[#8B0000] text-white px-4 py-2 rounded-md hover:bg-red-900 transition-colors shadow-md w-32">Start</button>
+                </div>
+                <div class="flex space-x-4">
+                    <div class="flex items-center"><div class="w-4 h-4 rounded-full bg-blue-600 mr-2 border border-gray-500"></div><span>American Victory</span></div>
+                    <div class="flex items-center"><div class="w-4 h-4 rounded-full bg-red-600 mr-2 border border-gray-500"></div><span>British Victory</span></div>
+                    <div class="flex items-center"><div class="w-4 h-4 rounded-full bg-gray-400 mr-2 border border-gray-500"></div><span>Draw</span></div>
+                </div>
+            </div>
+            <div id="battle-timeline"></div>
+        </div>
+
+        <div id="map"></div>
+
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+     
+    <!-- Leaflet Heatmap Plugin -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <script>
+        // --- DATA ---
+        let battleData = [
+            { id: "b1", name: "Lexington and Concord", date: "1775-04-19", location: [42.4475, -71.2335], state: "MA", british: 1500, continental: 3800, outcome: "American Victory", description: "Often called the 'shot heard 'round the world,' these clashes on April 19, 1775, ignited the Revolutionary War. When British troops marched from Boston to seize colonial military supplies in Concord, they were met by Patriot Minutemen. The ensuing skirmishes forced the British regulars into a harrowing retreat to Boston under constant, guerilla-style fire, demonstrating the colonists' resolve and transforming a political dispute into open warfare.", wiki: "Battles_of_Lexington_and_Concord" },
+            { id: "b2", name: "Bunker Hill", date: "1775-06-17", location: [42.3765, -71.0607], state: "MA", british: 2400, continental: 1500, outcome: "British Victory", description: "Fought on Breed's Hill during the Siege of Boston, this battle was a pyrrhic victory for the British. Colonial forces fortified the heights overlooking the city, and the British launched three frontal assaults to dislodge them. While they eventually took the ground, the British suffered over 1,000 casualties, including a significant number of officers. The battle proved that the inexperienced colonial militia could stand up to trained regular army troops and bolstered American confidence.", wiki: "Battle_of_Bunker_Hill" },
+            { id: "b3", name: "Long Island", date: "1776-08-27", location: [40.6782, -73.9442], state: "NY", british: 20000, continental: 10000, outcome: "British Victory", description: "The first major battle after the Declaration of Independence, it was a crushing defeat for the Continental Army under George Washington. British forces under General Howe executed a brilliant flanking maneuver, routing the Americans and threatening to trap the entire army. Washington salvaged the army with a miraculous nighttime evacuation across the East River to Manhattan, but the British gained control of the strategically vital New York City for the rest of the war.", wiki: "Battle_of_Long_Island" },
+            { id: "b4", name: "Trenton", date: "1776-12-26", location: [40.2206, -74.7597], state: "NJ", british: 1500, continental: 2400, outcome: "American Victory", description: "With morale at its lowest point, Washington led his army on a daring Christmas night crossing of the icy Delaware River. The next morning, they surprised a garrison of Hessian mercenaries at Trenton, New Jersey. The decisive victory was a massive morale booster for the Continental Army and the American cause, inspiring many soldiers to re-enlist and demonstrating Washington's leadership and strategic audacity.", wiki: "Battle_of_Trenton" },
+            { id: "b5", name: "Princeton", date: "1777-01-03", location: [40.3487, -74.6591], state: "NJ", british: 1200, continental: 4500, outcome: "American Victory", description: "Just days after the victory at Trenton, Washington again outmaneuvered the British. Leaving campfires burning to deceive Cornwallis's main force, he executed another surprise attack against a British detachment at Princeton. This second victory in a week forced the British to withdraw from most of New Jersey, further reviving American spirits and solidifying the success of the winter campaign.", wiki: "Battle_of_Princeton" },
+            { id: "b6", name: "Saratoga", date: "1777-10-07", location: [42.9995, -73.6393], state: "NY", british: 7200, continental: 9000, outcome: "American Victory", description: "This series of battles, culminating in the surrender of an entire British army under General John Burgoyne, is widely considered the turning point of the war. The American victory thwarted Britain's strategy of splitting New England from the other colonies. Most importantly, this success convinced France to formally enter the war as an American ally, providing essential financial and military support that would prove critical to winning independence.", wiki: "Battles_of_Saratoga" },
+            { id: "b7", name: "Brandywine", date: "1777-09-11", location: [39.8668, -75.6083], state: "PA", british: 15500, continental: 14600, outcome: "British Victory", description: "In a bid to capture the American capital of Philadelphia, British General Howe once again outmaneuvered Washington. Similar to the Battle of Long Island, Howe used a flanking march to surprise the Continental Army's right flank. Though a clear British victory that opened the way to Philadelphia, the Continental Army was not destroyed and managed an orderly retreat, demonstrating its growing resilience.", wiki: "Battle_of_Brandywine" },
+            { id: "b8", name: "Monmouth", date: "1778-06-28", location: [40.2646, -74.3218], state: "NJ", british: 11000, continental: 11000, outcome: "Draw", description: "The last major battle in the Northern theater, Monmouth saw Washington's army attack a British column retreating from Philadelphia. Following a harsh winter of training at Valley Forge under Baron von Steuben, the Continental Army stood toe-to-toe with British regulars in a conventional, open-field battle. While tactically inconclusive, the battle was a strategic success for the Americans, proving their newfound professionalism and battlefield prowess.", wiki: "Battle_of_Monmouth" },
+            { id: "b9", name: "Siege of Charleston", date: "1780-03-29", location: [32.7765, -79.9311], state: "SC", british: 13500, continental: 5500, outcome: "British Victory", description: "As part of their 'Southern Strategy,' the British laid siege to Charleston, a major port city. After weeks of bombardment and being cut off from reinforcement, the American commander, Benjamin Lincoln, was forced to surrender his entire army of over 5,000 men. It was the single largest defeat for the Americans in the war and a devastating blow to the Patriot cause in the South.", wiki: "Siege_of_Charleston" },
+            { id: "b10", name: "Camden", date: "1780-08-16", location: [34.2490, -80.6151], state: "SC", british: 2100, continental: 4100, outcome: "British Victory", description: "Another disastrous defeat in the South. A newly formed American army under General Horatio Gates, the victor of Saratoga, was decisively defeated by a smaller British force under Cornwallis. The American militia lines collapsed in the face of a British bayonet charge, leading to a complete rout. The defeat shattered another American army in the South and exposed the weakness of relying on untrained militia in conventional battle.", wiki: "Battle_of_Camden" },
+            { id: "b11", name: "Cowpens", date: "1781-01-17", location: [35.0825, -81.7892], state: "SC", british: 1100, continental: 2000, outcome: "American Victory", description: "A brilliant tactical masterpiece and a crucial turning point in the Southern campaign. American General Daniel Morgan devised a clever plan using his militia and regulars in a defense-in-depth. He lured Banastre Tarleton's elite British force into a devastating trap, resulting in the near-total destruction of the British command. The victory was a huge morale boost and a major step towards the eventual Patriot victory at Yorktown.", wiki: "Battle_of_Cowpens" },
+            { id: "b12", name: "Guilford Courthouse", date: "1781-03-15", location: [36.1310, -79.8450], state: "NC", british: 1900, continental: 4500, outcome: "British Victory", description: "A hard-fought battle where the American army under Nathanael Greene inflicted severe casualties on Cornwallis's British forces. Greene employed a strategy similar to Cowpens, using three lines of defense. Although the Americans eventually retreated and ceded the field, the British losses were so heavy that it crippled Cornwallis's army. The battle was a strategic victory for the Americans, as it forced Cornwallis to abandon his campaign in the Carolinas and march to Virginia.", wiki: "Battle_of_Guilford_Court_House" },
+            { id: "b13", name: "Siege of Yorktown", date: "1781-09-28", location: [37.2388, -76.5097], state: "VA", british: 8900, continental: 20600, outcome: "American Victory", description: "The decisive engagement of the war. A combined force of Washington's Continental Army and thousands of French troops led by Comte de Rochambeau laid siege to Cornwallis's British army, which was trapped at the port of Yorktown. The French navy, under Admiral de Grasse, blocked any British escape or reinforcement by sea. After three weeks of constant bombardment, Cornwallis was forced to surrender his entire army, effectively ending the war and securing American independence.", wiki: "Siege_of_Yorktown" }
+        ];
+
+        // --- MAP INITIALIZATION ---
+        const map = L.map('map').setView([39.8283, -77.5278], 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
+
+        // --- LAYERS & UI ELEMENTS ---
+        const battleMarkersLayer = L.layerGroup().addTo(map);
+        const timelineControlBtn = document.getElementById('timeline-control-btn');
+        const battleTimelineContainer = document.getElementById('battle-timeline');
+        
+        // --- TIMELINE STATE ---
+        let currentBattleIndex = -1; // Start before the first battle
+
+        // Sort battles chronologically to ensure correct order
+        battleData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        // --- BATTLE NAVIGATION ---
+        function goToBattle(battleIndex, panTo = true) {
+             if (battleIndex < 0 || battleIndex >= battleData.length) return;
+
+             currentBattleIndex = battleIndex;
+             const battle = battleData[battleIndex];
+
+             // Update timeline icon highlights
+             document.querySelectorAll('.battle-icon').forEach((icon, index) => {
+                 if (index === battleIndex) {
+                     icon.classList.add('active');
+                 } else {
+                     icon.classList.remove('active');
+                 }
+             });
+
+             // Pan map and open popup
+             const targetMarker = battleMarkersLayer.getLayers().find(layer => layer.options.battleId === battle.id);
+             if (targetMarker) {
+                 if(panTo) map.panTo(battle.location);
+                 // Delay to allow panning to finish
+                 setTimeout(() => targetMarker.openPopup(), 200);
+             }
+
+             // Update button state
+             if (currentBattleIndex >= battleData.length - 1) {
+                 timelineControlBtn.textContent = "Start Over";
+             } else {
+                 timelineControlBtn.textContent = "Next Battle";
+             }
+        }
+
+        function handleTimelineControl() {
+            map.closePopup();
+            let nextIndex = currentBattleIndex + 1;
+            if (nextIndex >= battleData.length) {
+                nextIndex = 0; // Loop back to the start
+            }
+            goToBattle(nextIndex);
+        }
+
+        // --- INITIALIZATION ---
+        function initializeMap() {
+            // 1. Create battle markers and add to map
+            battleData.forEach(battle => {
+                const markerColor = battle.outcome === "American Victory" ? '#0000FF' : (battle.outcome === "British Victory" ? '#FF0000' : '#808080');
+                const wikiLink = battle.wiki ? `<p><a href="https://en.wikipedia.org/wiki/${battle.wiki}" target="_blank" class="text-blue-600 hover:underline">Learn more on Wikipedia</a></p>` : '';
+                
+                L.circleMarker(battle.location, { battleId: battle.id, radius: 8, fillColor: markerColor, color: "#000", weight: 1, opacity: 1, fillOpacity: 0.8 })
+                    .bindPopup(`<h3>${battle.name}</h3><p class="text-sm">${battle.description}</p>${wikiLink}`)
+                    .addTo(battleMarkersLayer);
+            });
+
+            // 2. Populate the static timeline with icons
+            battleData.forEach((battle, index) => {
+                const icon = document.createElement('div');
+                icon.className = 'battle-icon';
+                
+                let bgColor = 'bg-gray-400'; // Draw
+                if (battle.outcome === 'American Victory') bgColor = 'bg-blue-600';
+                if (battle.outcome === 'British Victory') bgColor = 'bg-red-600';
+                icon.classList.add(bgColor);
+
+                icon.dataset.battleIndex = index;
+
+                const tooltip = document.createElement('span');
+                tooltip.className = 'tooltip';
+                tooltip.textContent = battle.name;
+                icon.appendChild(tooltip);
+                
+                icon.addEventListener('click', () => {
+                    goToBattle(index);
+                });
+                
+                battleTimelineContainer.appendChild(icon);
+            });
+        }
+        
+        // --- EVENT LISTENERS ---
+        timelineControlBtn.addEventListener('click', handleTimelineControl);
+
+        // --- INITIAL LOAD ---
+        initializeMap();
+    </script>
+</body>
+</html>
+

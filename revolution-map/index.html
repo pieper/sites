@@ -27,7 +27,7 @@
             font-family: 'Playfair Display', serif;
         }
         #map {
-            height: calc(100vh - 220px); /* Adjusted height for new timeline */
+            height: calc(100vh - 250px); /* Adjusted height for new timeline */
             width: 100%;
             border-radius: 0.5rem;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
@@ -50,18 +50,16 @@
             border: 2px solid #8b4513;
         }
         #battle-timeline {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
             position: relative;
+            height: 70px; /* Increased height for year labels */
+            padding: 0 10px; /* Padding to ensure icons aren't at the very edge */
         }
         #battle-timeline::before {
             content: '';
             position: absolute;
             top: 50%;
-            left: 0;
-            right: 0;
+            left: 10px;
+            right: 10px;
             height: 4px;
             background-color: #a0522d; /* Sienna */
             transform: translateY(-50%);
@@ -73,18 +71,20 @@
             border-radius: 50%;
             border: 2px solid #8b4513;
             cursor: pointer;
-            position: relative;
-            z-index: 2;
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%); /* Center icon on its point */
+            z-index: 3;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .battle-icon:hover {
-            transform: scale(1.3);
+            transform: translate(-50%, -50%) scale(1.3);
         }
         .battle-icon.active {
-            transform: scale(1.5);
+            transform: translate(-50%, -50%) scale(1.5);
             box-shadow: 0 0 10px 3px gold;
         }
         .battle-icon .tooltip {
@@ -96,7 +96,7 @@
             border-radius: 6px;
             padding: 5px 0;
             position: absolute;
-            z-index: 3;
+            z-index: 4;
             bottom: 150%;
             left: 50%;
             margin-left: -60px;
@@ -116,6 +116,24 @@
         .battle-icon:hover .tooltip {
             visibility: visible;
             opacity: 1;
+        }
+        .year-marker {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .year-marker-tick {
+            display: none; /* Removed the tick mark */
+        }
+        .year-marker-label {
+            margin-top: 40px; /* Increased margin to move labels down further */
+            font-size: 12px;
+            color: #333;
+            font-weight: 500;
         }
     </style>
 </head>
@@ -152,6 +170,10 @@
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
     <script>
+        const stateNames = {
+            "MA": "Massachusetts", "NY": "New York", "NJ": "New Jersey",
+            "PA": "Pennsylvania", "SC": "South Carolina", "NC": "North Carolina", "VA": "Virginia"
+        };
         // --- DATA ---
         let battleData = [
             { id: "b1", name: "Lexington and Concord", date: "1775-04-19", location: [42.4475, -71.2335], state: "MA", british: 1500, continental: 3800, outcome: "American Victory", description: "Often called the 'shot heard 'round the world,' these clashes on April 19, 1775, ignited the Revolutionary War. When British troops marched from Boston to seize colonial military supplies in Concord, they were met by Patriot Minutemen. The ensuing skirmishes forced the British regulars into a harrowing retreat to Boston under constant, guerilla-style fire, demonstrating the colonists' resolve and transforming a political dispute into open warfare.", wiki: "Battles_of_Lexington_and_Concord" },
@@ -230,14 +252,24 @@
             // 1. Create battle markers and add to map
             battleData.forEach(battle => {
                 const markerColor = battle.outcome === "American Victory" ? '#0000FF' : (battle.outcome === "British Victory" ? '#FF0000' : '#808080');
-                const wikiLink = battle.wiki ? `<p><a href="https://en.wikipedia.org/wiki/${battle.wiki}" target="_blank" class="text-blue-600 hover:underline">Learn more on Wikipedia</a></p>` : '';
+                const wikiLink = battle.wiki ? `<p class="mt-2"><a href="https://en.wikipedia.org/wiki/${battle.wiki}" target="_blank" class="text-blue-600 hover:underline">Learn more on Wikipedia</a></p>` : '';
+                
+                const formattedDate = new Date(battle.date.replace(/-/g, '\/')).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short'
+                });
                 
                 L.circleMarker(battle.location, { battleId: battle.id, radius: 8, fillColor: markerColor, color: "#000", weight: 1, opacity: 1, fillOpacity: 0.8 })
-                    .bindPopup(`<h3>${battle.name}</h3><p class="text-sm">${battle.description}</p>${wikiLink}`)
+                    .bindPopup(`<h3>${battle.name}</h3><p class="font-semibold text-gray-600 text-xs mb-2">${stateNames[battle.state]} &mdash; ${formattedDate}</p><p class="text-sm">${battle.description}</p>${wikiLink}`)
                     .addTo(battleMarkersLayer);
             });
 
-            // 2. Populate the static timeline with icons
+            // 2. Populate the timeline with proportionally spaced icons and year markers
+            const firstBattleDate = new Date(battleData[0].date);
+            const lastBattleDate = new Date(battleData[battleData.length - 1].date);
+            const totalDuration = lastBattleDate.getTime() - firstBattleDate.getTime();
+
+            // Add battle icons
             battleData.forEach((battle, index) => {
                 const icon = document.createElement('div');
                 icon.className = 'battle-icon';
@@ -247,7 +279,10 @@
                 if (battle.outcome === 'British Victory') bgColor = 'bg-red-600';
                 icon.classList.add(bgColor);
 
-                icon.dataset.battleIndex = index;
+                const battleDate = new Date(battle.date);
+                const timeFromStart = battleDate.getTime() - firstBattleDate.getTime();
+                const positionPercent = (timeFromStart / totalDuration) * 100;
+                icon.style.left = `${positionPercent}%`;
 
                 const tooltip = document.createElement('span');
                 tooltip.className = 'tooltip';
@@ -260,6 +295,34 @@
                 
                 battleTimelineContainer.appendChild(icon);
             });
+
+            // Add year markers
+            const startYear = firstBattleDate.getFullYear();
+            const endYear = lastBattleDate.getFullYear();
+            for (let year = startYear; year <= endYear; year++) {
+                const yearDate = new Date(`${year}-01-01T00:00:00`);
+                if (yearDate > lastBattleDate) continue; // Don't draw years after the last battle
+                
+                let timeFromStart = yearDate.getTime() - firstBattleDate.getTime();
+                if (timeFromStart < 0) timeFromStart = 0; // Clamp the first year to the beginning
+
+                const positionPercent = (timeFromStart / totalDuration) * 100;
+
+                const yearMarker = document.createElement('div');
+                yearMarker.className = 'year-marker';
+                yearMarker.style.left = `${positionPercent}%`;
+
+                const tick = document.createElement('div');
+                tick.className = 'year-marker-tick';
+                yearMarker.appendChild(tick);
+
+                const label = document.createElement('span');
+                label.className = 'year-marker-label';
+                label.textContent = year;
+                yearMarker.appendChild(label);
+                
+                battleTimelineContainer.appendChild(yearMarker);
+            }
         }
         
         // --- EVENT LISTENERS ---

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Map of American Conflicts</title>
+    
+    <!-- Leaflet CSS for the map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+     
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family+Playfair+Display:wght@700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f8f4e3; /* Parchment-like background */
+        }
+        h1 {
+            font-family: 'Playfair Display', serif;
+        }
+        .map-container {
+            height: calc(100vh - 320px); /* Adjusted height for tabs and timeline */
+            width: 100%;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border: 3px solid #8b4513; /* SaddleBrown */
+        }
+        .leaflet-popup-content-wrapper {
+            background: #f8f4e3;
+            color: #333;
+            border-radius: 5px;
+        }
+        .leaflet-popup-content h3 {
+            font-family: 'Playfair Display', serif;
+            margin-top: 0;
+            margin-bottom: 5px;
+            color: #8B0000; /* DarkRed */
+        }
+        .controls-container, .timeline-wrapper {
+            background-color: rgba(248, 244, 227, 0.8);
+            backdrop-filter: blur(5px);
+            border: 2px solid #8b4513;
+        }
+        /* Tabs */
+        .tab-btn {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 2px solid #8b4513;
+            background-color: #d2b48c; /* Tan */
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            font-weight: 500;
+            color: #5c4033;
+            transition: background-color 0.3s;
+        }
+        .tab-btn.active {
+            background-color: rgba(248, 244, 227, 0.8);
+            font-weight: bold;
+            color: #8B0000;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        /* Timeline */
+        .battle-timeline {
+            position: relative;
+            height: 70px;
+            padding: 0 10px;
+        }
+        .battle-timeline::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 10px; right: 10px;
+            height: 4px;
+            background-color: #a0522d; /* Sienna */
+            transform: translateY(-50%);
+            z-index: 1;
+        }
+        .battle-icon {
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            border: 2px solid #8b4513;
+            cursor: pointer;
+            position: absolute; top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 3;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .battle-icon:hover { transform: translate(-50%, -50%) scale(1.3); }
+        .battle-icon.active {
+            transform: translate(-50%, -50%) scale(1.5);
+            box-shadow: 0 0 10px 3px gold;
+        }
+        .battle-icon .tooltip {
+            visibility: hidden; width: 120px; background-color: #333; color: #fff;
+            text-align: center; border-radius: 6px; padding: 5px 0;
+            position: absolute; z-index: 4; bottom: 150%; left: 50%;
+            margin-left: -60px; opacity: 0; transition: opacity 0.3s;
+        }
+        .battle-icon .tooltip::after {
+            content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px;
+            border-width: 5px; border-style: solid; border-color: #333 transparent transparent transparent;
+        }
+        .battle-icon:hover .tooltip { visibility: visible; opacity: 1; }
+        .year-marker {
+            position: absolute; top: 50%; transform: translate(-50%, -50%);
+            z-index: 2; display: flex; flex-direction: column; align-items: center;
+        }
+        .year-marker-label { margin-top: 40px; font-size: 12px; color: #333; font-weight: 500; }
+    </style>
+</head>
+<body class="bg-[#f8f4e3] text-gray-800 p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-6">
+            <h1 class="text-4xl md:text-5xl font-bold text-[#8B0000]">An Interactive History of American Conflicts</h1>
+            <p class="text-lg text-gray-600 mt-2">Explore major battles and turning points of key conflicts.</p>
+        </header>
+
+        <div class="tabs flex space-x-2">
+            <button id="tab-na" class="tab-btn active">Native American Conflicts</button>
+            <button id="tab-rev" class="tab-btn">American Revolution</button>
+            <button id="tab-cw" class="tab-btn">American Civil War</button>
+        </div>
+
+        <div class="controls-container p-4 rounded-b-lg rounded-tr-lg shadow-lg">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+                <div class="flex items-center space-x-4">
+                    <button id="timeline-control-btn" class="bg-[#8B0000] text-white px-4 py-2 rounded-md hover:bg-red-900 transition-colors shadow-md w-32">Start</button>
+                </div>
+                <div id="legend" class="flex flex-wrap space-x-4">
+                    <!-- Legend content will be dynamically generated -->
+                </div>
+            </div>
+
+            <!-- Tab Content Area -->
+            <div id="native-american-content" class="tab-content active">
+                <div class="timeline-wrapper p-4 mt-4 rounded-lg">
+                    <div id="battle-timeline-na" class="battle-timeline"></div>
+                </div>
+            </div>
+
+            <div id="revolution-content" class="tab-content">
+                <div class="timeline-wrapper p-4 mt-4 rounded-lg">
+                    <div id="battle-timeline-rev" class="battle-timeline"></div>
+                </div>
+            </div>
+
+            <div id="civil-war-content" class="tab-content">
+                <div class="timeline-wrapper p-4 mt-4 rounded-lg">
+                    <div id="battle-timeline-cw" class="battle-timeline"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Map containers must be outside the content divs that get hidden -->
+        <div id="map-na-container" class="mt-6 map-wrapper active"><div id="map-na" class="map-container"></div></div>
+        <div id="map-rev-container" class="mt-6 map-wrapper"><div id="map-rev" class="map-container"></div></div>
+        <div id="map-cw-container" class="mt-6 map-wrapper"><div id="map-cw" class="map-container"></div></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // --- DATA ---
+        const stateNames = { "MA": "Massachusetts", "NY": "New York", "NJ": "New Jersey", "PA": "Pennsylvania", "SC": "South Carolina", "NC": "North Carolina", "VA": "Virginia", "MD": "Maryland", "TN": "Tennessee", "MS": "Mississippi", "GA": "Georgia", "CT": "Connecticut", "OH": "Ohio", "IN": "Indiana", "MT": "Montana", "SD": "South Dakota" };
+        
+        const naBattleData = [
+            { id: "na1", name: "Jamestown Assault", date: "1622-03-22", location: [37.2232, -76.7822], state: "VA", outcome: "Native American Victory", participants: "Powhatan Confederacy vs. English Colonists", description: "In a coordinated surprise attack, warriors of the Powhatan Confederacy killed nearly a third of the English colonists in Virginia. The event shattered the fragile peace and triggered a brutal, decade-long war that ultimately broke the power of the confederacy.", wiki: "Indian_massacre_of_1622" },
+            { id: "na2", name: "Mystic Massacre", date: "1637-05-26", location: [41.3598, -71.9723], state: "CT", outcome: "Colonial Victory", participants: "English Colonists & Allies vs. Pequot", description: "During the Pequot War, English colonists with Narragansett and Mohegan allies surrounded and burned a fortified Pequot village. Between 400 and 700 Pequot, mostly women and children, were killed, marking a turning point in the war and setting a brutal precedent for future conflicts.", wiki: "Mystic_massacre" },
+            { id: "na3", name: "King Philip's War", date: "1675-12-19", location: [41.4879, -71.5906], state: "RI", outcome: "Colonial Victory", participants: "New England Colonists vs. Wampanoag, Narragansett, & Allies", description: "One of the deadliest conflicts in American history per capita. The Great Swamp Fight was a critical battle where colonial militia attacked a massive, fortified Narragansett camp, breaking the tribe's power in the war. The war devastated both sides and fundamentally altered the political and demographic landscape of New England.", wiki: "King_Philip's_War" },
+            { id: "na4", name: "Battle of the Wabash", date: "1791-11-04", location: [40.4886, -84.7705], state: "OH", outcome: "Native American Victory", participants: "Western Confederacy vs. United States", description: "Also known as St. Clair's Defeat, this was the most severe defeat ever suffered by the U.S. Army at the hands of Native Americans. A confederation of tribes led by Little Turtle and Blue Jacket routed a poorly prepared American force, resulting in nearly 1,000 casualties and stalling U.S. expansion into the Northwest Territory.", wiki: "St._Clair's_defeat" },
+            { id: "na5", name: "Battle of Tippecanoe", date: "1811-11-07", location: [40.5058, -86.9039], state: "IN", outcome: "US Victory", participants: "United States vs. Tecumseh's Confederacy", description: "While the Shawnee leader Tecumseh was away, his brother Tenskwatawa ('The Prophet') led a surprise attack on U.S. forces led by William Henry Harrison. The attack was repulsed, and Harrison's men burned the confederacy's capital, Prophetstown. The battle was a severe blow to Tecumseh's dream of a pan-Indian alliance.", wiki: "Battle_of_Tippecanoe" },
+            { id: "na6", name: "Battle of Little Bighorn", date: "1876-06-25", location: [45.5657, -107.4293], state: "MT", outcome: "Native American Victory", participants: "Lakota, Cheyenne, Arapaho vs. United States", description: "Famously known as 'Custer's Last Stand,' a combined force of Native American warriors decisively defeated the U.S. 7th Cavalry, killing Lt. Col. George Custer and his entire immediate command. It was the most significant victory for Native Americans during the Plains Indian Wars but ultimately intensified the U.S. military campaign against them.", wiki: "Battle_of_the_Little_Bighorn" },
+            { id: "na7", name: "Wounded Knee Massacre", date: "1890-12-29", location: [43.4289, -102.3610], state: "SD", outcome: "Massacre", participants: "United States vs. Lakota (Miniconjou)", description: "The conflict began after the U.S. 7th Cavalry surrounded a band of Lakota and began disarming them. A shot was fired, and the U.S. troops opened fire with machine guns, killing an estimated 300 men, women, and children. This event is considered the tragic end of the major armed conflicts between the U.S. and Plains Indians.", wiki: "Wounded_Knee_Massacre" }
+        ];
+
+        const revBattleData = [ /* ... Revolution Data ... */ ];
+        const cwBattleData = [ /* ... Civil War Data ... */ ];
+
+        // --- MAP CONFIGURATIONS ---
+        const mapConfigs = {
+            na: {
+                data: naBattleData,
+                mapId: 'map-na',
+                timelineId: 'battle-timeline-na',
+                mapCenter: [40, -89],
+                zoom: 4,
+                legend: [
+                    { label: "Native American Victory", color: "bg-green-600" },
+                    { label: "US / Colonial Victory", color: "bg-red-600" },
+                    { label: "Massacre", color: "bg-black" },
+                ],
+                outcomes: { "Native American Victory": '#16a34a', "Colonial Victory": '#FF0000', "US Victory": '#FF0000', "Massacre": '#000000' }
+            },
+            rev: {
+                data: revBattleData,
+                mapId: 'map-rev',
+                timelineId: 'battle-timeline-rev',
+                mapCenter: [39.8283, -77.5278],
+                zoom: 5,
+                legend: [
+                    { label: "American Victory", color: "bg-blue-600" },
+                    { label: "British Victory", color: "bg-red-600" },
+                    { label: "Draw", color: "bg-gray-400" },
+                ],
+                outcomes: { "American Victory": '#0000FF', "British Victory": '#FF0000', "Draw": '#808080' }
+            },
+            cw: {
+                data: cwBattleData,
+                mapId: 'map-cw',
+                timelineId: 'battle-timeline-cw',
+                mapCenter: [36.5, -85.0],
+                zoom: 5,
+                legend: [
+                    { label: "Union Victory", color: "bg-blue-600" },
+                    { label: "Confederate Victory", color: "bg-red-600" },
+                ],
+                outcomes: { "Union Victory": '#0000FF', "Confederate Victory": '#FF0000' }
+            }
+        };
+
+        // Re-add hidden Revolution and Civil War data for brevity
+        mapConfigs.rev.data = [
+            { id: "b1", name: "Lexington & Concord", date: "1775-04-19", location: [42.4475, -71.2335], state: "MA", outcome: "American Victory", description: "The 'shot heard 'round the world,' these clashes ignited the Revolutionary War, forcing British regulars into a harrowing retreat to Boston and transforming a political dispute into open warfare.", wiki: "Battles_of_Lexington_and_Concord" }, { id: "b2", name: "Bunker Hill", date: "1775-06-17", location: [42.3765, -71.0607], state: "MA", outcome: "British Victory", description: "A pyrrhic victory for the British who suffered over 1,000 casualties. The battle proved that inexperienced colonial militia could stand up to trained regular army troops and bolstered American confidence.", wiki: "Battle_of_Bunker_Hill" }, { id: "b3", name: "Long Island", date: "1776-08-27", location: [40.6782, -73.9442], state: "NY", outcome: "British Victory", description: "A crushing defeat for the Continental Army, which led to the British gaining control of the strategically vital New York City for the rest of the war.", wiki: "Battle_of_Long_Island" }, { id: "b4", name: "Trenton", date: "1776-12-26", location: [40.2206, -74.7597], state: "NJ", outcome: "American Victory", description: "Washington's daring Christmas night crossing of the Delaware River led to a surprise attack and a decisive victory that became a massive morale booster for the American cause.", wiki: "Battle_of_Trenton" }, { id: "b5", name: "Princeton", date: "1777-01-03", location: [40.3487, -74.6591], state: "NJ", outcome: "American Victory", description: "Days after Trenton, Washington again outmaneuvered the British, forcing them to withdraw from most of New Jersey and solidifying the success of the winter campaign.", wiki: "Battle_of_Princeton" }, { id: "b6", name: "Saratoga", date: "1777-10-07", location: [42.9995, -73.6393], state: "NY", outcome: "American Victory", description: "Considered the turning point of the war, this victory and the surrender of a British army convinced France to formally enter the war as an American ally.", wiki: "Battles_of_Saratoga" }, { id: "b7", name: "Brandywine", date: "1777-09-11", location: [39.8668, -75.6083], state: "PA", outcome: "British Victory", description: "A clear British victory that opened the way for them to capture the American capital of Philadelphia, though the Continental Army managed an orderly retreat.", wiki: "Battle_of_Brandywine" }, { id: "b8", name: "Monmouth", date: "1778-06-28", location: [40.2646, -74.3218], state: "NJ", outcome: "Draw", description: "Following training at Valley Forge, the Continental Army stood toe-to-toe with British regulars, proving their newfound professionalism in the last major battle of the Northern theater.", wiki: "Battle_of_Monmouth" }, { id: "b9", name: "Siege of Charleston", date: "1780-03-29", location: [32.7765, -79.9311], state: "SC", outcome: "British Victory", description: "The surrender of over 5,000 American soldiers marked the single largest defeat for the Americans in the war and a devastating blow to the Patriot cause in the South.", wiki: "Siege_of_Charleston" }, { id: "b10", name: "Camden", date: "1780-08-16", location: [34.2490, -80.6151], state: "SC", outcome: "British Victory", description: "A disastrous defeat where the American militia lines collapsed, shattering another American army in the South and exposing the weakness of relying on untrained militia.", wiki: "Battle_of_Camden" }, { id: "b11", name: "Cowpens", date: "1781-01-17", location: [35.0825, -81.7892], state: "SC", outcome: "American Victory", description: "A brilliant tactical masterpiece by American General Daniel Morgan, this battle resulted in the near-total destruction of an elite British force and was a crucial turning point in the South.", wiki: "Battle_of_Cowpens" }, { id: "b12", name: "Guilford Courthouse", date: "1781-03-15", location: [36.1310, -79.8450], state: "NC", outcome: "British Victory", description: "A pyrrhic British victory, as the American army inflicted such severe casualties that it crippled Cornwallis's army and forced him to abandon his campaign in the Carolinas.", wiki: "Battle_of_Guilford_Court_House" }, { id: "b13", name: "Siege of Yorktown", date: "1781-09-28", location: [37.2388, -76.5097], state: "VA", outcome: "American Victory", description: "The decisive engagement where a combined American and French force trapped the British army. The surrender of Cornwallis effectively ended the war and secured American independence.", wiki: "Siege_of_Yorktown" }
+        ];
+        mapConfigs.cw.data = [
+            { id: "cw1", name: "Fort Sumter", date: "1861-04-12", location: [32.7523, -79.8747], state: "SC", outcome: "Confederate Victory", description: "The bombardment and surrender of Fort Sumter in Charleston harbor was the opening engagement of the Civil War. It galvanized both North and South, leading President Lincoln to call for 75,000 volunteers and prompting four more states to secede.", wiki: "Battle_of_Fort_Sumter" }, { id: "cw2", name: "First Bull Run", date: "1861-07-21", location: [38.8145, -77.5224], state: "VA", outcome: "Confederate Victory", description: "The first major land battle of the war, where Union forces were routed by a Confederate counterattack. The defeat shocked the North and made it clear the war would be much longer and bloodier than anticipated.", wiki: "First_Battle_of_Bull_Run" }, { id: "cw3", name: "Shiloh", date: "1862-04-06", location: [35.1504, -88.3225], state: "TN", outcome: "Union Victory", description: "A brutal two-day battle in the Western Theater with nearly 24,000 casualties. Despite being surprised and driven back on the first day, Ulysses S. Grant's Union army held and won a crucial victory, paving the way for the Union to control the Mississippi River.", wiki: "Battle_of_Shiloh" }, { id: "cw4", name: "Antietam", date: "1862-09-17", location: [39.4731, -77.7485], state: "MD", outcome: "Union Victory", description: "The bloodiest single day in American history, with over 22,000 casualties. The battle ended Robert E. Lee's first invasion of the North and gave President Lincoln the strategic victory he needed to issue the Emancipation Proclamation.", wiki: "Battle_of_Antietam" }, { id: "cw5", name: "Gettysburg", date: "1863-07-01", location: [39.8210, -77.2323], state: "PA", outcome: "Union Victory", description: "Often considered the turning point of the war, this three-day battle ended Lee's second invasion of the North. The failure of 'Pickett's Charge' on the final day marked the high-water mark of the Confederacy and crippled Lee's army.", wiki: "Battle_of_Gettysburg" }, { id: "cw6", name: "Siege of Vicksburg", date: "1863-05-18", location: [32.3366, -90.8755], state: "MS", outcome: "Union Victory", description: "A brilliant campaign by Ulysses S. Grant that culminated in the surrender of the key Confederate fortress on the Mississippi River. The victory, coming a day after Gettysburg, split the Confederacy in two and was a major strategic blow.", wiki: "Siege_of_Vicksburg" }, { id: "cw7", name: "Battle of Atlanta", date: "1864-07-22", location: [33.7550, -84.3880], state: "GA", outcome: "Union Victory", description: "Part of William T. Sherman's 'March to the Sea,' the capture of the vital rail and supply hub of Atlanta was a major blow to the Confederacy. The victory significantly boosted Northern morale and was a key factor in President Lincoln's re-election.", wiki: "Battle_of_Atlanta" }, { id: "cw8", name: "Appomattox", date: "1865-04-09", location: [37.3780, -78.7965], state: "VA", outcome: "Union Victory", description: "After being relentlessly pursued by Union forces, General Robert E. Lee surrendered his Army of Northern Virginia to Ulysses S. Grant at Appomattox Court House, effectively ending the American Civil War.", wiki: "Battle_of_Appomattox_Court_House" }
+        ];
+
+        // --- GLOBAL STATE ---
+        let activeMapKey = 'na';
+        const mapStates = {
+            na: { map: null, battleMarkersLayer: null, currentBattleIndex: -1, initialized: false },
+            rev: { map: null, battleMarkersLayer: null, currentBattleIndex: -1, initialized: false },
+            cw: { map: null, battleMarkersLayer: null, currentBattleIndex: -1, initialized: false }
+        };
+
+        // --- UI ELEMENTS ---
+        const timelineControlBtn = document.getElementById('timeline-control-btn');
+        const legendContainer = document.getElementById('legend');
+        
+        // --- CORE FUNCTIONS ---
+        function switchTab(tabKey) {
+            activeMapKey = tabKey;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tab-${tabKey}`).classList.add('active');
+            
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            let contentId = tabKey === 'rev' ? 'revolution' : (tabKey === 'cw' ? 'civil-war' : 'native-american');
+            document.getElementById(`${contentId}-content`).classList.add('active');
+
+            document.querySelectorAll('.map-wrapper').forEach(wrapper => wrapper.style.display = 'none');
+            document.getElementById(`map-${tabKey}-container`).style.display = 'block';
+
+            const state = mapStates[tabKey];
+            if (!state.initialized) {
+                setupMapInterface(mapConfigs[tabKey], state);
+                state.initialized = true;
+            } else {
+                if(state.map) state.map.invalidateSize();
+            }
+            updateButtonAndLegend();
+        }
+
+        function setupMapInterface(config, state) {
+            state.map = L.map(config.mapId).setView(config.mapCenter, config.zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(state.map);
+            state.battleMarkersLayer = L.layerGroup().addTo(state.map);
+
+            config.data.forEach(battle => {
+                const markerColor = config.outcomes[battle.outcome] || '#808080';
+                const wikiLink = battle.wiki ? `<p class="mt-2"><a href="https://en.wikipedia.org/wiki/${battle.wiki}" target="_blank" class="text-blue-600 hover:underline">Learn more on Wikipedia</a></p>` : '';
+                const formattedDate = new Date(battle.date.replace(/-/g, '\/')).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                
+                let participantsHtml = '';
+                if (battle.participants) {
+                    participantsHtml = `<p class="font-semibold text-gray-600 text-xs mt-1">${battle.participants}</p>`;
+                }
+
+                L.circleMarker(battle.location, { battleId: battle.id, radius: 8, fillColor: markerColor, color: "#000", weight: 1, opacity: 1, fillOpacity: 0.8 })
+                    .bindPopup(`<h3>${battle.name}</h3><p class="font-semibold text-gray-600 text-xs mb-1">${stateNames[battle.state] || ''} &mdash; ${formattedDate}</p>${participantsHtml}<p class="text-sm mt-2">${battle.description}</p>${wikiLink}`)
+                    .addTo(state.battleMarkersLayer);
+            });
+
+            const timelineContainer = document.getElementById(config.timelineId);
+            timelineContainer.innerHTML = ''; // Clear previous timeline
+            const firstBattleDate = new Date(config.data[0].date);
+            const lastBattleDate = new Date(config.data[config.data.length - 1].date);
+            const totalDuration = lastBattleDate.getTime() - firstBattleDate.getTime() || 1;
+            
+            config.data.forEach((battle, index) => {
+                const icon = document.createElement('div');
+                icon.className = 'battle-icon';
+                const colorValue = config.outcomes[battle.outcome];
+                let bgColor = 'bg-gray-400';
+                if(colorValue === '#0000FF') bgColor = 'bg-blue-600';
+                else if(colorValue === '#FF0000') bgColor = 'bg-red-600';
+                else if(colorValue === '#16a34a') bgColor = 'bg-green-600';
+                else if(colorValue === '#000000') bgColor = 'bg-black';
+                icon.classList.add(bgColor);
+                
+                const timeFromStart = new Date(battle.date).getTime() - firstBattleDate.getTime();
+                icon.style.left = `${(timeFromStart / totalDuration) * 100}%`;
+                
+                const tooltip = document.createElement('span');
+                tooltip.className = 'tooltip';
+                tooltip.textContent = battle.name;
+                icon.appendChild(tooltip);
+                
+                icon.addEventListener('click', () => {
+                    activeMapKey = config.mapId.substring(4); // 'map-na' -> 'na'
+                    goToBattle(index);
+                });
+                timelineContainer.appendChild(icon);
+            });
+
+            const startYear = firstBattleDate.getFullYear();
+            const endYear = lastBattleDate.getFullYear();
+            for (let year = startYear; year <= endYear; year++) {
+                 if (endYear - startYear > 25 && year % 10 !== 0) continue; // Only show decades for long timelines
+                 if (endYear - startYear > 100 && year % 50 !== 0) continue; // Only show 50-year marks for very long timelines
+
+                const yearDate = new Date(`${year}-01-01T00:00:00`);
+                if (yearDate > lastBattleDate && year !== endYear) continue;
+                let timeFromStart = yearDate.getTime() - firstBattleDate.getTime();
+                if (timeFromStart < 0) timeFromStart = 0;
+                
+                const marker = document.createElement('div');
+                marker.className = 'year-marker';
+                marker.style.left = `${(timeFromStart / totalDuration) * 100}%`;
+                const label = document.createElement('span');
+                label.className = 'year-marker-label';
+                label.textContent = year;
+                marker.appendChild(label);
+                timelineContainer.appendChild(marker);
+            }
+        }
+
+        function updateButtonAndLegend() {
+            const state = mapStates[activeMapKey];
+            const config = mapConfigs[activeMapKey];
+            
+            if (state.currentBattleIndex >= config.data.length - 1) {
+                timelineControlBtn.textContent = "Start Over";
+            } else if (state.currentBattleIndex === -1) {
+                timelineControlBtn.textContent = "Start";
+            } else {
+                timelineControlBtn.textContent = "Next Battle";
+            }
+            
+            legendContainer.innerHTML = '';
+            config.legend.forEach(item => {
+                legendContainer.innerHTML += `<div class="flex items-center"><div class="w-4 h-4 rounded-full ${item.color} mr-2 border border-gray-500"></div><span>${item.label}</span></div>`;
+            });
+        }
+        
+        function goToBattle(battleIndex) {
+            const state = mapStates[activeMapKey];
+            const config = mapConfigs[activeMapKey];
+            if (battleIndex < 0 || battleIndex >= config.data.length) return;
+
+            state.currentBattleIndex = battleIndex;
+            const battle = config.data[battleIndex];
+
+            document.querySelectorAll(`#${config.timelineId} .battle-icon`).forEach((icon, index) => {
+                icon.classList.toggle('active', index === battleIndex);
+            });
+
+            const targetMarker = state.battleMarkersLayer.getLayers().find(layer => layer.options.battleId === battle.id);
+            if (targetMarker) {
+                state.map.panTo(battle.location);
+                setTimeout(() => targetMarker.openPopup(), 200);
+            }
+            updateButtonAndLegend();
+        }
+
+        function handleTimelineControl() {
+            const state = mapStates[activeMapKey];
+            const config = mapConfigs[activeMapKey];
+            if(state.map) state.map.closePopup();
+            
+            let nextIndex = state.currentBattleIndex + 1;
+            if (nextIndex >= config.data.length) {
+                nextIndex = 0;
+            }
+            goToBattle(nextIndex);
+        }
+
+        // --- EVENT LISTENERS ---
+        document.getElementById('tab-na').addEventListener('click', () => switchTab('na'));
+        document.getElementById('tab-rev').addEventListener('click', () => switchTab('rev'));
+        document.getElementById('tab-cw').addEventListener('click', () => switchTab('cw'));
+        timelineControlBtn.addEventListener('click', handleTimelineControl);
+
+        // --- INITIAL LOAD ---
+        switchTab('na');
+
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Map of American Wars</title>
+    
+    <!-- Leaflet CSS for interactive cartography -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+     
+    <!-- Tailwind CSS for utility styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for antique parchment & modern legibility -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Antique parchment thematic base styling */
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f7f3e8;
+            color: #2b231d;
+        }
+        h1, h2, h3, .heading-font {
+            font-family: 'Cinzel', 'Playfair Display', serif;
+        }
+        #map {
+            height: calc(100vh - 300px);
+            min-height: 480px;
+            width: 100%;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px -5px rgba(50, 30, 10, 0.25), 0 8px 10px -6px rgba(50, 30, 10, 0.2);
+            border: 3px solid #7c3f1d;
+        }
+        .controls-container {
+            background-color: rgba(247, 243, 232, 0.94);
+            backdrop-filter: blur(8px);
+            border: 2px solid #8b4513;
+        }
+        /* Custom timeline scroll and proportional layout */
+        #battle-timeline-wrapper {
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #a0522d #eddcc4;
+        }
+        #battle-timeline {
+            position: relative;
+            height: 76px;
+            min-width: 720px;
+            padding: 0 20px;
+        }
+        #battle-timeline::before {
+            content: '';
+            position: absolute;
+            top: 42%;
+            left: 15px;
+            right: 15px;
+            height: 4px;
+            background: linear-gradient(90deg, #8b4513 0%, #b86729 50%, #8b4513 100%);
+            transform: translateY(-50%);
+            z-index: 1;
+            border-radius: 2px;
+        }
+        .battle-icon {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #3c1e0b;
+            cursor: pointer;
+            position: absolute;
+            top: 42%;
+            transform: translate(-50%, -50%);
+            z-index: 3;
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .battle-icon:hover {
+            transform: translate(-50%, -50%) scale(1.4);
+            z-index: 20;
+        }
+        .battle-icon.active {
+            transform: translate(-50%, -50%) scale(1.65);
+            box-shadow: 0 0 14px 4px #eab308;
+            border-color: #000;
+            z-index: 25;
+        }
+        .battle-icon .tooltip {
+            visibility: hidden;
+            width: 140px;
+            background-color: #1e130c;
+            color: #f7f3e8;
+            font-size: 11px;
+            font-weight: 500;
+            line-height: 1.25;
+            text-align: center;
+            border-radius: 6px;
+            padding: 6px 8px;
+            position: absolute;
+            z-index: 30;
+            bottom: 145%;
+            left: 50%;
+            margin-left: -70px;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+            pointer-events: none;
+            border: 1px solid #7c3f1d;
+        }
+        .battle-icon .tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #1e130c transparent transparent transparent;
+        }
+        .battle-icon:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        .year-marker {
+            position: absolute;
+            top: 42%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+        .year-marker-label {
+            margin-top: 36px;
+            font-size: 11px;
+            color: #5c3519;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .war-tab {
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.03em;
+            margin-bottom: -2px;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .war-tab:hover {
+            border-color: #a0522d;
+            color: #8b0000;
+            background-color: rgba(139, 69, 19, 0.05);
+        }
+        .war-tab.active {
+            color: #8B0000;
+            border-color: #8B0000;
+            font-weight: 700;
+            background-color: rgba(139, 69, 19, 0.08);
+        }
+        /* Leaflet popup customization */
+        .leaflet-popup-content-wrapper {
+            background: #fdfaf2;
+            color: #231b15;
+            border-radius: 8px;
+            border: 2px solid #8b4513;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            padding: 2px;
+        }
+        .leaflet-popup-tip {
+            background: #8b4513;
+        }
+        .leaflet-popup-content h3 {
+            font-family: 'Cinzel', 'Playfair Display', serif;
+            margin: 0 0 4px 0;
+            color: #8B0000;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        /* Custom markers styling */
+        .hub-pin, .dep-pin {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: transform 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        .hub-pin:hover, .dep-pin:hover {
+            transform: scale(1.3);
+            z-index: 500 !important;
+        }
+    </style>
+</head>
+<body class="bg-[#f7f3e8] text-gray-800 p-3 md:p-6 min-h-screen">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="text-center mb-5">
+            <h1 class="text-3xl md:text-5xl font-extrabold text-[#7a1212] tracking-wide drop-shadow-sm">
+                Chronicles of American Warfare
+            </h1>
+            <p class="text-sm md:text-base text-[#5c3a21] mt-1 italic font-medium">
+                Comprehensive Tactical Atlas: Major Battles, Strategic Deployments, and Lifeline Logistics Networks (1637–1945)
+            </p>
+        </header>
+
+        <!-- War Switcher Navigation Tabs -->
+        <nav id="war-tabs" class="mb-4 flex flex-wrap justify-center border-b-2 border-[#d3be9f] gap-1 md:gap-2" aria-label="War tabs">
+            <!-- Tabs rendered dynamically -->
+        </nav>
+
+        <!-- Command & Filter Panel -->
+        <div class="controls-container p-4 mb-4 rounded-xl shadow-md">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-3">
+                <!-- Navigation Action Buttons -->
+                <div class="flex items-center gap-2">
+                    <button id="timeline-control-btn" class="bg-[#7a1212] text-[#f7f3e8] font-semibold px-5 py-2 rounded-lg hover:bg-[#580b0b] transition-all shadow-md active:scale-95 text-sm md:text-base flex items-center gap-2">
+                        <span>▶</span> <span id="btn-text">Start Campaign</span>
+                    </button>
+                    <button id="reset-view-btn" title="Center map on theater" class="bg-[#e4d4b9] text-[#4a260f] border border-[#a66a38] px-3 py-2 rounded-lg hover:bg-[#d8c3a1] transition-colors text-xs md:text-sm font-medium">
+                        Center Map
+                    </button>
+                </div>
+
+                <!-- Layer Visibility Toggles -->
+                <div class="flex flex-wrap items-center gap-2 bg-[#ebdcc4] p-1.5 rounded-lg border border-[#c29f77] text-xs md:text-sm">
+                    <span class="font-bold text-[#5c3a21] px-1 uppercase tracking-wider text-[11px]">Layers:</span>
+                    <label class="flex items-center gap-1.5 px-2 py-1 rounded bg-[#f7f3e8] border border-[#b8956e] cursor-pointer select-none">
+                        <input type="checkbox" id="toggle-battles" checked class="accent-[#7a1212] cursor-pointer">
+                        <span class="font-medium text-gray-800">⚔️ Battles</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 px-2 py-1 rounded bg-[#f7f3e8] border border-[#b8956e] cursor-pointer select-none">
+                        <input type="checkbox" id="toggle-deployments" checked class="accent-[#2563eb] cursor-pointer">
+                        <span class="font-medium text-gray-800">⛺ Deployments</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 px-2 py-1 rounded bg-[#f7f3e8] border border-[#b8956e] cursor-pointer select-none">
+                        <input type="checkbox" id="toggle-routes" checked class="accent-[#ca8a04] cursor-pointer">
+                        <span class="font-medium text-gray-800">🛤️ Logistics Arteries</span>
+                    </label>
+                </div>
+
+                <!-- Dynamic Dynamic Conflict Legend -->
+                <div id="legend" class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs md:text-sm">
+                    <!-- Legend rendered dynamically -->
+                </div>
+            </div>
+
+            <!-- Proportional Interactive Timeline -->
+            <div id="battle-timeline-wrapper">
+                <div id="battle-timeline"></div>
+            </div>
+        </div>
+
+        <!-- Interactive Leaflet Map Container -->
+        <div id="map"></div>
+
+        <!-- Informative Footer -->
+        <footer class="mt-4 text-center text-xs text-[#70523b] flex flex-wrap justify-between items-center px-2">
+            <span>Historical Cartography Engine &bull; Click any marker, deployment, or logistics corridor for tactical dispatches.</span>
+            <span id="conflict-status" class="font-semibold text-[#8b0000]">Select an engagement to begin.</span>
+        </footer>
+    </div>
+
+    <!-- Leaflet JS Library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+     
+    <script>
+        const stateNames = {
+            "MA": "Massachusetts", "NY": "New York", "NJ": "New Jersey", "RI": "Rhode Island",
+            "PA": "Pennsylvania", "SC": "South Carolina", "NC": "North Carolina", "VA": "Virginia",
+            "MD": "Maryland", "TN": "Tennessee", "GA": "Georgia", "MS": "Mississippi",
+            "OH": "Ohio", "IN": "Indiana", "MT": "Montana", "SD": "South Dakota", "CT": "Connecticut",
+            "AL": "Alabama", "LA": "Louisiana", "ON": "Ontario, Canada", "QC": "Quebec, Canada",
+            "MX": "Mexico", "CU": "Cuba", "PH": "Philippines", "TX": "Texas", "NM": "New Mexico",
+            "FL": "Florida", "IL": "Illinois", "MO": "Missouri", "KY": "Kentucky", "DC": "Washington, D.C.",
+            "HI": "Hawaii", "FR": "France", "BE": "Belgium", "JP": "Japan", "Pacific": "Central Pacific Ocean",
+            "Atlantic": "North Atlantic", "IT": "Italy", "UK": "United Kingdom", "GU": "Guam"
+        };
+
+        // Complete database covering 8 wars with major & minor battles, troop deployments, and logistical hubs/routes
+        const allWarsData = {
+            "american-revolution": {
+                name: "American Revolution",
+                period: "1775 – 1783",
+                mapConfig: { center: [39.8, -75.8], zoom: 6 },
+                legend: {
+                    sideA: { name: "American / Allied Victory", color: "#1d4ed8" },
+                    sideB: { name: "British Victory", color: "#dc2626" },
+                    draw: { name: "Indecisive / Siege", color: "#6b7280" }
+                },
+                battles: [
+                    { id: "ar1", name: "Lexington & Concord", date: "1775-04-19", location: [42.4475, -71.2335], state: "MA", outcome: "sideA", description: "The 'shot heard 'round the world.' British regular columns marching to seize colonial powder stockpiles at Concord were routed by gathering colonial Minutemen and forced into a bloody running retreat to Boston under heavy skirmishing fire.", wiki: "Battles_of_Lexington_and_Concord" },
+                    { id: "ar_ticonderoga", name: "Capture of Fort Ticonderoga", date: "1775-05-10", location: [43.8419, -73.3876], state: "NY", outcome: "sideA", description: "Ethan Allen, the Green Mountain Boys, and Benedict Arnold seized the Lake Champlain fortress without a casualty. The captured heavy British artillery would later be hauled across winter terrain by Henry Knox to liberate Boston.", wiki: "Capture_of_Fort_Ticonderoga" },
+                    { id: "ar2", name: "Battle of Bunker Hill", date: "1775-06-17", location: [42.3765, -71.0607], state: "MA", outcome: "sideB", description: "Fought primarily on Breed's Hill during the Siege of Boston. Though the British drove off the colonists after three desperate uphill charges, they lost over 1,000 dead and wounded, shattering the myth that colonial militia could not contest professional European infantry.", wiki: "Battle_of_Bunker_Hill" },
+                    { id: "ar_quebec", name: "Battle of Quebec", date: "1775-12-31", location: [46.8139, -71.2080], state: "QC", outcome: "sideB", description: "A daring American joint assault during a blinding blizzard ended in catastrophe. General Richard Montgomery was killed, Benedict Arnold was severely wounded, and the Continental invasion of Canada was decisively turned back.", wiki: "Battle_of_Quebec_(1775)" },
+                    { id: "ar_moores", name: "Battle of Moore's Creek Bridge", date: "1776-02-27", location: [34.5772, -78.1130], state: "NC", outcome: "sideA", description: "Patriot militia ambushed and broke a charging army of Scottish Highland Loyalists, ending Royal Governor Martin's plans to retake North Carolina and deterring British naval invasion forces under Clinton for years.", wiki: "Battle_of_Moore%27s_Creek_Bridge" },
+                    { id: "ar_sullivan", name: "Battle of Sullivan's Island", date: "1776-06-28", location: [32.7635, -79.8601], state: "SC", outcome: "sideA", description: "A British naval armada under Sir Peter Parker pounded the palmetto-log fort guarding Charleston harbor. The spongy logs absorbed cannonballs, and American gunners inflicted punishing counter-battery fire, saving Charleston from early capture.", wiki: "Battle_of_Sullivan%27s_Island" },
+                    { id: "ar3", name: "Battle of Long Island", date: "1776-08-27", location: [40.6782, -73.9442], state: "NY", outcome: "sideB", description: "The largest battle of the entire war. British General Howe outflanked Washington's lines via Jamaica Pass, crushing the Americans. Washington famously staged a nighttime phantom evacuation across the East River through dense fog, preserving the army.", wiki: "Battle_of_Long_Island" },
+                    { id: "ar_whiteplains", name: "Battle of White Plains", date: "1776-10-28", location: [41.0339, -73.7629], state: "NY", outcome: "sideB", description: "Howe drove Washington's rearguard off Chatterton Hill, compelling the Continental Army to abandon Manhattan Island and begin their desperate November retreat across the snowy plains of New Jersey.", wiki: "Battle_of_White_Plains" },
+                    { id: "ar4", name: "Battle of Trenton", date: "1776-12-26", location: [40.2206, -74.7597], state: "NJ", outcome: "sideA", description: "Washington led the Continental Army across the ice-choked Delaware River on Christmas night, surprising and capturing nearly 1,000 Hessian mercenaries at Trenton in a masterstroke that saved the American cause from collapse.", wiki: "Battle_of_Trenton" },
+                    { id: "ar5", name: "Battle of Princeton", date: "1777-01-03", location: [40.3487, -74.6591], state: "NJ", outcome: "sideA", description: "Leaving his campfires burning to deceive Cornwallis at Trenton, Washington marched through the night to attack and rout three British regiments at Princeton, regaining control of nearly all of New Jersey.", wiki: "Battle_of_Princeton" },
+                    { id: "ar_oriskany", name: "Battle of Oriskany & Fort Stanwix", date: "1777-08-06", location: [43.1764, -75.3644], state: "NY", outcome: "sideA", description: "One of the bloodiest clashes of the war, fought entirely between Americans and Loyalists alongside Allied Iroquois nations. The fierce resistance forced British General St. Leger to abandon his siege of Fort Stanwix, crippling Burgoyne's invasion plan.", wiki: "Battle_of_Oriskany" },
+                    { id: "ar_bennington", name: "Battle of Bennington", date: "1777-08-16", location: [42.8942, -73.2987], state: "NY", outcome: "sideA", description: "John Stark's New Hampshire militia utterly annihilated a German and Loyalist foraging expedition sent by Burgoyne, depriving the British northern army of vital horses, draught animals, and rations.", wiki: "Battle_of_Bennington" },
+                    { id: "ar7", name: "Battle of Brandywine", date: "1777-09-11", location: [39.8668, -75.6083], state: "PA", outcome: "sideB", description: "General Howe again outmaneuvered Washington by sending Cornwallis on a sweeping 17-mile flanking march around the American right flank, driving the Americans back and clearing the path for the British occupation of Philadelphia.", wiki: "Battle_of_Brandywine" },
+                    { id: "ar_germantown", name: "Battle of Germantown", date: "1777-10-04", location: [40.0382, -75.1764], state: "PA", outcome: "sideB", description: "Washington's complex four-column dawn counterattack unraveled amid heavy morning fog and intense resistance at the stone Chew House. Despite the tactical defeat, European observers were impressed that the Continental Army could strike so boldly after Brandywine.", wiki: "Battle_of_Germantown" },
+                    { id: "ar6", name: "Battles of Saratoga", date: "1777-10-07", location: [42.9995, -73.6393], state: "NY", outcome: "sideA", description: "The definitive turning point of the Revolutionary War. Horatio Gates and Benedict Arnold trapped and forced the surrender of General Burgoyne's entire British invasion army of 6,000 men, directly convincing France to sign a treaty of alliance with the United States.", wiki: "Battles_of_Saratoga" },
+                    { id: "ar8", name: "Battle of Monmouth", date: "1778-06-28", location: [40.2646, -74.3218], state: "NJ", outcome: "draw", description: "Fresh from rigorous winter drilling under Baron von Steuben at Valley Forge, the Continental Army engaged British forces under Clinton in blistering heat. Washington personally rallied retreating troops to hold the field, proving the army could go toe-to-toe with British regulars.", wiki: "Battle_of_Monmouth" },
+                    { id: "ar_stonypoint", name: "Battle of Stony Point", date: "1779-07-16", location: [41.2429, -73.9749], state: "NY", outcome: "sideA", description: "'Mad' Anthony Wayne led the Continental Light Infantry in a daring midnight bayonet-only assault on a formidable British fort on the Hudson River, capturing 500 British troops and spiking heavy guns.", wiki: "Battle_of_Stony_Point" },
+                    { id: "ar9", name: "Siege of Charleston", date: "1780-05-12", location: [32.7765, -79.9311], state: "SC", outcome: "sideB", description: "The greatest American catastrophe of the war. Encircled by British land and naval forces under Clinton and Cornwallis, General Benjamin Lincoln surrendered over 5,000 Continental soldiers and immense stockpiles of powder and artillery.", wiki: "Siege_of_Charleston" },
+                    { id: "ar10", name: "Battle of Camden", date: "1780-08-16", location: [34.3614, -80.6173], state: "SC", outcome: "sideB", description: "Cornwallis decimated an American army under Horatio Gates. When Gates deployed green Virginia militia against seasoned British bayonets, the militia broke instantly, leading to an army-wide rout and Gates's public humiliation.", wiki: "Battle_of_Camden" },
+                    { id: "ar_kingsmountain", name: "Battle of Kings Mountain", date: "1780-10-07", location: [35.1396, -81.3934], state: "SC", outcome: "sideA", description: "Frontier Patriot 'Overmountain Men' surrounded, assaulted, and wiped out Major Patrick Ferguson's elite Loyalist brigade on a steep rocky ridge, completely breaking Cornwallis's left wing and reversing the momentum in the Southern theater.", wiki: "Battle_of_Kings_Mountain" },
+                    { id: "ar11", name: "Battle of Cowpens", date: "1781-01-17", location: [35.1437, -81.8165], state: "SC", outcome: "sideA", description: "Daniel Morgan's tactical masterpiece of defense-in-depth. Morgan placed militia in front with orders to fire two volleys and retire, drawing Banastre Tarleton's British legion into a lethal double envelopment by Continental regulars and cavalry.", wiki: "Battle_of_Cowpens" },
+                    { id: "ar12", name: "Battle of Guilford Courthouse", date: "1781-03-15", location: [36.1310, -79.8450], state: "NC", outcome: "sideB", description: "A pyrrhic British victory. Nathanael Greene inflicted catastrophic casualties on Cornwallis's army. When British member of parliament Charles James Fox heard of the losses, he declared: 'Another such victory would ruin the British army.' Cornwallis abandoned the Carolinas for Virginia.", wiki: "Battle_of_Guilford_Court_House" },
+                    { id: "ar_eutaw", name: "Battle of Eutaw Springs", date: "1781-09-08", location: [33.4072, -80.3475], state: "SC", outcome: "draw", description: "The final major Southern field engagement. Greene's hard-fighting Continentals dealt such heavy attrition to British forces under Alexander Stewart that the British were permanently penned into Charleston's coastal defenses.", wiki: "Battle_of_Eutaw_Springs" },
+                    { id: "ar13", name: "Siege of Yorktown", date: "1781-10-19", location: [37.2388, -76.5097], state: "VA", outcome: "sideA", description: "The decisive military climax. Allied Continental forces under Washington and French forces under Rochambeau, backed by Admiral de Grasse's blockade at the Virginia Capes, trapped and bombarded Cornwallis's army into unconditional surrender.", wiki: "Siege_of_Yorktown" }
+                ],
+                deployments: [
+                    { name: "Valley Forge Encampment", location: [40.0969, -75.4378], type: "Continental Winter Quarters (1777-1778)", desc: "Where 12,000 Continentals endured freezing starvation, smallpox inoculation, and transformative Prussian military drill under Baron von Steuben." },
+                    { name: "Morristown (Jockey Hollow)", location: [40.7675, -74.5298], type: "Continental Winter Quarters (1779-1780)", desc: "The harshest winter in memory; guarded Washington's army behind Watchung mountains while observing British NYC." },
+                    { name: "New York City (British HQ)", location: [40.7128, -74.0060], type: "British Supreme Command Center (1776-1783)", desc: "The primary British strategic bastion, deep-water naval anchorage, prison ship hub, and administrative seat throughout the conflict." },
+                    { name: "Newport, Rhode Island", location: [41.4901, -71.3128], type: "French Expeditionary Base (1780-1781)", desc: "Port where General Rochambeau arrived with 5,500 elite French infantry and warships, planning the joint march to Yorktown." },
+                    { name: "Halifax Naval Yard", location: [44.6488, -63.5752], type: "Royal Navy Staging Base", desc: "Northern British naval and garrison capital, funneling British reinforcements, food, and powder into the American theater." }
+                ],
+                routes: [
+                    {
+                        name: "Knox Artillery Expedition (1775-1776)",
+                        color: "#2563eb",
+                        dash: "5, 5",
+                        coords: [[43.8419, -73.3876], [43.2, -73.6], [42.65, -73.75], [42.3, -73.2], [42.36, -71.05]],
+                        desc: "Henry Knox hauled 60 tons of heavy cannon over 300 snowbound miles on sledges from Fort Ticonderoga to Dorchester Heights, forcing the British evacuation of Boston."
+                    },
+                    {
+                        name: "Washington-Rochambeau Revolutionary Route (1781)",
+                        color: "#16a34a",
+                        dash: "6, 4",
+                        coords: [[41.4901, -71.3128], [41.2, -73.6], [40.7, -74.2], [39.95, -75.16], [39.29, -76.61], [37.2388, -76.5097]],
+                        desc: "The 680-mile allied operational march linking New England through Philadelphia to Williamsburg, executing the encirclement of Yorktown."
+                    },
+                    {
+                        name: "British Transatlantic Logistics Pipeline",
+                        color: "#dc2626",
+                        dash: "3, 6",
+                        coords: [[44.6488, -63.5752], [42.36, -71.05], [40.71, -74.00], [32.77, -79.93]],
+                        desc: "Royal Navy convoy lifeline providing food, replacement soldiers, Hessian auxiliaries, and gunpowder across 3,000 miles of stormy ocean."
+                    }
+                ]
+            },
+
+            "war-of-1812": {
+                name: "War of 1812",
+                period: "1812 – 1815",
+                mapConfig: { center: [39.5, -81.0], zoom: 5 },
+                legend: {
+                    sideA: { name: "American Victory", color: "#1d4ed8" },
+                    sideB: { name: "British / Canadian Victory", color: "#dc2626" },
+                    draw: { name: "Inconclusive / Siege", color: "#6b7280" }
+                },
+                battles: [
+                    { id: "w1812_mackinac", name: "Siege of Fort Mackinac", date: "1812-07-17", location: [45.8578, -84.6178], state: "MI", outcome: "sideB", description: "Before American defenders even knew war had been declared, British soldiers and native allies brought guns to the high bluff, capturing the critical northern fur trading bastion without bloodshed.", wiki: "Siege_of_Fort_Mackinac" },
+                    { id: "w1812_detroit", name: "Siege of Detroit", date: "1812-08-16", location: [42.3314, -83.0458], state: "MI", outcome: "sideB", description: "Paralyzed by fear of native scalping parties, elderly American General William Hull surrendered Fort Detroit, 2,500 troops, and 30 brass artillery pieces to British Major-General Isaac Brock and Tecumseh.", wiki: "Siege_of_Detroit" },
+                    { id: "w1812_queenston", name: "Battle of Queenston Heights", date: "1812-10-13", location: [43.1611, -79.0558], state: "ON", outcome: "sideB", description: "The first major US offensive into Upper Canada failed disastrously when New York state militia refused to cross the Canadian border to relieve hard-pressed troops. General Isaac Brock was killed leading a charge.", wiki: "Battle_of_Queenston_Heights" },
+                    { id: "w1812_riverraisin", name: "Battle of Frenchtown (River Raisin)", date: "1813-01-22", location: [41.9161, -83.3977], state: "MI", outcome: "sideB", description: "A British and Native surprise dawn assault destroyed a US Kentucky brigade. The following massacre of wounded prisoners became the rallying cry of western recruits: 'Remember the River Raisin!'", wiki: "Battle_of_Frenchtown" },
+                    { id: "w1812_york", name: "Battle of York (Toronto)", date: "1813-04-27", location: [43.6387, -79.4053], state: "ON", outcome: "sideA", description: "US amphibious forces led by Zebulon Pike stormed Upper Canada's capital. When the British garrison detonated their powder magazine in retreat, Pike was killed, and vengeful US troops burned Parliament buildings.", wiki: "Battle_of_York" },
+                    { id: "1812_1", name: "Battle of Lake Erie", date: "1813-09-10", location: [41.7656, -82.8094], state: "OH", outcome: "sideA", description: "Oliver Hazard Perry famously switched flagships rowboat-in-hand under heavy fire, capturing the entire British squadron: 'We have met the enemy and they are ours.' US control of Lake Erie forced the British to abandon Detroit.", wiki: "Battle_of_Lake_Erie" },
+                    { id: "1812_2", name: "Battle of the Thames", date: "1813-10-05", location: [42.5950, -81.8900], state: "ON", outcome: "sideA", description: "William Henry Harrison's mounted Kentucky infantry charged and shattered the Anglo-Indian army. Great Shawnee leader Tecumseh was slain, destroying his tribal confederacy and ending British influence in the Old Northwest.", wiki: "Battle_of_the_Thames" },
+                    { id: "w1812_crysler", name: "Battle of Crysler's Farm", date: "1813-11-11", location: [44.9753, -75.1058], state: "ON", outcome: "sideB", description: "A small British and Canadian regular force of 900 men stood in open plow-fields and repulsed 4,000 invading Americans, humiliating General James Wilkinson and saving Montreal from capture.", wiki: "Battle_of_Crysler%27s_Farm" },
+                    { id: "w1812_chippawa", name: "Battle of Chippawa", date: "1814-07-05", location: [43.0600, -79.0500], state: "ON", outcome: "sideA", description: "Winfield Scott's thoroughly drilled grey-jacketed US regulars outfought British veteran lines in stand-up volleys. British commander Riall famously cried: 'Those are regulars, by God!'", wiki: "Battle_of_Chippawa" },
+                    { id: "w1812_lundyslane", name: "Battle of Lundy's Lane", date: "1814-07-25", location: [43.0894, -79.0911], state: "ON", outcome: "draw", description: "The bloodiest battle fought on Canadian soil, fought in pitch darkness within earshot of Niagara Falls. Both armies fought to utter exhaustion and mutual retreat over captured artillery batteries.", wiki: "Battle_of_Lundy%27s_Lane" },
+                    { id: "w1812_bladensburg", name: "Battle of Bladensburg & Burning of DC", date: "1814-08-24", location: [38.9392, -76.9339], state: "MD", outcome: "sideB", description: "A British expeditionary force routed uncoordinated Maryland militia in the 'Bladensburg Races,' marching into Washington D.C. that evening to burn the White House, Capitol, and Navy Yard.", wiki: "Battle_of_Bladensburg" },
+                    { id: "1812_3", name: "Battle of Baltimore & Fort McHenry", date: "1814-09-13", location: [39.2628, -76.5797], state: "MD", outcome: "sideA", description: "A 25-hour naval bombardment of Fort McHenry failed to breach harbor defenses while US militia repelled British land forces at North Point. The morning sighting of the oversized garrison flag inspired the national anthem.", wiki: "Battle_of_Baltimore" },
+                    { id: "w1812_plattsburgh", name: "Battle of Plattsburgh", date: "1814-09-11", location: [44.6995, -73.4528], state: "NY", outcome: "sideA", description: "Thomas Macdonough positioned his Lake Champlain fleet with anchor cables that let him wind his ships 180 degrees to bring fresh broadsides, destroying the British fleet and forcing 10,000 British regulars to retreat to Canada.", wiki: "Battle_of_Plattsburgh" },
+                    { id: "1812_4", name: "Battle of New Orleans", date: "1815-01-08", location: [29.9406, -89.9928], state: "LA", outcome: "sideA", description: "Fought after the Treaty of Ghent was signed in Europe. Andrew Jackson's entrenched army of militia, frontiersmen, Choctaw, and Lafitte's pirates shattered Wellington's veteran British troops in under an hour, securing the Mississippi basin.", wiki: "Battle_of_New_Orleans" }
+                ],
+                deployments: [
+                    { name: "Sackets Harbor Naval Shipyard", location: [43.9531, -76.1208], type: "Primary US Lake Ontario Naval Base", desc: "The industrial shipyard that built frigates in weeks, defending northern New York from Canadian invasion." },
+                    { name: "Presque Isle (Erie, PA)", location: [42.1292, -80.0851], type: "Perry's Fleet Construction Base", desc: "Protected by sandbars, this improvised frontier yard constructed the vessels that Perry sailed to victory at Lake Erie." },
+                    { name: "Kingston Royal Naval Dockyard", location: [44.2298, -76.4810], type: "British Upper Canada Command & Fleet HQ", desc: "The nerve center of British naval supremacy on Lake Ontario and main transshipment point for Canadian defense supplies." },
+                    { name: "Fort St. Philip & Fort Jackson", location: [29.3592, -89.4631], type: "Mississippi River Guardian Forts", desc: "Critical river defenses below New Orleans that blocked Royal Navy gunboats from sailing directly to Jackson's rear." }
+                ],
+                routes: [
+                    {
+                        name: "Harrison's Northwest Supply Trail (1813)",
+                        color: "#2563eb",
+                        dash: "5, 5",
+                        coords: [[39.75, -84.19], [40.74, -84.11], [41.49, -83.71], [41.76, -82.80]],
+                        desc: "The mud-clogged corduroy road carved through Ohio black swamps to supply 5,000 soldiers for the recovery of Detroit and invasion of Canada."
+                    },
+                    {
+                        name: "British Chesapeake Raiding Axis (1814)",
+                        color: "#dc2626",
+                        dash: "4, 4",
+                        coords: [[37.0, -75.9], [38.2, -76.3], [38.93, -76.93], [39.26, -76.57]],
+                        desc: "Admiral Cockburn's coastal armada raiding tobacco warehouses, burning Washington D.C., and assaulting Baltimore."
+                    },
+                    {
+                        name: "Andrew Jackson's Gulf March (1814-1815)",
+                        color: "#16a34a",
+                        dash: "6, 4",
+                        coords: [[36.16, -86.78], [32.97, -85.73], [30.69, -88.04], [29.96, -90.02]],
+                        desc: "Jackson's rapid march with Tennessee and Kentucky volunteers from the Creek Nation campaign down to the defense of New Orleans."
+                    }
+                ]
+            },
+
+            "indian-wars": {
+                name: "American Indian Wars",
+                period: "1637 – 1890",
+                mapConfig: { center: [39.5, -97.5], zoom: 4 },
+                legend: {
+                    sideA: { name: "Colonial / U.S. Victory", color: "#1d4ed8" },
+                    sideB: { name: "Native American Victory", color: "#16a34a" },
+                    draw: { name: "Inconclusive / Treaty", color: "#ca8a04" }
+                },
+                battles: [
+                    { id: "iw_mystic", name: "Mystic Fort Massacre", date: "1637-05-26", location: [41.3626, -71.9723], state: "CT", outcome: "sideA", description: "Pivotal clash of the Pequot War. Puritan forces under John Mason and Mohegan allies trapped and burned a palisaded Pequot village, slaughtering over 500 inhabitants and shattering Pequot dominance in New England.", wiki: "Mystic_massacre" },
+                    { id: "iw_greatswamp", name: "Great Swamp Fight", date: "1675-12-19", location: [41.4550, -71.5940], state: "RI", outcome: "sideA", description: "A bloody winter engagement during King Philip's War. Colonial militia crossed frozen bogs to breach the Narragansett palisade, resulting in devastating loss of life and food stores for the tribe.", wiki: "Great_Swamp_Fight" },
+                    { id: "iw_bushyrun", name: "Battle of Bushy Run", date: "1763-08-05", location: [40.3542, -79.6267], state: "PA", outcome: "sideA", description: "During Pontiac's War, Colonel Henry Bouquet's Highland relief column was surrounded in the Pennsylvania woods. Bouquet feigned a center retreat to lure Native warriors into a devastating flank ambush, relieving besieged Fort Pitt.", wiki: "Battle_of_Bushy_Run" },
+                    { id: "iw_pointpleasant", name: "Battle of Point Pleasant", date: "1774-10-10", location: [38.8419, -82.1408], state: "WV", outcome: "sideA", description: "Sole major action of Lord Dunmore's War. Virginia militia fought a day-long close-quarters battle against Shawnee forces under Cornstalk at the confluence of the Kanawha and Ohio rivers, opening Kentucky to colonial settlement.", wiki: "Battle_of_Point_Pleasant" },
+                    { id: "iw_stclair", name: "St. Clair's Defeat", date: "1791-11-04", location: [40.5283, -84.7719], state: "OH", outcome: "sideB", description: "The greatest military disaster suffered by the US Army against Native forces. A confederacy led by Little Turtle and Blue Jacket surprised General St. Clair's camp, killing over 600 soldiers and wounding hundreds—nearly a quarter of the entire US Army.", wiki: "St._Clair%27s_defeat" },
+                    { id: "iw1", name: "Battle of Fallen Timbers", date: "1794-08-20", location: [41.4883, -83.7058], state: "OH", outcome: "sideA", description: "Anthony Wayne's meticulously trained Legion of the United States bayonet-charged through a tornado-strewn forest to defeat the Western Confederacy. The victory led to the Treaty of Greenville, opening Ohio to settlement.", wiki: "Battle_of_Fallen_Timbers" },
+                    { id: "iw2", name: "Battle of Tippecanoe", date: "1811-11-07", location: [40.5058, -86.9039], state: "IN", outcome: "sideA", description: "Governor William Henry Harrison fended off a dawn assault by Tecumseh's brother (the Prophet) outside Prophetstown. Harrison burned the spiritual capital, propelling Tecumseh into a full military alliance with Great Britain.", wiki: "Battle_of_Tippecanoe" },
+                    { id: "iw_horseshoe", name: "Battle of Horseshoe Bend", date: "1814-03-27", location: [32.9772, -85.7314], state: "AL", outcome: "sideA", description: "Andrew Jackson and Cherokee allies assaulted the log breastwork of the Red Stick Creek faction on the Tallapoosa River. Over 800 Red Sticks were killed, ending the Creek War and forcing the surrender of 23 million acres of homeland.", wiki: "Battle_of_Horseshoe_Bend_(1814)" },
+                    { id: "iw_dade", name: "Dade Massacre", date: "1835-12-28", location: [28.6653, -82.1286], state: "FL", outcome: "sideB", description: "Seminole warriors ambushed a column of 110 US troops under Major Francis Dade in the pine woods, killing all but three and igniting the bloody, seven-year Second Seminole War in the Everglades.", wiki: "Dade_battle" },
+                    { id: "iw_sandcreek", name: "Sand Creek Massacre", date: "1864-11-29", location: [38.5492, -102.5089], state: "CO", outcome: "sideA", description: "Colorado volunteer cavalry under John Chivington attacked a peaceful Cheyenne and Arapaho encampment flying the American flag, murdering and mutilating over 150 women, children, and elderly people.", wiki: "Sand_Creek_massacre" },
+                    { id: "iw_fetterman", name: "Fetterman Fight", date: "1866-12-21", location: [44.5739, -106.8408], state: "WY", outcome: "sideB", description: "During Red Cloud's War, Lakota warrior Crazy Horse lured Captain William Fetterman and 80 soldiers into a ravine ambush along the Bozeman Trail; all 81 US soldiers were killed within 20 minutes.", wiki: "Fetterman_Fight" },
+                    { id: "iw3", name: "Battle of the Little Bighorn", date: "1876-06-25", location: [45.5647, -107.4283], state: "MT", outcome: "sideB", description: "Custer's 7th Cavalry divided forces and charged an immense Lakota, Northern Cheyenne, and Arapaho encampment. Crazy Horse, Gall, and Sitting Bull's warriors encircled and wiped out Custer and five companies on Last Stand Hill.", wiki: "Battle_of_the_Little_Bighorn" },
+                    { id: "iw_bearpaw", name: "Battle of Bear Paw", date: "1877-10-05", location: [48.6186, -109.2894], state: "MT", outcome: "sideA", description: "Following an epic 1,170-mile fighting retreat across four states, Chief Joseph and the Nez Perce were besieged just 40 miles from the Canadian border, prompting his famous surrender speech: 'I will fight no more forever.'", wiki: "Battle_of_Bear_Paw" },
+                    { id: "iw4", name: "Wounded Knee Massacre", date: "1890-12-29", location: [43.1414, -102.3644], state: "SD", outcome: "sideA", description: "US 7th Cavalry troops surrounded a Lakota encampment of Ghost Dancers to disarm them. A struggle triggered rapid-fire Hotchkiss revolving cannons, killing nearly 300 Lakota men, women, and children.", wiki: "Wounded_Knee_Massacre" }
+                ],
+                deployments: [
+                    { name: "Fort Laramie", location: [42.2039, -104.5456], type: "Major Plains Treaty & Military Hub", desc: "Gateway to the high plains along the Oregon Trail and site of historic 1851 and 1868 peace treaties with the Lakota and Cheyenne." },
+                    { name: "Fort Phil Kearny", location: [44.5333, -106.8242], type: "Besieged Bozeman Trail Fort", desc: "Surrounded by Red Cloud's warriors throughout 1866-1868, eventually abandoned and burned by the Lakota." },
+                    { name: "Fort Abraham Lincoln", location: [46.7725, -100.8353], type: "7th Cavalry Headquarters (1873-1876)", desc: "Custer's base on the Missouri River from which the 7th Cavalry set out on its ill-fated 1876 Black Hills expedition." },
+                    { name: "Fort Defiance (Window Rock)", location: [35.7486, -109.0667], type: "Navajo Territory Operations Base", desc: "Established in 1851 at the heart of Dinetah to enforce federal control, leading to Kit Carson's scorched-earth campaign." }
+                ],
+                routes: [
+                    {
+                        name: "The Bozeman Trail (1863-1868)",
+                        color: "#dc2626",
+                        dash: "4, 4",
+                        coords: [[42.20, -104.54], [43.5, -106.0], [44.57, -106.84], [45.6, -108.5], [45.67, -111.03]],
+                        desc: "Gold rush corridor cut through sovereign Lakota buffalo grounds; closed by the US government after Red Cloud's War."
+                    },
+                    {
+                        name: "Chief Joseph & Nez Perce Flight (1877)",
+                        color: "#16a34a",
+                        dash: "6, 3",
+                        coords: [[45.5, -116.8], [46.2, -114.5], [44.6, -112.5], [44.8, -110.5], [47.5, -108.8], [48.61, -109.28]],
+                        desc: "The incredible 1,170-mile fighting trek of 750 Nez Perce men, women, and children across rugged mountain passes toward Canada."
+                    },
+                    {
+                        name: "Oregon Trail Army Escort Artery",
+                        color: "#ca8a04",
+                        dash: "5, 5",
+                        coords: [[39.09, -94.57], [40.8, -98.3], [42.20, -104.54], [42.6, -108.5], [43.6, -116.2]],
+                        desc: "The central migration corridor guarded by frontier infantry and cavalry outposts from the Missouri River to the Pacific Northwest."
+                    }
+                ]
+            },
+
+            "mexican-american-war": {
+                name: "Mexican-American War",
+                period: "1846 – 1848",
+                mapConfig: { center: [24.5, -100.5], zoom: 5 },
+                legend: {
+                    sideA: { name: "U.S. Victory", color: "#1d4ed8" },
+                    sideB: { name: "Mexican Victory", color: "#16a34a" },
+                    draw: { name: "Inconclusive / Truce", color: "#6b7280" }
+                },
+                battles: [
+                    { id: "maw_thornton", name: "Thornton Affair", date: "1846-04-25", location: [26.0847, -97.6853], state: "TX", outcome: "sideB", description: "Mexican cavalry under General Torrejón ambushed a 70-man US dragoon patrol in the disputed Nueces Strip. President Polk used this event to declare: 'American blood has been shed upon American soil.'", wiki: "Thornton_Affair" },
+                    { id: "maw1", name: "Battle of Palo Alto", date: "1846-05-08", location: [26.0189, -97.4789], state: "TX", outcome: "sideA", description: "The first major pitched battle. Zachary Taylor's revolutionary 'flying artillery'—rapidly maneuvered horse-drawn bronze cannons—inflicted devastating grape and canister fire on Mexican infantry.", wiki: "Battle_of_Palo_Alto" },
+                    { id: "maw_resaca", name: "Battle of Resaca de la Palma", date: "1846-05-09", location: [25.9656, -97.4981], state: "TX", outcome: "sideA", description: "Fought in dense thorny chaparral outside Brownsville. A spirited US dragoon charge overran Mexican artillery positions, causing Arista's army to rout back across the swollen Rio Grande.", wiki: "Battle_of_Resaca_de_la_Palma" },
+                    { id: "maw2", name: "Battle of Monterrey", date: "1846-09-24", location: [25.6866, -100.3161], state: "MX", outcome: "sideA", description: "Ferocious urban house-to-house fighting. Texas Rangers and US infantry used pickaxes to burrow through interior adobe walls while hauling howitzers to rooftops to capture Mexico's northern citadel.", wiki: "Battle_of_Monterrey" },
+                    { id: "maw3", name: "Battle of Buena Vista", date: "1847-02-23", location: [25.3508, -101.0503], state: "MX", outcome: "sideA", description: "Taylor's 4,700 outnumbered volunteers faced 15,000 veteran Mexican soldiers under Santa Anna. Accurate artillery commanded by Braxton Bragg and a counterattack by Jefferson Davis's Mississippi Rifles won a narrow, bloody victory.", wiki: "Battle_of_Buena_Vista" },
+                    { id: "maw_veracruz", name: "Siege of Veracruz", date: "1847-03-29", location: [19.1738, -96.1342], state: "MX", outcome: "sideA", description: "The first large-scale amphibious landing in US military history. General Winfield Scott landed 12,000 troops on surfboats without losing a man, heavily bombarding the port city into surrender.", wiki: "Siege_of_Veracruz" },
+                    { id: "maw_cerrogordo", name: "Battle of Cerro Gordo", date: "1847-04-18", location: [19.4589, -96.7083], state: "MX", outcome: "sideA", description: "Captain Robert E. Lee reconnoitered a hidden path through steep mountain ravines around Santa Anna's fortified mountain pass, allowing Scott to flank and shatter the Mexican army.", wiki: "Battle_of_Cerro_Gordo" },
+                    { id: "maw_churubusco", name: "Battle of Contreras & Churubusco", date: "1847-08-20", location: [19.3550, -99.1481], state: "MX", outcome: "sideA", description: "Scott stormed fortified lava fields outside Mexico City. At the Convent of Churubusco, Irish-American defectors in the Saint Patrick's Battalion fought bravely to the last cartridge.", wiki: "Battle_of_Churubusco" },
+                    { id: "maw4", name: "Battle of Chapultepec", date: "1847-09-13", location: [19.4204, -99.1819], state: "MX", outcome: "sideA", description: "US Marines and regulars assaulted the 200-foot heights of Chapultepec Castle, the military academy of Mexico. Teenage cadets ('Los Niños Héroes') died defending the flag as Scott opened the city gates.", wiki: "Battle_of_Chapultepec" }
+                ],
+                deployments: [
+                    { name: "Fort Texas (Fort Brown)", location: [25.9017, -97.4975], type: "Rio Grande Outpost & Bastion", desc: "Erected by Zachary Taylor opposite Matamoros; endured weeklong bombardment during the opening clashes of the war." },
+                    { name: "Point Isabel Supply Depot", location: [26.0778, -97.2081], type: "US Gulf Deep-Water Logistic Depot", desc: "Taylor's coastal transshipment depot where sea transports from New Orleans landed powder, horses, and cannon." },
+                    { name: "San Luis Potosí Concentration Camp", location: [22.1565, -100.9855], type: "Santa Anna's Army Gathering Point", desc: "Where Santa Anna drilled 20,000 Mexican regulars before their grueling winter march north across the desert to Buena Vista." },
+                    { name: "Anton Lizardo Amphibious Anchorage", location: [19.0558, -95.9867], type: "Scott's Fleet Staging Harbor", desc: "Deep-water island anchorage near Veracruz where Commodore Perry assembled 70 warships and landing craft for Scott's invasion." }
+                ],
+                routes: [
+                    {
+                        name: "Winfield Scott's March to Mexico City (1847)",
+                        color: "#2563eb",
+                        dash: "5, 5",
+                        coords: [[19.17, -96.13], [19.45, -96.70], [19.54, -96.91], [19.04, -98.20], [19.42, -99.18]],
+                        desc: "The historic 260-mile mountain advance along the National Road tracing Cortés's path from the coast to the halls of Montezuma."
+                    },
+                    {
+                        name: "Zachary Taylor's Northern Campaign Axis",
+                        color: "#16a34a",
+                        dash: "6, 4",
+                        coords: [[26.07, -97.20], [25.96, -97.49], [26.06, -98.28], [25.68, -100.31], [25.35, -101.05]],
+                        desc: "Supply and marching axis from the Gulf along the Rio Grande through Monterrey to the mountain pass of Buena Vista."
+                    },
+                    {
+                        name: "US Home Squadron Gulf Blockade Line",
+                        color: "#ca8a04",
+                        dash: "3, 5",
+                        coords: [[26.0, -97.0], [22.2, -97.5], [19.2, -96.0], [18.5, -92.5]],
+                        desc: "Naval blockade sealing Mexican commercial ports from Tampico to Carmen, strangling customs revenue and munitions imports."
+                    }
+                ]
+            },
+
+            "civil-war": {
+                name: "American Civil War",
+                period: "1861 – 1865",
+                mapConfig: { center: [37.5, -81.0], zoom: 6 },
+                legend: {
+                    sideA: { name: "Union Victory", color: "#1d4ed8" },
+                    sideB: { name: "Confederate Victory", color: "#dc2626" },
+                    draw: { name: "Inconclusive / Siege", color: "#ca8a04" }
+                },
+                battles: [
+                    { id: "cw1", name: "Battle of Fort Sumter", date: "1861-04-12", location: [32.7523, -79.8747], state: "SC", outcome: "sideB", description: "Confederate batteries under P.G.T. Beauregard opened a 34-hour bombardment on the federal masonry fort in Charleston Harbor, igniting four years of civil war.", wiki: "Battle_of_Fort_Sumter" },
+                    { id: "cw2", name: "First Battle of Bull Run (Manassas)", date: "1861-07-21", location: [38.8143, -77.5222], state: "VA", outcome: "sideB", description: "Untrained Union and Confederate armies clashed near Manassas junction. Thomas J. Jackson earned his 'Stonewall' moniker, and a Confederate flank charge panicked Union troops into a chaotic retreat to Washington.", wiki: "First_Battle_of_Bull_Run" },
+                    { id: "cw_donelson", name: "Battle of Fort Donelson", date: "1862-02-16", location: [36.4856, -87.8583], state: "TN", outcome: "sideA", description: "Ulysses S. Grant demanded 'unconditional and immediate surrender,' capturing 12,000 Confederates and opening the Cumberland and Tennessee rivers to Union invasion.", wiki: "Battle_of_Fort_Donelson" },
+                    { id: "cw3", name: "Battle of Shiloh", date: "1862-04-06", location: [35.1508, -88.3228], state: "TN", outcome: "sideA", description: "Confederate General Albert Sidney Johnston launched a massive surprise assault near sunken roads ('The Hornet's Nest'). Grant held the river line overnight, counterattacked with reinforcements, and won the bloodiest battle in American history to that date.", wiki: "Battle_of_Shiloh" },
+                    { id: "cw_sevendays", name: "Seven Days Battles", date: "1862-07-01", location: [37.3592, -77.3208], state: "VA", outcome: "sideB", description: "Robert E. Lee assumed command of the Army of Northern Virginia and launched aggressive counterstrokes that drove George McClellan's Army of the Potomac away from the gates of Richmond.", wiki: "Seven_Days_Battles" },
+                    { id: "cw_secondbullrun", name: "Second Battle of Bull Run", date: "1862-08-30", location: [38.8181, -77.5217], state: "VA", outcome: "sideB", description: "Stonewall Jackson lured John Pope's Union army into attacking an unfinished railroad grade, allowing James Longstreet to deliver a crushing 28,000-man flank counterattack that routed the Union army.", wiki: "Second_Battle_of_Bull_Run" },
+                    { id: "cw4", name: "Battle of Antietam (Sharpsburg)", date: "1862-09-17", location: [39.4735, -77.7402], state: "MD", outcome: "sideA", description: "The bloodiest single day in American history with 22,700 casualties. Savage fighting raged through Miller's Cornfield, the Sunken Road, and Burnside's Bridge. Lee retreated to Virginia, providing Lincoln the victory needed to issue the preliminary Emancipation Proclamation.", wiki: "Battle_of_Antietam" },
+                    { id: "cw_fredericksburg", name: "Battle of Fredericksburg", date: "1863-12-13", location: [38.2972, -77.4681], state: "VA", outcome: "sideB", description: "Union General Ambrose Burnside launched wave after wave of suicidal frontal assaults across open ground against Confederate infantry entrenched behind a stone wall on Marye's Heights, suffering 12,600 casualties.", wiki: "Battle_of_Fredericksburg" },
+                    { id: "cw_chancellorsville", name: "Battle of Chancellorsville", date: "1863-05-02", location: [38.3106, -77.6481], state: "VA", outcome: "sideB", description: "Lee's tactical masterpiece. Outnumbered two-to-one by 'Fighting Joe' Hooker, Lee daringly divided his army and sent Stonewall Jackson on a 12-mile flank march through the Wilderness, though Jackson was mortally wounded by friendly fire.", wiki: "Battle_of_Chancellorsville" },
+                    { id: "cw5", name: "Battle of Gettysburg", date: "1863-07-01", location: [39.8140, -77.2325], state: "PA", outcome: "sideA", description: "The high-water mark of the Confederacy. Over three days, 160,000 soldiers fought at Little Round Top, Devil's Den, and the Peach Orchard. The climactic failure of Pickett's Charge broke Lee's invasion of the North forever.", wiki: "Battle_of_Gettysburg" },
+                    { id: "cw6", name: "Siege of Vicksburg", date: "1863-07-04", location: [32.3338, -90.8783], state: "MS", outcome: "sideA", description: "After brilliant maneuvers through the Mississippi interior, Grant besieged the Confederate fortress on the river bluffs. Vicksburg surrendered on July 4, splitting the Confederacy in two and allowing the Mississippi River to flow 'unvexed to the sea.'", wiki: "Siege_of_Vicksburg" },
+                    { id: "cw_chickamauga", name: "Battle of Chickamauga", date: "1863-09-20", location: [34.9189, -85.2592], state: "GA", outcome: "sideB", description: "The biggest battle in the Western theater. Confederate General Braxton Bragg, reinforced by Longstreet from Virginia, exploited a gap in the Union line, driving Rosecrans back to Chattanooga while George Thomas earned fame as 'The Rock of Chickamauga.'", wiki: "Battle_of_Chickamauga" },
+                    { id: "cw_chattanooga", name: "Battle of Chattanooga", date: "1863-11-25", location: [35.0089, -85.3400], state: "TN", outcome: "sideA", description: "Grant opened the 'Cracker Line' supply artery, and Union troops charged up Missionary Ridge without orders, routing the Confederate army and unlocking the gateway into Georgia.", wiki: "Chattanooga_campaign" },
+                    { id: "cw_wilderness", name: "Battle of the Wilderness & Spotsylvania", date: "1864-05-08", location: [38.2189, -77.6047], state: "VA", outcome: "draw", description: "Opening of Grant's Overland Campaign. Horrific fighting in tangled underbrush ignited brush fires. Instead of retreating after heavy losses as predecessors had done, Grant turned his cavalry south: 'There will be no turning back.'", wiki: "Battle_of_Spotsylvania_Court_House" },
+                    { id: "cw_coldharbor", name: "Battle of Cold Harbor", date: "1864-06-03", location: [37.5950, -77.2858], state: "VA", outcome: "sideB", description: "Grant launched a tragic frontal assault against impregnable Confederate trench fortifications, losing 7,000 casualties in less than an hour. Grant later recorded: 'I have always regretted that the last assault at Cold Harbor was ever made.'", wiki: "Battle_of_Cold_Harbor" },
+                    { id: "cw_atlanta", name: "Battle of Atlanta", date: "1864-07-22", location: [33.7490, -84.3880], state: "GA", outcome: "sideA", description: "William Tecumseh Sherman outmaneuvered John Bell Hood's fierce counterattacks, cutting the last rail lines and capturing the Confederacy's industrial and rail capital, ensuring Lincoln's reelection in November.", wiki: "Battle_of_Atlanta" },
+                    { id: "cw_petersburg", name: "Siege of Petersburg", date: "1864-06-15", location: [37.2278, -77.4019], state: "VA", outcome: "sideA", description: "Ten months of brutal trench warfare foreshadowing World War I, featuring mine craters, sniper fire, and extensive rail supply operations until Grant broke Lee's lines at Five Forks in April 1865.", wiki: "Siege_of_Petersburg" },
+                    { id: "cw7", name: "Sherman's March to the Sea", date: "1864-11-15", location: [32.0809, -81.0912], state: "GA", outcome: "sideA", description: "Sherman cut loose from supply lines, marching 60,000 veterans 285 miles from Atlanta to Savannah, destroying war infrastructure, twisting railroad ties ('Sherman neckties'), and breaking the Confederacy's will to fight.", wiki: "Sherman%27s_March_to_the_Sea" },
+                    { id: "cw_nashville", name: "Battle of Nashville", date: "1864-12-16", location: [36.0961, -86.7994], state: "TN", outcome: "sideA", description: "George Thomas executed a textbook offensive over two days, completely disintegrating Hood's Confederate Army of Tennessee—the only instance in the war where a major field army was annihilated on the battlefield.", wiki: "Battle_of_Nashville" },
+                    { id: "cw8", name: "Appomattox Court House", date: "1865-04-09", location: [37.3780, -78.7960], state: "VA", outcome: "sideA", description: "Encircled by Grant and Sheridan with no rations remaining, Robert E. Lee surrendered the Army of Northern Virginia in the parlor of Wilmer McLean's home, effectively ending the American Civil War.", wiki: "Battle_of_Appomattox_Court_House" }
+                ],
+                deployments: [
+                    { name: "Washington, D.C. Ring of Forts", location: [38.9072, -77.0369], type: "Union Capital Defense System", desc: "68 enclosed forts and 807 mounted guns making Washington the most heavily fortified city in the Western world." },
+                    { name: "Richmond & Tredegar Iron Works", location: [37.5358, -77.4475], type: "Confederate Capital & Heavy Munitions Foundry", desc: "Produced over 1,000 cannons, steam locomotive armor, and shell shot, sustaining the Confederate armies for four years." },
+                    { name: "City Point Logistics Base", location: [37.3147, -77.2881], type: "Union Deep-Water Supply Wonder (1864-1865)", desc: "Grant's headquarters port during the Petersburg siege; docked 40 steamships a day with refrigerated rail cars feeding 100,000 troops." },
+                    { name: "Cairo Logistics & River Fleet Yard", location: [37.0053, -89.1764], type: "Union Western River Command", desc: "Located at the junction of the Ohio and Mississippi rivers, staging Eads ironclad gunboats and western army supplies." }
+                ],
+                routes: [
+                    {
+                        name: "Baltimore & Ohio (B&O) Railroad Lifeline",
+                        color: "#2563eb",
+                        dash: "6, 4",
+                        coords: [[39.29, -76.61], [39.32, -77.74], [39.65, -78.76], [39.27, -81.56]],
+                        desc: "Crucial east-west double-track rail artery shifting entire army corps and food supplies between Washington and the Western theater."
+                    },
+                    {
+                        name: "Western & Atlantic Railroad Axis (1864)",
+                        color: "#16a34a",
+                        dash: "5, 5",
+                        coords: [[35.04, -85.30], [34.77, -84.97], [34.16, -84.80], [33.74, -84.38]],
+                        desc: "Sherman's 138-mile single-track supply lifeline from Chattanooga to Atlanta, protected by blockhouses and patrolled by repair crews."
+                    },
+                    {
+                        name: "Union Anaconda Naval Blockade Patrol",
+                        color: "#ca8a04",
+                        dash: "3, 6",
+                        coords: [[36.9, -75.9], [33.9, -77.9], [32.7, -79.8], [30.4, -81.3], [24.5, -81.8], [29.2, -94.7]],
+                        desc: "Winfield Scott's 3,500-mile coastal blockade choking Confederate cotton exports and intercepting British blockade runners."
+                    }
+                ]
+            },
+
+            "spanish-american-war": {
+                name: "Spanish-American War",
+                period: "1898",
+                mapConfig: { center: [20.0, -35.0], zoom: 3 },
+                legend: {
+                    sideA: { name: "U.S. Victory", color: "#1d4ed8" },
+                    sideB: { name: "Spanish Victory", color: "#dc2626" },
+                    draw: { name: "Naval Patrol / Siege", color: "#6b7280" }
+                },
+                battles: [
+                    { id: "saw1", name: "Battle of Manila Bay", date: "1898-05-01", location: [14.5000, 120.9000], state: "PH", outcome: "sideA", description: "Commodore George Dewey sailed the US Asiatic Squadron into Manila Bay at dawn: 'You may fire when you are ready, Gridley.' In hours, every Spanish vessel was sunk or burning without a single American combat casualty.", wiki: "Battle_of_Manila_Bay" },
+                    { id: "saw_guam", name: "Capture of Guam", date: "1898-06-20", location: [13.4443, 144.7937], state: "GU", outcome: "sideA", description: "The protected cruiser USS Charleston shelled Fort Santa Cruz. The Spanish governor rowed out to apologize for having no gunpowder to return what he thought was a courteous salute, unaware war had been declared.", wiki: "Capture_of_Guam" },
+                    { id: "saw_guantanamo", name: "Battle of Guantánamo Bay", date: "1898-06-10", location: [19.9000, -75.1667], state: "CU", outcome: "sideA", description: "US Marines landed and seized Fisherman's Point with Cuban insurgent aid, establishing a sheltered coaling anchorage for the US Atlantic fleet blockading Santiago.", wiki: "Battle_of_Guant%C3%A1namo_Bay" },
+                    { id: "saw_lasguasimas", name: "Battle of Las Guasimas", date: "1898-06-24", location: [19.9575, -75.7142], state: "CU", outcome: "sideA", description: "The opening land engagement in Cuba. General 'Fighting Joe' Wheeler and Theodore Roosevelt's 1st US Volunteer Cavalry ('Rough Riders') drove back Spanish rear-guard trenches in dense jungle.", wiki: "Battle_of_Las_Guasimas" },
+                    { id: "saw_elcaney", name: "Battle of El Caney", date: "1898-07-01", location: [20.0542, -75.7686], state: "CU", outcome: "sideA", description: "500 Spanish soldiers in stone blockhouses held off 6,600 Americans for ten hours under heroic commander General Joaquín Vara del Rey, severely delaying the main American advance on Santiago.", wiki: "Battle_of_El_Caney" },
+                    { id: "saw2", name: "Battle of San Juan Hill", date: "1898-07-01", location: [20.0217, -75.7831], state: "CU", outcome: "sideA", description: "The defining land battle. The African-American 9th and 10th Cavalry ('Buffalo Soldiers') and Theodore Roosevelt's Rough Riders charged open grassy slopes under Mauser fire, overrunning Kettle Hill and the San Juan heights.", wiki: "Battle_of_San_Juan_Hill" },
+                    { id: "saw_santiagonaval", name: "Naval Battle of Santiago de Cuba", date: "1898-07-03", location: [19.9667, -75.8667], state: "CU", outcome: "sideA", description: "Admiral Cervera's Spanish fleet made a desperate dash out of the narrow harbor channel. US battleships under Schley and Sampson gave chase, destroying all six Spanish armored cruisers along the Cuban coast.", wiki: "Battle_of_Santiago_de_Cuba" },
+                    { id: "saw_manilacity", name: "Battle of Manila (Land)", date: "1898-08-13", location: [14.5995, 120.9842], state: "PH", outcome: "sideA", description: "After secret negotiations to exclude Emilio Aguinaldo's Filipino independence fighters, Spanish and American commanders staged a brief mock battle before the Spanish surrendered the walled city of Intramuros.", wiki: "Battle_of_Manila_(1898)" }
+                ],
+                deployments: [
+                    { name: "Port of Tampa Embarkation Hub", location: [27.9506, -82.4572], type: "US V Corps Primary Staging Railhead", desc: "Chaotic logistical bottleneck where 25,000 soldiers, horses, and reporters endured tropical heat in wool uniforms waiting for transports." },
+                    { name: "Key West Naval Base", location: [24.5551, -81.7800], type: "North Atlantic Fleet Forward Coaling Station", desc: "Torpedo-boat station and telegraph dispatch hub keeping US battleships fueled with anthracite coal for the Cuban blockade." },
+                    { name: "Cavite Naval Station", location: [14.4791, 120.8967], type: "US Far Eastern Fleet Base", desc: "Captured Spanish naval base that served as Dewey's repair dock and supply transshipment point in Manila Bay." },
+                    { name: "Daiquirí & Siboney Beachheads", location: [19.9242, -75.6961], type: "Expeditionary Amphibious Staging Point", desc: "Open iron-pier beaches where Shafter's Fifth Corps landed in surf without landing docks, losing scores of cavalry horses to drowning." }
+                ],
+                routes: [
+                    {
+                        name: "Tampa-to-Santiago Invasion Convoy (1898)",
+                        color: "#2563eb",
+                        dash: "5, 5",
+                        coords: [[27.95, -82.45], [24.55, -81.78], [21.5, -74.5], [19.92, -75.69]],
+                        desc: "Thirty-two ocean transports carrying General Shafter's army through the Bahamas Channel under cruiser escort."
+                    },
+                    {
+                        name: "Pacific Fleet Cable Line (Honolulu to Manila)",
+                        color: "#16a34a",
+                        dash: "4, 6",
+                        coords: [[37.77, -122.41], [21.30, -157.85], [13.44, 144.79], [14.50, 120.90]],
+                        desc: "7,000-mile trans-Pacific logistical circuit supplying Dewey's squadron from San Francisco via Hawaii and captured Guam."
+                    },
+                    {
+                        name: "Cervera's Transatlantic Atlantic Sortie",
+                        color: "#dc2626",
+                        dash: "3, 6",
+                        coords: [[28.0, -15.4], [14.5, -61.0], [12.1, -68.9], [19.96, -75.86]],
+                        desc: "Spanish Admiral Cervera's ill-fated voyage from the Cape Verde Islands evading US flying squadrons before bottling up in Santiago."
+                    }
+                ]
+            },
+
+            "world-war-i": {
+                name: "World War I",
+                period: "1917 – 1918",
+                mapConfig: { center: [48.8, 4.5], zoom: 7 },
+                legend: {
+                    sideA: { name: "Allied / AEF Victory", color: "#1d4ed8" },
+                    sideB: { name: "Central Powers Victory", color: "#dc2626" },
+                    draw: { name: "Trench Line / Defense", color: "#6b7280" }
+                },
+                battles: [
+                    { id: "wwi1", name: "Battle of Cantigny", date: "1918-05-28", location: [49.6644, 2.7933], state: "FR", outcome: "sideA", description: "The first major American offensive of the war. The US 1st Division ('The Big Red One') captured the fortified village and held it against seven ferocious German counterattacks.", wiki: "Battle_of_Cantigny" },
+                    { id: "wwi_chateau", name: "Battle of Château-Thierry", date: "1918-06-03", location: [49.0439, 3.4028], state: "FR", outcome: "sideA", description: "US 3rd Division machine-gunners helped hold the bridges of the Marne River against the German Spring Offensive, earning the division its legendary nickname: 'Rock of the Marne.'", wiki: "Battle_of_Ch%C3%A2teau-Thierry_(1918)" },
+                    { id: "wwi2", name: "Battle of Belleau Wood", date: "1918-06-06", location: [49.0739, 3.2906], state: "FR", outcome: "sideA", description: "A defining battle for the US Marine Corps. Facing German machine-gun nests and mustard gas, Marines cleared the woods in savage bayonet fighting, earning the German moniker 'Teufelshunde' (Devil Dogs).", wiki: "Battle_of_Belleau_Wood" },
+                    { id: "wwi_secondmarne", name: "Second Battle of the Marne", date: "1918-07-15", location: [49.0769, 3.6931], state: "FR", outcome: "sideA", description: "The decisive turning point of the Western Front. 85,000 doughboys took part in the Allied counter-offensive that broke the final German imperial offensive and initiated the permanent German retreat.", wiki: "Second_Battle_of_the_Marne" },
+                    { id: "wwi_stmihiel", name: "Battle of Saint-Mihiel", date: "1918-09-12", location: [48.8897, 5.5436], state: "FR", outcome: "sideA", description: "The first independent operation of the US First Army under General John J. Pershing. Supported by 1,400 aircraft commanded by Billy Mitchell and French tanks led by George S. Patton, the AEF pinched out the four-year-old German salient in 48 hours.", wiki: "Battle_of_Saint-Mihiel" },
+                    { id: "wwi_blancmont", name: "Battle of Blanc Mont Ridge", date: "1918-10-03", location: [49.2561, 4.4925], state: "FR", outcome: "sideA", description: "The US 2nd Division (including the 4th Marine Brigade) stormed the imposing limestone ridge in Champagne that German forces held for four years, forcing an army-wide German withdrawal to the Aisne River.", wiki: "Battle_of_Blanc_Mont_Ridge" },
+                    { id: "wwi3", name: "Meuse-Argonne Offensive", date: "1918-09-26", location: [49.2789, 5.0942], state: "FR", outcome: "sideA", description: "The largest and bloodiest offensive in American military history, involving 1.2 million American soldiers over 47 days. The AEF broke the formidable Hindenburg Line, forcing the German Empire to sign the Armistice of November 11, 1918.", wiki: "Meuse-Argonne_offensive" }
+                ],
+                deployments: [
+                    { name: "Chaumont AEF General Headquarters", location: [48.1128, 5.1389], type: "Pershing's Supreme Command Center", desc: "General Headquarters (GHQ) where Pershing coordinated operations, logistics, training, and air commands across Europe." },
+                    { name: "Saint-Nazaire & Brest Ports of Debarkation", location: [47.2736, -2.2137], type: "Primary AEF Deep-Water Ocean Terminals", desc: "Where two million doughboys and millions of tons of locomotives, trucks, artillery, and wheat were unloaded from US convoys." },
+                    { name: "Gièvres Intermediate Logistics Depot", location: [47.2764, 1.6708], type: "Largest Supply Depot on Earth (1918)", desc: "Spanned 12 square miles with 140 miles of track, holding world-record meat cold-storage plants and baking millions of loaves of bread daily." },
+                    { name: "Bar-le-Duc Railhead ('La Voie Sacrée')", location: [48.7725, 5.1608], type: "Meuse-Argonne Forward Assembly Hub", desc: "The crucial road and rail nexus channeling 600,000 soldiers and artillery ammunition into the Argonne frontline trenches." }
+                ],
+                routes: [
+                    {
+                        name: "AEF French Railroad Logistics Line",
+                        color: "#2563eb",
+                        dash: "5, 5",
+                        coords: [[47.27, -2.21], [47.39, 0.68], [47.27, 1.67], [48.11, 5.13], [48.77, 5.16], [49.27, 5.09]],
+                        desc: "Standard-gauge rail corridor linking Atlantic landing ports through Gièvres central depot straight into the Meuse-Argonne trench lines."
+                    },
+                    {
+                        name: "Transatlantic Destroyer Convoy Route",
+                        color: "#16a34a",
+                        dash: "4, 6",
+                        coords: [[40.71, -74.00], [42.0, -50.0], [47.5, -20.0], [48.39, -4.48]],
+                        desc: "Escorted troopship zigzag convoy lane that carried two million American soldiers without a single eastbound troopship loss to German U-boats."
+                    },
+                    {
+                        name: "The Hindenburg Defensive System (1918)",
+                        color: "#dc2626",
+                        dash: "2, 4",
+                        coords: [[50.0, 3.2], [49.5, 3.8], [49.3, 4.8], [49.2, 5.3], [48.9, 6.0]],
+                        desc: "Deep German fortress belts of concrete pillboxes, layered barbed wire, and pre-sighted artillery fields shattered during the Meuse-Argonne offensive."
+                    }
+                ]
+            },
+
+            "world-war-ii": {
+                name: "World War II",
+                period: "1941 – 1945",
+                mapConfig: { center: [20.0, 10.0], zoom: 2 },
+                legend: {
+                    sideA: { name: "Allied Victory", color: "#1d4ed8" },
+                    sideB: { name: "Axis Victory", color: "#dc2626" },
+                    draw: { name: "Stalemate / Siege", color: "#6b7280" }
+                },
+                battles: [
+                    { id: "wwii1", name: "Attack on Pearl Harbor", date: "1941-12-07", location: [21.3644, -157.9500], state: "HI", outcome: "sideB", description: "Six Imperial Japanese aircraft carriers launched a devastating surprise air raid that sank or damaged eight battleships and killed 2,403 Americans: 'A date which will live in infamy.' The carrier fleet was at sea and survived.", wiki: "Attack_on_Pearl_Harbor" },
+                    { id: "wwii_coralsea", name: "Battle of the Coral Sea", date: "1942-05-08", location: [-15.2500, 153.2500], state: "Pacific", outcome: "draw", description: "The first naval battle in history where opposing surface ships never saw or fired directly at one another. US carrier strikes prevented a Japanese seaborne invasion of Port Moresby, Australia.", wiki: "Battle_of_the_Coral_Sea" },
+                    { id: "wwii2", name: "Battle of Midway", date: "1942-06-04", location: [28.2072, -177.3735], state: "Pacific", outcome: "sideA", description: "Turning point of the Pacific War. Guided by naval codebreakers, US dive-bombers from Yorktown and Enterprise sank four frontline Japanese aircraft carriers (Akagi, Kaga, Soryu, Hiryu) in minutes.", wiki: "Battle_of_Midway" },
+                    { id: "wwii_guadalcanal", name: "Battle of Guadalcanal", date: "1942-08-07", location: [-9.4286, 160.0547], state: "Pacific", outcome: "sideA", description: "Six months of brutal jungle, naval, and aerial combat for Henderson Field. The 1st Marine Division and US Army ground down Japanese elite forces, halting the southward Japanese advance forever.", wiki: "Guadalcanal_campaign" },
+                    { id: "wwii_kasserine", name: "Battle of Kasserine Pass", date: "1943-02-19", location: [35.2500, 8.7500], state: "Tunisia", outcome: "sideB", description: "Rommel's Afrika Korps inflicted a severe defeat on green US II Corps troops in Tunisia. The shock prompted widespread reorganization, modern tactics, and George S. Patton's rise to field command.", wiki: "Battle_of_Kasserine_Pass" },
+                    { id: "wwii_tarawa", name: "Battle of Tarawa", date: "1943-11-20", location: [1.3556, 172.9367], state: "Pacific", outcome: "sideA", description: "The 2nd Marine Division waded hundreds of yards under fire through low reef tides to storm fortified Betio atoll, suffering 3,000 casualties in 76 hours to secure vital central Pacific airfields.", wiki: "Battle_of_Tarawa" },
+                    { id: "wwii_anzio", name: "Battle of Anzio", date: "1944-01-22", location: [41.4500, 12.6167], state: "IT", outcome: "draw", description: "Allied amphibious landings behind the German Gustav Line stalled into four months of trench warfare under heavy German artillery ('Anzio Annie') before breaking through to liberate Rome.", wiki: "Battle_of_Anzio" },
+                    { id: "wwii3", name: "D-Day: Normandy Landings", date: "1944-06-06", location: [49.3697, -0.8711], state: "FR", outcome: "sideA", description: "Operation Overlord: 156,000 Allied soldiers stormed five beaches (Utah, Omaha, Gold, Juno, Sword) backed by 7,000 ships and airborne divisions, breaching Hitler's Atlantic Wall and opening the Western Front.", wiki: "Normandy_landings" },
+                    { id: "wwii_philippinesea", name: "Battle of the Philippine Sea", date: "1944-06-19", location: [15.0000, 135.0000], state: "Pacific", outcome: "sideA", description: "The 'Great Marianas Turkey Shoot.' Radar-directed US Hellcat fighters and ship anti-aircraft fire annihilated over 400 Japanese naval aviators, breaking Japan's carrier aviation for the rest of the war.", wiki: "Battle_of_the_Philippine_Sea" },
+                    { id: "wwii_marketgarden", name: "Operation Market Garden", date: "1944-09-17", location: [51.9851, 5.8987], state: "Netherlands", outcome: "sideB", description: "The largest airborne operation to that date. US 82nd, 101st, and British 1st Airborne divisions seized Dutch bridges to cross the Rhine, but fierce German SS armored resistance at Arnhem halted the advance ('A Bridge Too Far').", wiki: "Operation_Market_Garden" },
+                    { id: "wwii4", name: "Battle of the Bulge", date: "1944-12-16", location: [50.1500, 6.0500], state: "BE", outcome: "sideA", description: "Hitler's desperate winter counter-offensive through the snowbound Ardennes forest. The 101st Airborne held the crossroads of Bastogne ('Nuts!'), and Patton's Third Army executed a 90-degree turn to crush the German advance.", wiki: "Battle_of_the_Bulge" },
+                    { id: "wwii5", name: "Battle of Iwo Jima", date: "1945-02-19", location: [24.7500, 141.3000], state: "JP", outcome: "sideA", description: "Five weeks of ferocious combat on black volcanic sands against 21,000 Japanese troops dug into tunnels and Mount Suribachi. Over 24,000 US Marine casualties; immortalized by Rosenthal's flag-raising photograph.", wiki: "Battle_of_Iwo_Jima" },
+                    { id: "wwii_okinawa", name: "Battle of Okinawa", date: "1945-04-01", location: [26.3356, 127.8056], state: "JP", outcome: "sideA", description: "The bloodiest battle of the Pacific. 82 days of brutal fighting against Shuri Castle defenses and relentless Kamikaze strikes, resulting in 50,000 Allied and over 100,000 Japanese casualties.", wiki: "Battle_of_Okinawa" }
+                ],
+                deployments: [
+                    { name: "Pearl Harbor Fleet Base & Drydocks", location: [21.3644, -157.9500], type: "Pacific Fleet Supreme Headquarters", desc: "Salvaged sunken battleships, deciphered Japanese codes, and supplied Nimitz's carrier task forces throughout the war." },
+                    { name: "Ulithi Atoll Fleet Anchorage", location: [9.9700, 139.6500], type: "Secret Giant Floating Staging Lagoon", desc: "A lagoon large enough to anchor 1,000 warships, with floating drydocks, repair tenders, and fuel tankers directly servicing the fleet." },
+                    { name: "Southampton & Portsmouth Staging Area", location: [50.9097, -1.4044], type: "Overlord Allied Embarkation Nerve Center", desc: "Where hundreds of thousands of Allied infantry, Sherman tanks, and artificial Mulberry Harbors assembled for D-Day." },
+                    { name: "Port of Antwerp", location: [51.2194, 4.4025], type: "Allied European Mega Logistics Gateway", desc: "Deep-water port whose capture freed the Allies from beach supply, targeted relentlessly by German V-1 and V-2 rockets." }
+                ],
+                routes: [
+                    {
+                        name: "Red Ball Express Highway Circuit (1944)",
+                        color: "#2563eb",
+                        dash: "5, 4",
+                        coords: [[49.63, -1.62], [49.18, -0.37], [48.85, 2.35], [49.25, 4.03], [49.75, 4.71]],
+                        desc: "Nearly 6,000 trucks driven predominantly by African-American soldiers operating 24 hours a day on one-way loops to feed Patton's tanks."
+                    },
+                    {
+                        name: "Pacific Island-Hopping Logistics Lifeline",
+                        color: "#16a34a",
+                        dash: "6, 4",
+                        coords: [[21.36, -157.95], [1.35, 172.93], [13.44, 144.79], [9.97, 139.65], [26.33, 127.80]],
+                        desc: "The 6,000-mile central Pacific supply chain bridging Hawaii through the Marshall, Marianas, and Caroline atolls to Okinawa."
+                    },
+                    {
+                        name: "Battle of the Atlantic Convoy Corridors",
+                        color: "#dc2626",
+                        dash: "3, 6",
+                        coords: [[40.71, -74.00], [44.64, -63.57], [52.0, -30.0], [55.0, -10.0], [53.40, -3.00]],
+                        desc: "Vital merchant convoy arteries bringing millions of tons of American Lend-Lease tanks, aviation fuel, and food to Great Britain."
+                    }
+                ]
+            }
+        };
+
+        const map = L.map('map', {
+            zoomControl: true,
+            minZoom: 2,
+            maxZoom: 18
+        });
+
+        // 1. National Geographic Vintage Paper / Atlas style (No API key, no watermarks)
+        const esriNatGeo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
+            maxNativeZoom: 16,
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; National Geographic, DeLorme, NAVTEQ, USGS, NOAA'
+        }).addTo(map);
+
+        // 2. Physical Topography & Contours (No API key, no watermarks)
+        const esriTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, USGS, NPS, NRCAN'
+        });
+
+        // 3. OpenStreetMap Humanitarian (HOT) - Official community-funded OSM (No API key, no watermarks)
+        const osmHot = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            subdomains: ['a', 'b'],
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, Tiles by <a href="https://www.hotosm.org/" target="_blank" rel="noopener">Humanitarian OpenStreetMap Team</a>'
+        });
+
+        // 4. High-resolution Satellite Imagery for battlefield inspection
+        const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping'
+        });
+
+        // Layer switcher control for historical analysis without API keys
+        L.control.layers({
+            "📜 Vintage Atlas (NatGeo)": esriNatGeo,
+            "⛰️ Terrain & Topography (Esri)": esriTopo,
+            "🗺️ OpenStreetMap (HOT)": osmHot,
+            "🛰️ Satellite Imagery (Esri)": esriSatellite
+        }, null, { position: 'topright' }).addTo(map);
+
+        // Map visual layer groups
+        const battleMarkersLayer = L.layerGroup().addTo(map);
+        const deploymentsLayer = L.layerGroup().addTo(map);
+        const routesLayer = L.layerGroup().addTo(map);
+
+        // Control DOM references
+        const timelineControlBtn = document.getElementById('timeline-control-btn');
+        const btnText = document.getElementById('btn-text');
+        const resetViewBtn = document.getElementById('reset-view-btn');
+        const battleTimelineContainer = document.getElementById('battle-timeline');
+        const warTabsContainer = document.getElementById('war-tabs');
+        const legendContainer = document.getElementById('legend');
+        const conflictStatus = document.getElementById('conflict-status');
+        const toggleBattles = document.getElementById('toggle-battles');
+        const toggleDeployments = document.getElementById('toggle-deployments');
+        const toggleRoutes = document.getElementById('toggle-routes');
+
+        // State trackers
+        let currentWarKey = 'american-revolution';
+        let currentBattleIndex = -1;
+        let currentWarBattles = [];
+
+        function populateTabs() {
+            warTabsContainer.innerHTML = '';
+            const warOrder = [
+                "american-revolution", "war-of-1812", "indian-wars", 
+                "mexican-american-war", "civil-war", "spanish-american-war", 
+                "world-war-i", "world-war-ii"
+            ];
+            
+            warOrder.forEach(key => {
+                if (!allWarsData[key]) return;
+                const tab = document.createElement('button');
+                tab.className = 'war-tab px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-semibold rounded-t-lg';
+                tab.dataset.warKey = key;
+                tab.innerHTML = `${allWarsData[key].name} <span class="hidden sm:inline text-[11px] opacity-75 font-normal">(${allWarsData[key].period})</span>`;
+                tab.addEventListener('click', () => loadWar(key));
+                warTabsContainer.appendChild(tab);
+            });
+        }
+
+        // Stepping / selecting a specific battle in the sequence
+        function goToBattle(index, panTo = true) {
+            if (index < 0 || index >= currentWarBattles.length) return;
+
+            currentBattleIndex = index;
+            const battle = currentWarBattles[index];
+
+            // Update timeline icons highlight
+            document.querySelectorAll('.battle-icon').forEach((icon, idx) => {
+                icon.classList.toggle('active', idx === index);
+                if (idx === index) {
+                    icon.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                }
+            });
+
+            // Pan to marker and trigger rich popup
+            const targetMarker = battleMarkersLayer.getLayers().find(layer => layer.options.battleId === battle.id);
+            if (targetMarker) {
+                if (panTo) {
+                    map.flyTo(battle.location, Math.max(map.getZoom(), 7), {
+                        animate: true,
+                        duration: 0.9
+                    });
+                }
+                setTimeout(() => targetMarker.openPopup(), 600);
+            }
+
+            // Update interactive UI text
+            conflictStatus.innerHTML = `Battle ${index + 1} of ${currentWarBattles.length}: <strong class="text-[#8B0000]">${battle.name}</strong> (${battle.date})`;
+
+            if (currentBattleIndex >= currentWarBattles.length - 1) {
+                btnText.textContent = "Start Over";
+            } else {
+                btnText.textContent = `Next (${index + 2}/${currentWarBattles.length})`;
+            }
+        }
+
+        function handleTimelineControl() {
+            map.closePopup();
+            let nextIndex = currentBattleIndex + 1;
+            if (nextIndex >= currentWarBattles.length) {
+                nextIndex = 0;
+            }
+            goToBattle(nextIndex, true);
+        }
+
+        function loadWar(warKey) {
+            currentWarKey = warKey;
+            currentBattleIndex = -1;
+            
+            // Clear current map layers and timeline
+            battleMarkersLayer.clearLayers();
+            deploymentsLayer.clearLayers();
+            routesLayer.clearLayers();
+            battleTimelineContainer.innerHTML = '';
+            legendContainer.innerHTML = '';
+            map.closePopup();
+
+            // Set active tab styling
+            document.querySelectorAll('.war-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.warKey === warKey);
+            });
+
+            const war = allWarsData[warKey];
+            currentWarBattles = [...war.battles].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // Reset camera to the theater view
+            map.setView(war.mapConfig.center, war.mapConfig.zoom);
+
+            // Construct dynamic legend
+            const legendItems = [
+                { label: war.legend.sideA.name, color: war.legend.sideA.color },
+                { label: war.legend.sideB.name, color: war.legend.sideB.color },
+                { label: war.legend.draw ? war.legend.draw.name : "Draw / Neutral", color: war.legend.draw ? war.legend.draw.color : "#6b7280" },
+                { label: "⛺ Deployment / HQ", color: "#4f46e5" },
+                { label: "🛤️ Logistics Route", color: "#ca8a04", isLine: true }
+            ];
+
+            legendItems.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'flex items-center gap-1.5';
+                if (item.isLine) {
+                    el.innerHTML = `<span class="inline-block w-4 h-1 border-t-2 border-dashed" style="border-color:${item.color};"></span><span class="font-medium text-xs text-gray-700">${item.label}</span>`;
+                } else {
+                    el.innerHTML = `<span class="inline-block w-3.5 h-3.5 rounded-full border border-black/40" style="background-color:${item.color};"></span><span class="font-medium text-xs text-gray-700">${item.label}</span>`;
+                }
+                legendContainer.appendChild(el);
+            });
+
+            // 1. Render All Battles
+            currentWarBattles.forEach(battle => {
+                let markerColor = war.legend.draw ? war.legend.draw.color : '#6b7280';
+                if (battle.outcome === 'sideA') markerColor = war.legend.sideA.color;
+                if (battle.outcome === 'sideB') markerColor = war.legend.sideB.color;
+
+                const formattedDate = new Date(battle.date.replace(/-/g, '/')).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+
+                const wikiLink = battle.wiki 
+                    ? `<a href="https://en.wikipedia.org/wiki/${battle.wiki}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-[#1d4ed8] hover:underline font-semibold text-xs mt-2">Historical Dispatch & Records &rarr;</a>` 
+                    : '';
+
+                const stateLabel = stateNames[battle.state] || battle.state;
+
+                const popupHtml = `
+                    <div class="p-1 max-w-[280px] sm:max-w-[320px]">
+                        <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded text-white" style="background-color: ${markerColor}">
+                            ${battle.outcome === 'sideA' ? war.legend.sideA.name : (battle.outcome === 'sideB' ? war.legend.sideB.name : 'Inconclusive / Siege')}
+                        </span>
+                        <h3 class="mt-1">${battle.name}</h3>
+                        <p class="font-semibold text-xs text-[#7c3f1d] mb-1.5">${stateLabel} &bull; ${formattedDate}</p>
+                        <p class="text-xs text-gray-800 leading-relaxed font-normal">${battle.description}</p>
+                        ${wikiLink}
+                    </div>
+                `;
+
+                L.circleMarker(battle.location, {
+                    battleId: battle.id,
+                    radius: 7,
+                    fillColor: markerColor,
+                    color: "#21150c",
+                    weight: 1.5,
+                    opacity: 1,
+                    fillOpacity: 0.88
+                }).bindPopup(popupHtml).addTo(battleMarkersLayer);
+            });
+
+            // 2. Render Deployments & Encampments
+            if (war.deployments) {
+                war.deployments.forEach(dep => {
+                    const tentIcon = L.divIcon({
+                        className: 'dep-custom-icon',
+                        html: `<div class="dep-pin w-7 h-7 bg-[#4338ca] text-white text-sm rounded-full border-2 border-[#fdfaf2] flex items-center justify-center shadow-lg" title="${dep.name}">⛺</div>`,
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    });
+
+                    const popupContent = `
+                        <div class="p-1 max-w-[280px]">
+                            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-[#4338ca] text-white">Major Deployment & Headquarters</span>
+                            <h3 class="mt-1 text-[#4338ca]">${dep.name}</h3>
+                            <p class="font-semibold text-xs text-gray-600 mb-1">${dep.type}</p>
+                            <p class="text-xs text-gray-800 leading-relaxed">${dep.desc}</p>
+                        </div>
+                    `;
+
+                    L.marker(dep.location, { icon: tentIcon })
+                        .bindPopup(popupContent)
+                        .addTo(deploymentsLayer);
+                });
+            }
+
+            // 3. Render Strategic Logistics Routes & Hubs
+            if (war.routes) {
+                war.routes.forEach(route => {
+                    const polyline = L.polyline(route.coords, {
+                        color: route.color || '#b45309',
+                        weight: 4,
+                        opacity: 0.85,
+                        dashArray: route.dash || '6, 6'
+                    }).addTo(routesLayer);
+
+                    polyline.bindPopup(`
+                        <div class="p-1 max-w-[280px]">
+                            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-[#b45309] text-white">Essential Logistics Artery</span>
+                            <h3 class="mt-1 text-[#b45309]">${route.name}</h3>
+                            <p class="text-xs text-gray-800 leading-relaxed mt-1">${route.desc}</p>
+                        </div>
+                    `);
+                });
+            }
+
+            // 4. Construct Proportional Timeline
+            if (currentWarBattles.length >= 2) {
+                const firstDate = new Date(currentWarBattles[0].date);
+                const lastDate = new Date(currentWarBattles[currentWarBattles.length - 1].date);
+                const totalDuration = Math.max(lastDate.getTime() - firstDate.getTime(), 1);
+
+                // Place battle icons along proportional line
+                currentWarBattles.forEach((battle, idx) => {
+                    const icon = document.createElement('div');
+                    icon.className = 'battle-icon';
+
+                    let markerColor = war.legend.draw ? war.legend.draw.color : '#6b7280';
+                    if (battle.outcome === 'sideA') markerColor = war.legend.sideA.color;
+                    if (battle.outcome === 'sideB') markerColor = war.legend.sideB.color;
+
+                    icon.style.backgroundColor = markerColor;
+
+                    const timeFromStart = new Date(battle.date).getTime() - firstDate.getTime();
+                    const percent = Math.min(Math.max((timeFromStart / totalDuration) * 96 + 2, 2), 98);
+                    icon.style.left = `${percent}%`;
+
+                    const tip = document.createElement('span');
+                    tip.className = 'tooltip';
+                    tip.innerHTML = `<strong>${battle.name}</strong><br><span class="text-[#fde047] text-[10px]">${battle.date}</span>`;
+                    icon.appendChild(tip);
+
+                    icon.addEventListener('click', () => goToBattle(idx, true));
+                    battleTimelineContainer.appendChild(icon);
+                });
+
+                // Generate smart spaced year labels
+                const startYear = firstDate.getFullYear();
+                const endYear = lastDate.getFullYear();
+                const yearSpan = endYear - startYear;
+                const interval = yearSpan > 10 ? Math.ceil(yearSpan / 10) : 1;
+
+                let lastPlaced = -9999;
+                for (let year = startYear; year <= endYear; year++) {
+                    if ((year - startYear) % interval === 0) {
+                        const targetTime = new Date(`${year}-01-01`).getTime() - firstDate.getTime();
+                        let percent = (targetTime / totalDuration) * 96 + 2;
+                        percent = Math.min(Math.max(percent, 2), 98);
+
+                        const marker = document.createElement('div');
+                        marker.className = 'year-marker';
+                        marker.style.left = `${percent}%`;
+                        marker.innerHTML = `<span class="year-marker-label">${year}</span>`;
+                        battleTimelineContainer.appendChild(marker);
+                        lastPlaced = year;
+                    }
+                }
+
+                if (lastPlaced < endYear) {
+                    const marker = document.createElement('div');
+                    marker.className = 'year-marker';
+                    marker.style.left = `98%`;
+                    marker.innerHTML = `<span class="year-marker-label">${endYear}</span>`;
+                    battleTimelineContainer.appendChild(marker);
+                }
+            }
+
+            // Reset control states
+            btnText.textContent = "Start Campaign";
+            conflictStatus.innerHTML = `Loaded <strong>${war.name}</strong> (${war.period}) &mdash; ${currentWarBattles.length} engagements plotted.`;
+        }
+
+        timelineControlBtn.addEventListener('click', handleTimelineControl);
+
+        resetViewBtn.addEventListener('click', () => {
+            const war = allWarsData[currentWarKey];
+            if (war) {
+                map.flyTo(war.mapConfig.center, war.mapConfig.zoom, { animate: true, duration: 0.8 });
+            }
+        });
+
+        // Layer toggles
+        toggleBattles.addEventListener('change', (e) => {
+            if (e.target.checked) map.addLayer(battleMarkersLayer);
+            else map.removeLayer(battleMarkersLayer);
+        });
+
+        toggleDeployments.addEventListener('change', (e) => {
+            if (e.target.checked) map.addLayer(deploymentsLayer);
+            else map.removeLayer(deploymentsLayer);
+        });
+
+        toggleRoutes.addEventListener('change', (e) => {
+            if (e.target.checked) map.addLayer(routesLayer);
+            else map.removeLayer(routesLayer);
+        });
+
+        // Initialize application
+        window.addEventListener('load', () => {
+            populateTabs();
+            loadWar('american-revolution');
+        });
+    </script>
+</body>
+</html>

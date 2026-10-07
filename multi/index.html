@@ -1,0 +1,1795 @@
+<!DOCTYPE html>
+<!--
+  multi/index.html — "Multi": a truly 3D parallel-coordinates chart (WebGPU)
+
+  Intuition made literal: in a parallel-coordinates chart every vertical
+  axis is secretly a histogram of that coordinate. Here each polyline is
+  given, at every axis, a depth offset equal to its rank within that
+  axis's value bin. Viewed face-on it is a classic 2D parallel-coordinates
+  chart; rotate it (or raise the "unfold" slider) and every axis fans out
+  into a real 3D histogram you can orbit and inspect, while brushing and
+  axis reordering keep working.
+
+  Rendering: every segment is an instanced screen-facing ribbon whose
+  coverage is computed analytically per pixel (capsule SDF in pixel space,
+  derivative-free in px units) — crisp at any zoom and viewing angle, with
+  round caps/joins for free. Surface detail is rendered, not sampled:
+  fake-tube shading, procedural stripe/flow patterns whose frequency or
+  speed encode a chosen data column, and polynomial viridis coloring.
+  Axis labels are true 3D text via the Slug algorithm (same machinery as
+  ../slug.html; Lengyel JCGT 2017, patent dedicated to the public domain
+  2026-03-17).
+
+  Font: DejaVu Sans Latin-1 subset, embedded (Bitstream Vera license —
+  see LICENSE_DEJAVU). Code: Apache-2.0.
+
+  Local test:  cd ~/sites && python3 -m http.server 8741
+               open http://localhost:8741/multi/
+  Hosted:      https://pieper.github.io/sites/multi/
+  Self test:   ?test=1   (SLUG-style pixel-count check in title/#testout)
+  URL params:  n, depth (0..1), az, el, dist, blend=density, pat=0|1|2, w
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Multi 3D Parallel Coordinates</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #14161a; color: #cfd3da;
+    font: 13px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
+  #gpu { position: fixed; inset: 0; width: 100%; height: 100%; display: block;
+    touch-action: none; cursor: grab; }
+  #gpu.dragging { cursor: grabbing; }
+  #menubtn { position: fixed; top: calc(8px + env(safe-area-inset-top));
+    left: calc(8px + env(safe-area-inset-left)); z-index: 3; width: 36px; height: 36px;
+    border-radius: 8px; background: rgba(18,20,24,.88); color: #cfd3da;
+    border: 1px solid #2c313a; font-size: 17px; cursor: pointer;
+    -webkit-user-select: none; user-select: none; }
+  #hud { position: fixed; top: calc(50px + env(safe-area-inset-top));
+    left: calc(8px + env(safe-area-inset-left)); background: rgba(18,20,24,.92);
+    border: 1px solid #2c313a; border-radius: 8px; padding: 10px 12px;
+    max-width: min(330px, 88vw); max-height: calc(100vh - 120px); overflow-y: auto;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  body.hudhide #hud { display: none; }
+  #hud h1 { font-size: 14px; margin: 0 0 2px; color: #e8eaf0; font-weight: 600; }
+  #hud .sub { color: #8a93a3; font-size: 11.5px; margin-bottom: 8px; }
+  #hud .row { margin: 6px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  #hud button, #hud select { background: #232833; color: #cfd3da; border: 1px solid #343b48;
+    border-radius: 5px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
+  #hud button:hover { background: #2b3140; }
+  #hud button.on { background: #2f5fb3; border-color: #3b74d6; color: #fff; }
+  #hud label { display: inline-flex; gap: 5px; align-items: center; font-size: 12px;
+    color: #aab2c0; cursor: pointer; }
+  #hud input[type=range] { width: 110px; accent-color: #3b74d6; }
+  #stats { font-size: 11px; color: #78839a; white-space: pre; margin-top: 6px; }
+  #hint { font-size: 11px; color: #5d6678; margin-top: 4px; max-width: 300px; }
+  #err { position: fixed; inset: 0; display: none; place-items: center; text-align: center;
+    background: #14161a; z-index: 10; padding: 2em; }
+  #err .box { max-width: 34em; color: #d8b36a; }
+  #testout { position: fixed; bottom: 6px; left: 10px; font-size: 11px; color: #4d5665; }
+  #attrib { font-size: 10.5px; color: #6b7487; margin-top: 5px; display: none; }
+  #attrib a { color: #7fae7f; }
+  #tip { position: fixed; display: none; z-index: 5; pointer-events: none;
+    background: #1b1e24; border: 1px solid #39404e; border-radius: 7px;
+    padding: 8px; max-width: min(330px, 88vw);
+    box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+  #tip img { width: 100%; max-width: 310px; height: auto; display: block;
+    border-radius: 4px; background: #0c0d10; min-height: 40px; }
+  #tip .cap { font-size: 12px; color: #dfe3ea; margin-bottom: 5px; }
+  #tip .sub2 { font-size: 11px; color: #8a93a3; margin-top: 4px; }
+  #tip a { pointer-events: auto; color: #6fa8ff; font-size: 12px;
+    display: inline-block; margin-top: 5px; padding: 4px 2px; }
+  @media (max-width: 700px) {
+    #hud { font-size: 12px; padding: 8px 10px; }
+    #hud h1 { font-size: 13px; }
+    #hud .sub, #hint { display: none; }
+    #hud input[type=range] { width: 84px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gpu"></canvas>
+<button id="menubtn" title="toggle controls">&#9776;</button>
+<div id="hud">
+  <h1>Multi — 3D parallel coordinates</h1>
+  <div class="sub">Each axis is a histogram: unfold the depth and orbit to see it.
+    Analytic per-pixel line coverage; Slug 3D labels.</div>
+  <div class="row">
+    <label>data <select id="dsel">
+      <option value="synthetic">synthetic clinical</option>
+      <option value="lnq">LNQ2023 (TCIA/IDC)</option>
+    </select></label>
+  </div>
+  <div class="row">
+    <label>lines <select id="nsel">
+      <option value="1000">1 k</option>
+      <option value="10000">10 k</option>
+      <option value="50000" selected>50 k</option>
+      <option value="200000">200 k</option>
+      <option value="500000">500 k</option>
+      <option value="1000000">1 M</option>
+      <option value="2000000">2 M</option>
+    </select></label>
+    <label>width <input type="range" id="wid" min="0.6" max="5" step="0.2" value="1.6"></label>
+  </div>
+  <div class="row">
+    <label>unfold <input type="range" id="depth" min="0" max="1" step="0.01" value="0.35"></label>
+    <button id="unfold">animate</button>
+    <label><input type="checkbox" id="spin"> spin</label>
+  </div>
+  <div class="row">
+    <label>color <select id="colsel"><option value="-1">cluster</option></select></label>
+    <label>blend <select id="blend">
+      <option value="opaque">opaque</option>
+      <option value="density">density</option>
+    </select></label>
+  </div>
+  <div class="row">
+    <label>pattern <select id="pat">
+      <option value="0">solid</option>
+      <option value="1">stripes</option>
+      <option value="2">flow</option>
+    </select></label>
+    <label>by <select id="patsel"></select></label>
+    <button id="clearbrush">clear brushes</button>
+  </div>
+  <div id="stats"></div>
+  <div id="hint">drag an axis rod: brush &middot; drag an axis name: reorder &middot;
+    drag background: orbit &middot; wheel/pinch: zoom &middot;
+    shift-drag / two-finger drag: pan &middot; dbl-click/tap: reset &middot;
+    tap a line: preview</div>
+  <div id="attrib">LNQ2023 mediastinal lymph node data:
+    <a href="https://www.cancerimagingarchive.net/collection/mediastinal-lymph-node-seg/"
+       target="_blank" rel="noopener">TCIA collection</a> &middot;
+    <a href="https://www.melba-journal.org/issues/lnq2023.html"
+       target="_blank" rel="noopener">MELBA issue</a> &middot;
+    hover or tap a line for a preview and the IDC viewer link</div>
+</div>
+<div id="err"><div class="box" id="errmsg"></div></div>
+<div id="testout"></div>
+<div id="tip"><div class="cap" id="tipcap"></div><img id="tipimg" alt="">
+  <div class="sub2" id="tipsub"></div>
+  <a id="tiplink" target="_blank" rel="noopener">Open in IDC viewer &#8599;</a></div>
+
+<script>
+'use strict';
+
+addEventListener('error', e => {
+  const m = 'JSERR: ' + e.message + ' @' + (e.lineno || '?');
+  document.getElementById('testout').textContent = m; document.title = m;
+});
+addEventListener('unhandledrejection', e => {
+  const m = 'REJECT: ' + (e.reason && e.reason.message || e.reason);
+  document.getElementById('testout').textContent = m; document.title = m;
+});
+
+/* ============================ embedded font ============================ */
+const FONT_B64 = "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AuMAZAKLANsCsgAABRcAhwUXAOEFFwCWBRcAnAUXAGQFFwCeBRcAjwUXAKgFFwCLBRcAgQKyAPACsgCeBrQA2Qa0ANkGtADZBD8AkwgAAIcFeQAQBX0AyQWWAHMGKQDJBQ4AyQSaAMkGMwBzBgQAyQJcAMkCXP+WBT8AyQR1AMkG5wDJBfwAyQZMAHME0wDJBkwAcwWPAMkFFACHBOP/+gXbALIFeQAQB+kARAV7AD0E4//8BXsAXAMfALACsgAAAx8Axwa0ANkEAP/sBAAAqgTnAHsFFAC6BGYAcQUUAHEE7ABxAtEALwUUAHEFEgC6AjkAwQI5/9sEogC6AjkAwQfLALoFEgC6BOUAcQUUALoFFABxA0oAugQrAG8DIwA3BRIArgS8AD0GiwBWBLwAOwS8AD0EMwBYBRcBAAKyAQQFFwEABrQA2QKLAAADNQE1BRcArAUXAIEFFwBeBRcAUgKyAQQEAABcBAAA1wgAARsDxQBzBOUAnga0ANkC4wBkCAABGwQAANUEAADDBrQA2QM1AF4DNQBiBAABcwUXAK4FFwCeAosA2wQAASMDNQCJA8UAYATlAMEHwQCJB8EAiQfBAGIEPwCPBXkAEAV5ABAFeQAQBXkAEAV5ABAFeQAQB8sACAWWAHMFDgDJBQ4AyQUOAMkFDgDJAlwAOwJcAKICXP/+AlwABgYzAAoF/ADJBkwAcwZMAHMGTABzBkwAcwZMAHMGtAEZBkwAZgXbALIF2wCyBdsAsgXbALIE4//8BNcAyQUKALoE5wB7BOcAewTnAHsE5wB7BOcAewTnAHsH2wB7BGYAcQTsAHEE7ABxBOwAcQTsAHECOf/HAjkAkAI5/94COf/0BOUAcQUSALoE5QBxBOUAcQTlAHEE5QBxBOUAcQa0ANkE5QBIBRIArgUSAK4FEgCuBRIArgS8AD0FFAC6BLwAPQI5AMEEAADBBAAA7gQAALYEAABkCAAAZAKLAK4CiwCyBCUArgQlAK4EuAEzCAAA7AFW/okDNQA/BAAAsAQAALAEAACwBAAAsAQAAo0EAACwBAAAsAQAALAEAACwBAAAsAQAAo0EAACwBgACowYAAKgGAAKjBgACowYAAKgGAAKjBgAAqAAA/Nf9c/y2/Qz8zwABAAAHbf4dAAAO/vfW+lEOWQABAAAAAAAAAAAAAAAAAAAA4gABBA4BkAAFAAAFMwWZAAABHgUzBZkAAAPXAGYCEgAAAgsGAwMIBAICBIAAAAMAAAAAAAAAAAAAAABQZkVkAEAAICAmBhT+FAGaB20B4wAAAAEAAAAAAAAAAAADAAAAAwAAABwAAAAKAAAAbAADAAEAAAAcAAQAUAAAABAAEAADAAAAfgD/IBQgGSAdICIgJv//AAAAIACgIBMgGCAcICIgJv///+H/wOCx4K7grOCo4KUAAQAAAAAAAAAAAAAAAAAAAAAADAAAAAAAZAAAAAAAAAAHAAAAIAAAAH4AAAABAAAAoAAAAP8AAABgAAAgEwAAIBQAAADEAAAgGAAAIBkAAADGAAAgHAAAIB0AAADIAAAgIgAAICIAAADKAAAgJgAAICYAAADLAAAABwBaAAMAAQQJAAABMAAAAAMAAQQJAAEAFgEwAAMAAQQJAAIACAFGAAMAAQQJAAMAFgEwAAMAAQQJAAQAFgEwAAMAAQQJAAUAGAFOAAMAAQQJAAYAFAFmAEMAbwBwAHkAcgBpAGcAaAB0ACAAKABjACkAIAAyADAAMAAzACAAYgB5ACAAQgBpAHQAcwB0AHIAZQBhAG0ALAAgAEkAbgBjAC4AIABBAGwAbAAgAFIAaQBnAGgAdABzACAAUgBlAHMAZQByAHYAZQBkAC4ACgBDAG8AcAB5AHIAaQBnAGgAdAAgACgAYwApACAAMgAwADAANgAgAGIAeQAgAFQAYQB2AG0AagBvAG4AZwAgAEIAYQBoAC4AIABBAGwAbAAgAFIAaQBnAGgAdABzACAAUgBlAHMAZQByAHYAZQBkAC4ACgBEAGUAagBhAFYAdQAgAGMAaABhAG4AZwBlAHMAIABhAHIAZQAgAGkAbgAgAHAAdQBiAGwAaQBjACAAZABvAG0AYQBpAG4ACgBEAGUAagBhAFYAdQAgAFMAYQBuAHMAQgBvAG8AawBWAGUAcgBzAGkAbwBuACAAMgAuADMANQBEAGUAagBhAFYAdQBTAGEAbgBzAAMAAAAAAAD/fgBaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAgAAv//AAMAAQAAAAoA4ADoAFAAPAwAB90AAAAAAoIAAARgAAAF1QAAAAAAAARgAAAAAAAAAAAAAAAAAAAEYAAAAAAAAAFoAAAEYAAAAFUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ4AAAJ2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABaAAABDgAAAFoAAABaAAABDgAAAAAAAAAAAAABDgAAAFoAAABaAAABDgAAAFoAAABaAAAAWgAAAXIAAABaAAAAWgAAAjgAAPuPAAAAPAAAAAAAAAAAACgAHgAwAAcAAwA6AGIAigCyANoBFgE0AXABjgGsAAEABwAJAAoAPAA+AFwAXQBeAAEAAwAeAEAAbwAEAAAAAAAAAAMA0AAAACgJdQAAAM8AKAAoCY0AAQDOACgAAAmWAAAABAAAAAAAAAADANMAAAAoCXUAAADSACgAKAmNAAEA0QAoAAAJlgAAAAQAAAAAAAAAAwDWAAAAKAl1AAAA1QAoACgJjQABANQAKAAACXEAAAAEAAAAAAAAAAMA2QAAACgJZgAAANgAKAAoCX4AAQDXACgAAAlxAAAABAAAAAAAAAAFANwAAAAoCXIAAADdACgAKAmYAAEA2wAoACgJigAAAN0AKAAoCZgAAQDaACgAAAmDAAAABAAAAAAAAAACAF0AAAAoCAAAAABdACgAAAgAAAEABAAAAAAAAAAFAOAAAAAoCXIAAADdACgAKAmYAAEA3wAoACgJigAAAN0AKAAoCZgAAQDeACgAAAmDAAAABAAAAAAAAAACAB4AAAAoBQIAAAAeACgAAAUCAAEABAAAAAAAAAACAEAAAAAoBCgAAABAACgAAAQoAAEABAAAAAAAAAACAG8AAAAoAlYAAABvACgAAAJWAAEAAA==";
+function b64ToBytes(b64) {
+  const bin = atob(b64), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/* ====================== TTF parser (same as slug.html) ================= */
+function parseTTF(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const u16 = o => dv.getUint16(o), i16 = o => dv.getInt16(o),
+        u32 = o => dv.getUint32(o), u8 = o => dv.getUint8(o);
+  const numTables = u16(4);
+  const tables = {};
+  for (let i = 0; i < numTables; i++) {
+    const o = 12 + i * 16;
+    const tag = String.fromCharCode(u8(o), u8(o+1), u8(o+2), u8(o+3));
+    tables[tag] = { off: u32(o + 8), len: u32(o + 12) };
+  }
+  for (const t of ['head','maxp','cmap','hhea','hmtx','loca','glyf'])
+    if (!tables[t]) throw new Error('font missing ' + t);
+  const head = tables.head.off;
+  const upem = u16(head + 18), locFmt = i16(head + 50);
+  const numGlyphs = u16(tables.maxp.off + 4);
+  const hhea = tables.hhea.off;
+  const ascent = i16(hhea + 4) / upem, descent = i16(hhea + 6) / upem;
+  const numHMetrics = u16(hhea + 34);
+  const hmtx = tables.hmtx.off;
+  const advances = new Float32Array(numGlyphs);
+  let lastAdv = 0;
+  for (let g = 0; g < numGlyphs; g++) {
+    if (g < numHMetrics) lastAdv = u16(hmtx + g * 4);
+    advances[g] = lastAdv / upem;
+  }
+  const cmap = tables.cmap.off;
+  let sub = -1, subScore = -1;
+  for (let i = 0, n = u16(cmap + 2); i < n; i++) {
+    const pid = u16(cmap + 4 + i*8), eid = u16(cmap + 6 + i*8), off = u32(cmap + 8 + i*8);
+    const score = (pid === 3 && eid === 10) ? 4 : (pid === 3 && eid === 1) ? 3 :
+                  (pid === 0) ? 2 : 1;
+    if (score > subScore) { subScore = score; sub = cmap + off; }
+  }
+  const cmapFmt = u16(sub);
+  function charToGlyph(code) {
+    if (cmapFmt === 4) {
+      const segX2 = u16(sub + 6);
+      const ends = sub + 14, starts = ends + segX2 + 2, deltas = starts + segX2,
+            ranges = deltas + segX2;
+      for (let s = 0; s < segX2; s += 2) {
+        if (code <= u16(ends + s)) {
+          const start = u16(starts + s);
+          if (code < start) return 0;
+          const ro = u16(ranges + s);
+          if (ro === 0) return (code + i16(deltas + s)) & 0xffff;
+          const gi = u16(ranges + s + ro + (code - start) * 2);
+          return gi === 0 ? 0 : (gi + i16(deltas + s)) & 0xffff;
+        }
+      }
+      return 0;
+    } else if (cmapFmt === 12) {
+      const n = u32(sub + 12);
+      for (let i = 0; i < n; i++) {
+        const o = sub + 16 + i * 12, s = u32(o), e = u32(o + 4);
+        if (code >= s && code <= e) return u32(o + 8) + (code - s);
+      }
+      return 0;
+    }
+    throw new Error('unsupported cmap ' + cmapFmt);
+  }
+  const loca = tables.loca.off, glyf = tables.glyf.off;
+  const glyphOff = g => locFmt ? u32(loca + g*4) : u16(loca + g*2) * 2;
+  function glyphPoints(g, depth) {
+    const o0 = glyphOff(g), o1 = glyphOff(g + 1);
+    if (o1 <= o0) return [];
+    let o = glyf + o0;
+    const nc = i16(o);
+    if (nc >= 0) {
+      const ends = [];
+      for (let i = 0; i < nc; i++) ends.push(u16(o + 10 + i*2));
+      const nPts = ends.length ? ends[ends.length-1] + 1 : 0;
+      let p = o + 10 + nc*2;
+      p += 2 + u16(p);
+      const flags = new Uint8Array(nPts);
+      for (let i = 0; i < nPts; ) {
+        const f = u8(p++); flags[i++] = f;
+        if (f & 8) { let r = u8(p++); while (r-- > 0 && i < nPts) flags[i++] = f; }
+      }
+      const xs = new Int16Array(nPts), ys = new Int16Array(nPts);
+      let v = 0;
+      for (let i = 0; i < nPts; i++) {
+        const f = flags[i];
+        if (f & 2) { const d = u8(p++); v += (f & 16) ? d : -d; }
+        else if (!(f & 16)) { v += i16(p); p += 2; }
+        xs[i] = v;
+      }
+      v = 0;
+      for (let i = 0; i < nPts; i++) {
+        const f = flags[i];
+        if (f & 4) { const d = u8(p++); v += (f & 32) ? d : -d; }
+        else if (!(f & 32)) { v += i16(p); p += 2; }
+        ys[i] = v;
+      }
+      const contours = [];
+      let s = 0;
+      for (const e of ends) {
+        const c = [];
+        for (let i = s; i <= e; i++) c.push({ x: xs[i], y: ys[i], on: !!(flags[i] & 1) });
+        if (c.length >= 2) contours.push(c);
+        s = e + 1;
+      }
+      return contours;
+    }
+    if (depth > 4) return [];
+    let p = o + 10;
+    const contours = [];
+    while (true) {
+      const flags = u16(p), gi = u16(p + 2); p += 4;
+      let dx = 0, dy = 0;
+      if (flags & 1) { dx = i16(p); dy = i16(p + 2); p += 4; }
+      else { dx = (u8(p) << 24 >> 24); dy = (u8(p+1) << 24 >> 24); p += 2; }
+      let a = 1, b = 0, c = 0, d = 1;
+      const f2 = x => x / 16384;
+      if (flags & 8) { a = d = f2(i16(p)); p += 2; }
+      else if (flags & 64) { a = f2(i16(p)); d = f2(i16(p + 2)); p += 4; }
+      else if (flags & 128) { a = f2(i16(p)); b = f2(i16(p+2)); c = f2(i16(p+4)); d = f2(i16(p+6)); p += 8; }
+      if (flags & 2) {
+        for (const cont of glyphPoints(gi, depth + 1))
+          contours.push(cont.map(pt => ({
+            x: a*pt.x + c*pt.y + dx, y: b*pt.x + d*pt.y + dy, on: pt.on })));
+      }
+      if (!(flags & 32)) break;
+    }
+    return contours;
+  }
+  function contourToQuads(cont) {
+    let start = cont.findIndex(p => p.on);
+    let pts;
+    if (start < 0) {
+      const mid = { x: (cont[0].x + cont[cont.length-1].x) / 2,
+                    y: (cont[0].y + cont[cont.length-1].y) / 2, on: true };
+      pts = [mid, ...cont];
+    } else pts = cont.slice(start).concat(cont.slice(0, start));
+    pts.push(pts[0]);
+    const quads = [];
+    const s = 1 / upem;
+    const emit = (p0, p1, p2) =>
+      quads.push([p0.x*s, p0.y*s, p1.x*s, p1.y*s, p2.x*s, p2.y*s]);
+    let cur = pts[0];
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i];
+      if (p.on) {
+        if (p.x !== cur.x || p.y !== cur.y)
+          emit(cur, { x: (cur.x+p.x)/2, y: (cur.y+p.y)/2 }, p);
+        cur = p;
+      } else {
+        let nxt = pts[i + 1] ?? pts[0];
+        if (!nxt.on) nxt = { x: (p.x + nxt.x)/2, y: (p.y + nxt.y)/2, on: true };
+        else i++;
+        emit(cur, p, nxt);
+        cur = nxt;
+      }
+    }
+    return quads;
+  }
+  const cache = new Map();
+  function glyphQuads(g) {
+    if (cache.has(g)) return cache.get(g);
+    const qs = [];
+    for (const cont of glyphPoints(g, 0)) qs.push(...contourToQuads(cont));
+    cache.set(g, qs);
+    return qs;
+  }
+  return { upem, numGlyphs, ascent, descent, advances, charToGlyph, glyphQuads };
+}
+
+/* ================== Slug band/curve builder (same as slug.html) ======== */
+const NBANDS = 8;
+function buildSlugData(font, usedGlyphIds) {
+  const curves = [], indices = [], bands = [], glyphMeta = [];
+  const gpuIndex = new Map();
+  for (const gid of usedGlyphIds) {
+    const qs = font.glyphQuads(gid);
+    if (!qs.length) continue;
+    const base = curves.length / 6;
+    let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+    const cinfo = [];
+    for (const q of qs) {
+      curves.push(...q);
+      const xs = [q[0], q[2], q[4]], ys = [q[1], q[3], q[5]];
+      const c = { i: base + cinfo.length,
+        minx: Math.min(...xs), maxx: Math.max(...xs),
+        miny: Math.min(...ys), maxy: Math.max(...ys) };
+      cinfo.push(c);
+      minx = Math.min(minx, c.minx); maxx = Math.max(maxx, c.maxx);
+      miny = Math.min(miny, c.miny); maxy = Math.max(maxy, c.maxy);
+    }
+    const bandStart = bands.length / 2;
+    for (let b = 0; b < NBANDS; b++) {
+      const lo = miny + (maxy - miny) * b / NBANDS,
+            hi = miny + (maxy - miny) * (b + 1) / NBANDS;
+      const list = cinfo.filter(c => c.maxy >= lo && c.miny <= hi)
+                        .sort((p, q) => q.maxx - p.maxx);
+      bands.push(indices.length, list.length);
+      for (const c of list) indices.push(c.i);
+    }
+    for (let b = 0; b < NBANDS; b++) {
+      const lo = minx + (maxx - minx) * b / NBANDS,
+            hi = minx + (maxx - minx) * (b + 1) / NBANDS;
+      const list = cinfo.filter(c => c.maxx >= lo && c.minx <= hi)
+                        .sort((p, q) => q.maxy - p.maxy);
+      bands.push(indices.length, list.length);
+      for (const c of list) indices.push(c.i);
+    }
+    gpuIndex.set(gid, glyphMeta.length / 8);
+    glyphMeta.push(minx, miny, maxx, maxy, bandStart, 0, 0, 0);
+  }
+  return {
+    curves: new Float32Array(curves),
+    indices: new Uint32Array(indices.length ? indices : [0]),
+    bands: new Uint32Array(bands.length ? bands : [0, 0]),
+    glyphMeta, gpuIndex,
+  };
+}
+function windingSignFor(font) {
+  for (const ch of 'IlHE#') {
+    const gid = font.charToGlyph(ch.codePointAt(0));
+    const qs = font.glyphQuads(gid);
+    if (!qs.length) continue;
+    let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+    for (const q of qs) {
+      minx = Math.min(minx, q[0], q[2], q[4]); maxx = Math.max(maxx, q[0], q[2], q[4]);
+      miny = Math.min(miny, q[1], q[3], q[5]); maxy = Math.max(maxy, q[1], q[3], q[5]);
+    }
+    const px = (minx + maxx) / 2, py = (miny + maxy) / 2;
+    let w = 0;
+    for (const q of qs) {
+      const y0 = q[1]-py, y1 = q[3]-py, y2 = q[5]-py;
+      const x0 = q[0]-px, x1 = q[2]-px, x2 = q[4]-px;
+      const code = (0x2E74 >> ((y0>0?2:0)+(y1>0?4:0)+(y2>0?8:0))) & 3;
+      if (!code) continue;
+      const ay = y0 - 2*y1 + y2, by = y0 - y1, cy = y0;
+      const ax = x0 - 2*x1 + x2, bx = x0 - x1, cx = x0;
+      let t1, t2;
+      if (Math.abs(ay) > 1e-7) {
+        const d = Math.sqrt(Math.max(by*by - ay*cy, 0));
+        t1 = (by - d) / ay; t2 = (by + d) / ay;
+      } else { t1 = t2 = cy / (2 * by); }
+      if (code & 1) { const x = (ax*t1 - 2*bx)*t1 + cx; if (x > 0) w += 1; }
+      if (code & 2) { const x = (ax*t2 - 2*bx)*t2 + cx; if (x > 0) w -= 1; }
+    }
+    if (w !== 0) return Math.sign(w);
+  }
+  return 1;
+}
+
+/* ============================ mat4 helpers ============================ */
+function mat4Mul(a, b) {
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++)
+    for (let r = 0; r < 4; r++)
+      o[c*4+r] = a[r]*b[c*4] + a[4+r]*b[c*4+1] + a[8+r]*b[c*4+2] + a[12+r]*b[c*4+3];
+  return o;
+}
+function mat4Persp(fovy, aspect, near, far) {
+  const f = 1 / Math.tan(fovy / 2), o = new Float32Array(16);
+  o[0] = f / aspect; o[5] = f;
+  o[10] = far / (near - far); o[11] = -1;
+  o[14] = near * far / (near - far);
+  return o;
+}
+function mat4LookAt(eye, at, up) {
+  const sub = (a,b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+  const norm = v => { const l = Math.hypot(...v); return [v[0]/l, v[1]/l, v[2]/l]; };
+  const cross = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  const dot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const z = norm(sub(eye, at)), x = norm(cross(up, z)), y = cross(z, x);
+  return new Float32Array([
+    x[0], y[0], z[0], 0,  x[1], y[1], z[1], 0,  x[2], y[2], z[2], 0,
+    -dot(x, eye), -dot(y, eye), -dot(z, eye), 1 ]);
+}
+
+/* ============================ synthetic data ============================
+   Three clinical-phenotype clusters with plausible correlations, so the
+   per-axis histograms have visible structure (bimodality, skew, shifts). */
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const SYNTH_COLS = ['Age', 'BMI', 'SysBP', 'Glucose', 'HbA1c', 'eGFR', 'CRP'];
+let COLS = SYNTH_COLS.slice();
+let D = COLS.length;
+
+function generateData(N) {
+  const rnd = mulberry32(0xC0FFEE ^ N);
+  let spare = null;
+  const gauss = () => {
+    if (spare !== null) { const v = spare; spare = null; return v; }
+    const u = Math.max(rnd(), 1e-9), v = rnd();
+    const r = Math.sqrt(-2 * Math.log(u)), th = 2 * Math.PI * v;
+    spare = r * Math.sin(th);
+    return r * Math.cos(th);
+  };
+  const raw = new Float32Array(N * D);
+  const cluster = new Uint32Array(N);
+  // per-cluster [mean, sd] for Age BMI SysBP Glucose eGFR CRP(log)
+  const M = [
+    { p: 0.5, age: [46,12], bmi: [24,2.8], bp: [117,9],  glu: [92,8],   egfr: [96,10], crp: [0.1,0.5] },
+    { p: 0.3, age: [58,9],  bmi: [32,4],   bp: [138,12], glu: [148,28], egfr: [82,12], crp: [0.9,0.5] },
+    { p: 0.2, age: [69,8],  bmi: [27,3.4], bp: [146,14], glu: [108,14], egfr: [44,12], crp: [1.4,0.6] },
+  ];
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  for (let i = 0; i < N; i++) {
+    const r = rnd();
+    const k = r < M[0].p ? 0 : r < M[0].p + M[1].p ? 1 : 2;
+    const m = M[k];
+    cluster[i] = k;
+    const age = clamp(m.age[0] + gauss()*m.age[1], 18, 92);
+    const bmi = clamp(m.bmi[0] + gauss()*m.bmi[1], 16, 48);
+    const bp  = clamp(m.bp[0] + gauss()*m.bp[1] + (bmi-26)*0.8, 90, 200);
+    const glu = clamp(m.glu[0] + gauss()*m.glu[1] + (bmi-26)*1.2, 65, 300);
+    const a1c = clamp(5.1 + (glu-95)*0.013 + gauss()*0.35, 4.2, 12);
+    const egfr = clamp(m.egfr[0] + gauss()*m.egfr[1] - (age-50)*0.35, 8, 130);
+    const crp = clamp(Math.exp(m.crp[0] + gauss()*m.crp[1]), 0.05, 25);
+    const row = [age, bmi, bp, glu, a1c, egfr, crp];
+    for (let c = 0; c < D; c++) raw[i*D + c] = row[c];
+  }
+  // normalize per column, keep ranges for labels
+  const meta = [];
+  const norm = new Float32Array(N * D);
+  for (let c = 0; c < D; c++) {
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < N; i++) {
+      const v = raw[i*D + c];
+      if (v < lo) lo = v; if (v > hi) hi = v;
+    }
+    const s = 1 / Math.max(hi - lo, 1e-9);
+    for (let i = 0; i < N; i++) norm[i*D + c] = (raw[i*D + c] - lo) * s;
+    meta.push({ name: COLS[c], lo, hi });
+  }
+  return { norm, cluster, meta, N };
+}
+
+/* ------------------------- datasets ------------------------- */
+
+const fmtNum = v => Math.abs(v) >= 100 ? v.toFixed(0) :
+                    Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+
+function makeSynthetic(N) {
+  const g = generateData(N);
+  return {
+    name: 'synthetic', N, norm: g.norm, group: g.cluster, records: null,
+    groupLabel: 'cluster',
+    cols: g.meta.map(m => ({ name: m.name, loLab: fmtNum(m.lo), hiLab: fmtNum(m.hi) })),
+  };
+}
+
+/* LNQ2023 mediastinal lymph node dataset (TCIA / IDC). Vendored as
+   lnq-data.json from https://storage.googleapis.com/sdp-lnq-site/site/
+   (the bucket does not send CORS headers, so a runtime cross-origin fetch
+   is blocked; thumbnails hotlink fine as <img>). */
+const LNQ_BASE = 'https://storage.googleapis.com/sdp-lnq-site/site';
+function makeLnq(recs) {
+  const N = recs.length;
+  const catCol = (name, key) => {
+    const cats = [...new Set(recs.map(r => r[key]))].sort();
+    const idx = new Map(cats.map((c, i) => [c, i]));
+    return { name, cats, idx,
+      get: r => cats.length > 1 ? idx.get(r[key]) / (cats.length - 1) : 0.5,
+      loLab: trunc(String(cats[0]), 10), hiLab: trunc(String(cats[cats.length - 1]), 10) };
+  };
+  const numCol = (name, key) => {
+    let lo = Infinity, hi = -Infinity;
+    for (const r of recs) { const v = r[key]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    return { name, get: r => (r[key] - lo) / Math.max(hi - lo, 1e-9),
+      loLab: fmtNum(lo), hiLab: fmtNum(hi) };
+  };
+  const caseNum = r => parseInt(r.case.replace(/\D/g, ''), 10) || 0;
+  let cLo = Infinity, cHi = -Infinity;
+  for (const r of recs) { const v = caseNum(r); if (v < cLo) cLo = v; if (v > cHi) cHi = v; }
+  const cols = [
+    { name: 'case', get: r => (caseNum(r) - cLo) / Math.max(cHi - cLo, 1),
+      loLab: String(cLo), hiLab: String(cHi) },
+    catCol('Sex', 'sex'),
+    catCol('Condition', 'condition'),
+    numCol('Spacing', 'spacing'),
+    numCol('Extent', 'extent'),
+    catCol('Annotation', 'annotation'),
+    numCol('NodeVolCM', 'volume'),
+  ];
+  const Dn = cols.length;
+  const norm = new Float32Array(N * Dn);
+  recs.forEach((r, i) => cols.forEach((c, j) => norm[i*Dn + j] = c.get(r)));
+  const cond = cols[2];
+  const group = new Uint32Array(N);
+  recs.forEach((r, i) => group[i] = cond.idx.get(r.condition));
+  return {
+    name: 'lnq', N, norm, group, groupLabel: 'condition',
+    cols: cols.map(c => ({ name: c.name, loLab: c.loLab, hiLab: c.hiLab })),
+    records: recs.map(r => ({
+      id: r.case,
+      caption: `${r.case} — ${r.condition} (${r.sex})`,
+      sub: `vol ${fmtNum(r.volume)} cm³ · ${r.annotation}`,
+      thumb: `${LNQ_BASE}/images/${r.case}-image.png`,
+      url: `https://viewer.imaging.datacommons.cancer.gov/viewer/${r.study}`,
+    })),
+  };
+}
+
+async function buildDataset(name) {
+  if (name === 'lnq') {
+    state.lnqRecs ??= await (await fetch('lnq-data.json')).json();
+    return makeLnq(state.lnqRecs);
+  }
+  return makeSynthetic(state.synthN);
+}
+
+/* zrank: for each column, rank within a value bin, centered — the 3D
+   histogram offsets. Counting sort per column, O(N) each. */
+const ZBINS = 64;
+function computeZRanks(norm, N) {
+  const zr = new Float32Array(N * D);
+  let maxAbs = 1;
+  const counts = new Uint32Array(ZBINS), offs = new Uint32Array(ZBINS);
+  for (let c = 0; c < D; c++) {
+    counts.fill(0);
+    for (let i = 0; i < N; i++) {
+      const b = Math.min(ZBINS - 1, (norm[i*D + c] * ZBINS) | 0);
+      counts[b]++;
+    }
+    for (let b = 0; b < ZBINS; b++) offs[b] = 0;
+    for (let i = 0; i < N; i++) {
+      const b = Math.min(ZBINS - 1, (norm[i*D + c] * ZBINS) | 0);
+      const r = offs[b]++;
+      const v = r - (counts[b] - 1) / 2;
+      zr[i*D + c] = v;
+      const a = Math.abs(v);
+      if (a > maxAbs) maxAbs = a;
+    }
+  }
+  return { zr, maxAbs };
+}
+
+/* ================================ WGSL ================================ */
+
+const GLOBALS_WGSL = /* wgsl */`
+struct Globals {
+  vp        : mat4x4f,
+  camRight  : vec4f,
+  camUp     : vec4f,
+  viewport  : vec4f,   // w, h, halfWidthPx, time
+  p0        : vec4f,   // depth, zSpacing, patternMode, alpha
+  p1        : vec4f,   // colorMode(-1=group else col), selDim, windingSign, densityOn
+  u0        : vec4u,   // N, D, segs, patternCol
+  u1        : vec4u,   // hoveredLine+1, 0, 0, 0
+};
+@group(0) @binding(0) var<uniform> G : Globals;
+fn viridis(t0 : f32) -> vec3f {
+  let t = clamp(t0, 0.0, 1.0);
+  let c0 = vec3f(0.2777, 0.0054, 0.3340);
+  let c1 = vec3f(0.1050, 1.4046, 1.3845);
+  let c2 = vec3f(-0.3308, 0.2148, 0.0951);
+  let c3 = vec3f(-4.6342, -5.7991, -19.3324);
+  let c4 = vec3f(6.2282, 14.1799, 56.6905);
+  let c5 = vec3f(4.7763, -13.7451, -65.3530);
+  let c6 = vec3f(-5.4354, 4.6458, 26.3124);
+  return clamp(c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6))))), vec3f(0.0), vec3f(1.0));
+}
+const PALETTE = array<vec3f, 12>(
+  vec3f(0.267, 0.467, 0.667), vec3f(0.933, 0.400, 0.467),
+  vec3f(0.133, 0.533, 0.200), vec3f(0.800, 0.733, 0.267),
+  vec3f(0.400, 0.800, 0.933), vec3f(0.667, 0.200, 0.467),
+  vec3f(0.933, 0.533, 0.400), vec3f(0.267, 0.733, 0.600),
+  vec3f(0.600, 0.867, 1.000), vec3f(0.667, 0.667, 0.000),
+  vec3f(1.000, 0.667, 0.867), vec3f(0.733, 0.733, 0.733));
+`;
+
+const LINES_WGSL = GLOBALS_WGSL + /* wgsl */`
+@group(0) @binding(1) var<storage, read> values : array<f32>;   // N*D normalized
+@group(0) @binding(2) var<storage, read> zrank  : array<f32>;   // N*D centered ranks
+@group(0) @binding(3) var<storage, read> axes   : array<vec4f>; // per position: x, col
+@group(0) @binding(4) var<storage, read> clusterBuf : array<u32>;
+@group(0) @binding(5) var<storage, read> selBits : array<u32>;  // 1 bit per line
+
+struct VOut {
+  @builtin(position) pos : vec4f,
+  @location(0) @interpolate(flat) a : vec2f,   // segment endpoints, px
+  @location(1) @interpolate(flat) b : vec2f,
+  @location(2) u : f32,                        // pattern coordinate (pos+t)
+  @location(3) @interpolate(flat) colorV : f32,
+  @location(4) @interpolate(flat) patV : f32,
+  @location(5) @interpolate(flat) cl : u32,
+  @location(6) @interpolate(flat) sel : u32,
+  @location(7) @interpolate(flat) hov : f32,
+};
+
+fn toPx(clip : vec4f) -> vec2f {
+  let ndc = clip.xy / clip.w;
+  return vec2f((ndc.x * 0.5 + 0.5) * G.viewport.x,
+               (0.5 - ndc.y * 0.5) * G.viewport.y);
+}
+
+// plateau easing: z stays near its per-axis histogram rank close to each
+// axis and crosses over quickly mid-span, so side views read as slabs
+fn ez(t : f32) -> f32 {
+  let s = t * t * (3.0 - 2.0 * t);
+  return s * s * (3.0 - 2.0 * s);
+}
+
+@vertex fn vs(@builtin(vertex_index) vi : u32,
+              @builtin(instance_index) ii : u32) -> VOut {
+  let segs = G.u0.z;                 // (D-1) * S subsegments
+  let Dn = G.u0.y;
+  let S = segs / (Dn - 1u);
+  let line = ii / segs;
+  let s = ii % segs;
+  let span = s / S;
+  let sub = s % S;
+  let t0 = f32(sub) / f32(S);
+  let t1 = f32(sub + 1u) / f32(S);
+  let a0 = axes[span];
+  let a1 = axes[span + 1u];
+  let c0 = u32(a0.y);
+  let c1 = u32(a1.y);
+  let v0 = (values[line * Dn + c0] - 0.5) * 2.4;
+  let v1 = (values[line * Dn + c1] - 0.5) * 2.4;
+  let zs = G.p0.x * G.p0.y;
+  let z0 = zrank[line * Dn + c0] * zs;
+  let z1 = zrank[line * Dn + c1] * zs;
+  let w0 = vec3f(mix(a0.x, a1.x, t0), mix(v0, v1, t0), mix(z0, z1, ez(t0)));
+  let w1 = vec3f(mix(a0.x, a1.x, t1), mix(v0, v1, t1), mix(z0, z1, ez(t1)));
+  var clip0 = G.vp * vec4f(w0, 1.0);
+  var clip1 = G.vp * vec4f(w1, 1.0);
+  // clamp behind-camera w to avoid px-space explosions (cheap guard)
+  clip0.w = max(clip0.w, 0.0001);
+  clip1.w = max(clip1.w, 0.0001);
+  let px0 = toPx(clip0);
+  let px1 = toPx(clip1);
+  var dir = px1 - px0;
+  let len = length(dir);
+  if (len < 0.001) { dir = vec2f(1.0, 0.0); } else { dir = dir / len; }
+  let nrm = vec2f(-dir.y, dir.x);
+  let t = f32(vi >> 1u);
+  let side = f32(vi & 1u) * 2.0 - 1.0;
+  let hov = select(0.0, 1.0, line + 1u == G.u1.x);
+  let ext = G.viewport.z * (1.0 + 0.8 * hov) + 1.5;
+  let p = mix(px0, px1, t) + dir * (2.0 * t - 1.0) * ext + nrm * side * ext;
+  let w = mix(clip0.w, clip1.w, t);
+  let z = mix(clip0.z, clip1.z, t);
+  var o : VOut;
+  o.pos = vec4f((p.x / G.viewport.x * 2.0 - 1.0) * w,
+                (1.0 - p.y / G.viewport.y * 2.0) * w, z, w);
+  o.a = px0; o.b = px1;
+  o.u = f32(span) + mix(t0, t1, t);
+  o.hov = hov;
+  o.colorV = values[line * Dn + u32(max(G.p1.x, 0.0))];
+  o.patV = values[line * Dn + G.u0.w];
+  o.cl = clusterBuf[line];
+  o.sel = (selBits[line >> 5u] >> (line & 31u)) & 1u;
+  return o;
+}
+
+@fragment fn fs(in : VOut) -> @location(0) vec4f {
+  let hw = G.viewport.z * (1.0 + 0.8 * in.hov);
+  let pa = in.pos.xy - in.a;
+  let ba = in.b - in.a;
+  let h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+  let d = length(pa - ba * h);
+  let cov = clamp(hw + 0.5 - d, 0.0, 1.0);
+  if (cov <= 0.003) { discard; }
+  // fake-tube shading: lateral position -> cylinder normal z
+  let q = min(d / max(hw, 0.3), 1.0);
+  var light = 0.52 + 0.48 * sqrt(1.0 - q * q);
+  // procedural pattern (rendered, not sampled)
+  let mode = G.p0.z;
+  var m = 1.0;
+  if (mode > 0.5 && mode < 1.5) {          // stripes: frequency encodes patV
+    let freq = 3.0 + in.patV * 21.0;
+    m = 0.70 + 0.30 * sin(6.2832 * in.u * freq);
+  } else if (mode >= 1.5) {                // flow: speed encodes patV
+    let speed = 0.25 + in.patV * 2.75;
+    m = 0.62 + 0.38 * sin(6.2832 * (in.u * 3.0 - G.viewport.w * speed));
+  }
+  var col : vec3f;
+  if (G.p1.x < -0.5) { col = PALETTE[in.cl % 12u]; }
+  else { col = viridis(in.colorV); }
+  col = col * light * m;
+  var alpha = G.p0.w;
+  if (in.sel == 0u) {
+    col = mix(col, vec3f(0.30, 0.32, 0.36), 0.75);
+    alpha = alpha * G.p1.y;
+  }
+  if (in.hov > 0.5) {
+    col = mix(col, vec3f(1.0), 0.35);
+    alpha = max(alpha, 0.95);
+  }
+  if (G.p1.w > 0.5) {
+    return vec4f(col * cov * alpha, cov * alpha);   // additive density
+  }
+  return vec4f(col, cov * alpha);                    // blended opaque
+}
+`;
+
+/* aux lines: axis rods, brush overlays — explicit endpoints */
+const AUX_WGSL = GLOBALS_WGSL + /* wgsl */`
+struct Aux { a : vec4f, b : vec4f, color : vec4f };  // a.w = halfWidthPx
+@group(0) @binding(1) var<storage, read> aux : array<Aux>;
+struct VOut {
+  @builtin(position) pos : vec4f,
+  @location(0) @interpolate(flat) a : vec2f,
+  @location(1) @interpolate(flat) b : vec2f,
+  @location(2) @interpolate(flat) hw : f32,
+  @location(3) @interpolate(flat) color : vec4f,
+};
+fn toPx(clip : vec4f) -> vec2f {
+  let ndc = clip.xy / clip.w;
+  return vec2f((ndc.x * 0.5 + 0.5) * G.viewport.x,
+               (0.5 - ndc.y * 0.5) * G.viewport.y);
+}
+@vertex fn vs(@builtin(vertex_index) vi : u32,
+              @builtin(instance_index) ii : u32) -> VOut {
+  let it = aux[ii];
+  var clip0 = G.vp * vec4f(it.a.xyz, 1.0);
+  var clip1 = G.vp * vec4f(it.b.xyz, 1.0);
+  clip0.w = max(clip0.w, 0.0001);
+  clip1.w = max(clip1.w, 0.0001);
+  let px0 = toPx(clip0);
+  let px1 = toPx(clip1);
+  var dir = px1 - px0;
+  let len = length(dir);
+  if (len < 0.001) { dir = vec2f(1.0, 0.0); } else { dir = dir / len; }
+  let nrm = vec2f(-dir.y, dir.x);
+  let t = f32(vi >> 1u);
+  let side = f32(vi & 1u) * 2.0 - 1.0;
+  let ext = it.a.w + 1.5;
+  let p = mix(px0, px1, t) + dir * (2.0 * t - 1.0) * ext + nrm * side * ext;
+  let w = mix(clip0.w, clip1.w, t);
+  let z = mix(clip0.z, clip1.z, t);
+  var o : VOut;
+  o.pos = vec4f((p.x / G.viewport.x * 2.0 - 1.0) * w,
+                (1.0 - p.y / G.viewport.y * 2.0) * w, z, w);
+  o.a = px0; o.b = px1; o.hw = it.a.w; o.color = it.color;
+  return o;
+}
+@fragment fn fs(in : VOut) -> @location(0) vec4f {
+  let pa = in.pos.xy - in.a;
+  let ba = in.b - in.a;
+  let h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+  let d = length(pa - ba * h);
+  let cov = clamp(in.hw + 0.5 - d, 0.0, 1.0);
+  if (cov <= 0.003) { discard; }
+  return vec4f(in.color.rgb, in.color.a * cov);
+}
+`;
+
+/* Slug text, billboarded at label anchors */
+const TEXT_WGSL = GLOBALS_WGSL + /* wgsl */`
+struct Glyph { bbox : vec4f, bandStart : u32, p0 : u32, p1 : u32, p2 : u32 };
+struct LGlyph { pen : vec2f, gid : u32, label : u32 };
+@group(1) @binding(0) var<storage, read> glyphs : array<Glyph>;
+@group(1) @binding(1) var<storage, read> bandTab : array<vec2u>;
+@group(1) @binding(2) var<storage, read> idxTab : array<u32>;
+@group(1) @binding(3) var<storage, read> curves : array<vec2f>;
+@group(2) @binding(0) var<storage, read> linsts : array<LGlyph>;
+@group(2) @binding(1) var<storage, read> lmeta : array<vec4f>;  // x,y,scale,bright
+
+struct VOut {
+  @builtin(position) pos : vec4f,
+  @location(0) gpos : vec2f,
+  @location(1) @interpolate(flat) gid : u32,
+  @location(2) @interpolate(flat) bright : f32,
+};
+@vertex fn vs(@builtin(vertex_index) vi : u32,
+              @builtin(instance_index) ii : u32) -> VOut {
+  let inst = linsts[ii];
+  let g = glyphs[inst.gid];
+  let L = lmeta[inst.label];
+  let corner = vec2f(f32(vi & 1u), f32((vi >> 1u) & 1u));
+  let pad = vec2f(0.14, 0.14);
+  let em = mix(g.bbox.xy - pad, g.bbox.zw + pad, corner);
+  let off = (inst.pen + em) * L.z;
+  let world = vec3f(L.x, L.y, 0.0) + G.camRight.xyz * off.x + G.camUp.xyz * off.y;
+  var o : VOut;
+  o.pos = G.vp * vec4f(world, 1.0);
+  o.gpos = em;
+  o.gid = inst.gid;
+  o.bright = L.w;
+  return o;
+}
+fn crossings(p0 : vec2f, p1 : vec2f, p2 : vec2f, w : f32) -> f32 {
+  let shift = select(0u, 2u, p0.y > 0.0) + select(0u, 4u, p1.y > 0.0)
+            + select(0u, 8u, p2.y > 0.0);
+  let code = (0x2E74u >> shift) & 3u;
+  if (code == 0u) { return 0.0; }
+  let a = p0 - 2.0 * p1 + p2;
+  let b = p0 - p1;
+  var t1 : f32; var t2 : f32;
+  if (abs(a.y) > 1e-5) {
+    let dd = sqrt(max(b.y * b.y - a.y * p0.y, 0.0));
+    t1 = (b.y - dd) / a.y;
+    t2 = (b.y + dd) / a.y;
+  } else {
+    let t = p0.y / (2.0 * b.y);
+    t1 = t; t2 = t;
+  }
+  var f = 0.0;
+  if ((code & 1u) != 0u) {
+    let x = (a.x * t1 - 2.0 * b.x) * t1 + p0.x;
+    f = f + clamp(x / w + 0.5, 0.0, 1.0);
+  }
+  if ((code & 2u) != 0u) {
+    let x = (a.x * t2 - 2.0 * b.x) * t2 + p0.x;
+    f = f - clamp(x / w + 0.5, 0.0, 1.0);
+  }
+  return f;
+}
+@fragment fn fs(in : VOut) -> @location(0) vec4f {
+  let p = in.gpos;
+  let wx = max(length(vec2f(dpdx(p.x), dpdy(p.x))), 1e-7);
+  let wy = max(length(vec2f(dpdx(p.y), dpdy(p.y))), 1e-7);
+  let g = glyphs[in.gid];
+  var c1 = 0.0;
+  {
+    let t = clamp((p.y - g.bbox.y) / max(g.bbox.w - g.bbox.y, 1e-6), 0.0, 0.999);
+    let b = bandTab[g.bandStart + u32(t * 8.0)];
+    for (var i = 0u; i < b.y; i = i + 1u) {
+      let ci = idxTab[b.x + i] * 3u;
+      let p0 = curves[ci] - p;
+      let p1 = curves[ci + 1u] - p;
+      let p2 = curves[ci + 2u] - p;
+      if (max(max(p0.x, p1.x), p2.x) < -0.5 * wx) { break; }
+      c1 = c1 + crossings(p0, p1, p2, wx);
+    }
+  }
+  var c2 = 0.0;
+  {
+    let t = clamp((p.x - g.bbox.x) / max(g.bbox.z - g.bbox.x, 1e-6), 0.0, 0.999);
+    let b = bandTab[g.bandStart + 8u + u32(t * 8.0)];
+    for (var i = 0u; i < b.y; i = i + 1u) {
+      let ci = idxTab[b.x + i] * 3u;
+      let q0 = curves[ci] - p;
+      let q1 = curves[ci + 1u] - p;
+      let q2 = curves[ci + 2u] - p;
+      let p0 = vec2f(q0.y, -q0.x);
+      let p1 = vec2f(q1.y, -q1.x);
+      let p2 = vec2f(q2.y, -q2.x);
+      if (max(max(p0.x, p1.x), p2.x) < -0.5 * wy) { break; }
+      c2 = c2 + crossings(p0, p1, p2, wy);
+    }
+  }
+  let ws = G.p1.z;
+  let cov = 0.5 * clamp(ws * c1, 0.0, 1.0) + 0.5 * clamp(ws * c2, 0.0, 1.0);
+  let col = vec3f(0.78, 0.81, 0.88) * in.bright;
+  return vec4f(col, cov * 0.95);
+}
+`;
+
+const BLIT_WGSL = /* wgsl */`
+@group(0) @binding(0) var samp : sampler;
+@group(0) @binding(1) var tex : texture_2d<f32>;
+@group(0) @binding(2) var<uniform> U : vec4f;   // x: tonemap on
+struct VOut { @builtin(position) pos : vec4f, @location(0) uv : vec2f };
+@vertex fn vs(@builtin(vertex_index) vi : u32) -> VOut {
+  var o : VOut;
+  let xy = vec2f(f32((vi << 1u) & 2u), f32(vi & 2u));
+  o.pos = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);
+  o.uv = vec2f(xy.x, 1.0 - xy.y);
+  return o;
+}
+@fragment fn fs(in : VOut) -> @location(0) vec4f {
+  var c = textureSample(tex, samp, in.uv).rgb;
+  if (U.x > 0.5) { c = c / (1.0 + c); }          // reinhard for additive density
+  return vec4f(pow(max(c, vec3f(0.0)), vec3f(1.0 / 2.2)), 1.0);
+}
+`;
+
+/* ============================== application ============================== */
+
+const $ = id => document.getElementById(id);
+const canvas = $('gpu');
+const PARAMS = new URLSearchParams(location.search);
+const TEST = PARAMS.has('test');
+const MOBILE = matchMedia('(pointer: coarse)').matches || innerWidth < 720;
+
+const state = {
+  N: 0,
+  synthN: +(PARAMS.get('n') || (MOBILE ? 10000 : 50000)),
+  datasetName: PARAMS.get('data') === 'lnq' ? 'lnq' : 'synthetic',
+  hover: -1,
+  depth: +(PARAMS.get('depth') ?? 0.35),
+  widthPx: +(PARAMS.get('w') || 1.6),
+  pattern: +(PARAMS.get('pat') || 0),
+  patternCol: 6,                     // CRP
+  colorMode: -1,                     // cluster
+  density: PARAMS.get('blend') === 'density',
+  spin: false, unfolding: false,
+  cam: null, data: null, zInfo: null,
+  colX: new Float32Array(D),         // eased x per column
+  order: [...Array(D).keys()],       // position -> column
+  brushes: new Array(D).fill(null),  // per column [lo,hi] or null
+  drag: null,
+  frames: 0, fpsEma: 0, lastT: 0, time: 0,
+  gpu: {},
+};
+function resetCam() {
+  // fit the chart width (±2.7 world units) in the horizontal FOV, so
+  // portrait phones start with the whole chart visible
+  const aspect = Math.max(innerWidth / Math.max(innerHeight, 1), 0.2);
+  const fit = 3.4 / (Math.tan(22.5 * Math.PI / 180) * aspect);
+  state.cam = {
+    az: +(PARAMS.get('az') ?? 0.55), el: +(PARAMS.get('el') ?? 0.18),
+    dist: +(PARAMS.get('dist') || Math.max(6.2, fit)), target: [0, 0, 0] };
+}
+resetCam();
+const slotX = p => (p / (D - 1) - 0.5) * 4.4;
+// z-plateau sub-segments per axis span; fewer at extreme N to bound instances
+const subSegs = () => state.N <= 200000 ? 4 : state.N <= 1000000 ? 2 : 1;
+for (let c = 0; c < D; c++) state.colX[c] = slotX(c);
+
+function fail(msg) {
+  $('err').style.display = 'grid';
+  $('errmsg').textContent = msg;
+  document.title = 'MULTI_TEST_FAIL';
+}
+
+async function initGPU() {
+  if (!navigator.gpu) {
+    fail('WebGPU is not available in this browser. On iPhone or iPad it needs ' +
+      'a recent iOS version (Safari with WebGPU enabled) — try updating iOS, ' +
+      'or open this page in a current Chrome/Edge/Safari on the desktop.');
+    return null;
+  }
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) { fail('No WebGPU adapter.'); return null; }
+  const device = await adapter.requestDevice({
+    requiredLimits: {
+      maxStorageBufferBindingSize:
+        Math.min(adapter.limits.maxStorageBufferBindingSize, 268435456),
+      maxBufferSize: Math.min(adapter.limits.maxBufferSize, 268435456),
+    }});
+  device.lost.then(info => { if (info.reason !== 'destroyed') fail('GPU lost: ' + info.message); });
+  device.addEventListener('uncapturederror', e => {
+    const m = 'GPUERR: ' + e.error.message.slice(0, 300);
+    $('testout').textContent = m; document.title = m; console.error(m);
+  });
+  const ctx = canvas.getContext('webgpu');
+  const format = navigator.gpu.getPreferredCanvasFormat();
+  ctx.configure({ device, format, alphaMode: 'opaque' });
+  const g = state.gpu;
+  g.device = device; g.ctx = ctx; g.format = format;
+
+  const mk = (code, label) => device.createShaderModule({ code, label });
+  g.modLines = mk(LINES_WGSL, 'lines');
+  g.modAux = mk(AUX_WGSL, 'aux');
+  g.modText = mk(TEXT_WGSL, 'text');
+  g.modBlit = mk(BLIT_WGSL, 'blit');
+
+  const sto = i => ({ binding: i,
+    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+    buffer: { type: 'read-only-storage' } });
+  const uni = i => ({ binding: i,
+    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+    buffer: { type: 'uniform' } });
+  g.bglLines = device.createBindGroupLayout({ entries: [uni(0), sto(1), sto(2), sto(3), sto(4), sto(5)] });
+  g.bglAux = device.createBindGroupLayout({ entries: [uni(0), sto(1)] });
+  g.bglG = device.createBindGroupLayout({ entries: [uni(0)] });
+  g.bglFont = device.createBindGroupLayout({ entries: [sto(0), sto(1), sto(2), sto(3)] });
+  g.bglLabel = device.createBindGroupLayout({ entries: [sto(0), sto(1)] });
+  g.bglBlit = device.createBindGroupLayout({ entries: [
+    { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
+    { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+    { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }]});
+
+  const FRAME_FMT = 'rgba16float';
+  const over = { color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+                 alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } };
+  const add = { color: { srcFactor: 'one', dstFactor: 'one' },
+                alpha: { srcFactor: 'one', dstFactor: 'one' } };
+  const strip = { topology: 'triangle-strip', cullMode: 'none' };
+  const mkPipe = (mod, bgls, blend, depth) => device.createRenderPipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: bgls }),
+    vertex: { module: mod, entryPoint: 'vs' },
+    fragment: { module: mod, entryPoint: 'fs',
+      targets: [{ format: FRAME_FMT, blend }] },
+    primitive: strip,
+    depthStencil: depth,
+  });
+  const depthRW = { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less-equal' };
+  const depthOff = { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'always' };
+
+  g.pipeLinesOpaque = mkPipe(g.modLines, [g.bglLines], over, depthRW);
+  g.pipeLinesAdd = mkPipe(g.modLines, [g.bglLines], add, depthOff);
+  g.pipeAux = mkPipe(g.modAux, [g.bglAux], over, depthRW);
+  g.pipeOverlay = mkPipe(g.modAux, [g.bglAux], over, depthOff);
+  g.pipeText = mkPipe(g.modText, [g.bglG, g.bglFont, g.bglLabel], over, depthOff);
+  g.pipeBlit = device.createRenderPipeline({
+    layout: device.createPipelineLayout({ bindGroupLayouts: [g.bglBlit] }),
+    vertex: { module: g.modBlit, entryPoint: 'vs' },
+    fragment: { module: g.modBlit, entryPoint: 'fs', targets: [{ format }] },
+  });
+  g.samp = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+  g.FRAME_FMT = FRAME_FMT;
+  return g;
+}
+
+/* ------------------------------ GPU buffers ------------------------------ */
+
+function mkBuf(device, arr, usage) {
+  const buf = device.createBuffer({ size: Math.max(arr.byteLength, 16),
+    usage, mappedAtCreation: true });
+  new (arr.constructor)(buf.getMappedRange(), 0, arr.length).set(arr);
+  buf.unmap();
+  return buf;
+}
+
+async function loadDataset(name) {
+  state.datasetName = name;
+  if (name === 'synthetic') { COLS = SYNTH_COLS.slice(); D = COLS.length; }
+  $('stats').textContent = 'loading…';
+  const ds = await buildDataset(name);
+  COLS = ds.cols.map(c => c.name);
+  D = ds.cols.length;
+  state.N = ds.N;
+  state.data = ds;
+  state.colX = new Float32Array(D);
+  for (let c = 0; c < D; c++) state.colX[c] = slotX(c);
+  state.order = [...Array(D).keys()];
+  state.brushes = new Array(D).fill(null);
+  state.hover = -1;
+  if (state.patternCol >= D) state.patternCol = D - 1;
+  if (state.colorMode >= D) state.colorMode = -1;
+  uploadData();
+  refreshSelects();
+  const nsel = $('nsel');
+  if (nsel) nsel.disabled = name !== 'synthetic';
+  $('attrib').style.display = name === 'lnq' ? 'block' : 'none';
+  $('tip').style.display = 'none';
+}
+
+function uploadData() {
+  const { device } = state.gpu;
+  const g = state.gpu;
+  const N = state.N;
+  state.zInfo = computeZRanks(state.data.norm, N);
+  for (const k of ['bufValues', 'bufZ', 'bufCluster', 'bufSel', 'bufAxes']) g[k]?.destroy?.();
+  g.bufValues = mkBuf(device, state.data.norm, GPUBufferUsage.STORAGE);
+  g.bufZ = mkBuf(device, state.zInfo.zr, GPUBufferUsage.STORAGE);
+  g.bufCluster = mkBuf(device, state.data.group, GPUBufferUsage.STORAGE);
+  const words = Math.max(1, Math.ceil(N / 32));
+  state.selWords = new Uint32Array(words).fill(0xffffffff);
+  g.bufSel = device.createBuffer({ size: words * 4,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(g.bufSel, 0, state.selWords);
+
+  g.bufAxes = device.createBuffer({ size: D * 16,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  g.bufGlobals ??= device.createBuffer({ size: 176,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  g.bufAux ??= device.createBuffer({ size: 64 * 48,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  g.bufBlitU ??= device.createBuffer({ size: 16,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+  g.bgLines = device.createBindGroup({ layout: g.bglLines, entries: [
+    { binding: 0, resource: { buffer: g.bufGlobals } },
+    { binding: 1, resource: { buffer: g.bufValues } },
+    { binding: 2, resource: { buffer: g.bufZ } },
+    { binding: 3, resource: { buffer: g.bufAxes } },
+    { binding: 4, resource: { buffer: g.bufCluster } },
+    { binding: 5, resource: { buffer: g.bufSel } }]});
+  g.bgAux = device.createBindGroup({ layout: g.bglAux, entries: [
+    { binding: 0, resource: { buffer: g.bufGlobals } },
+    { binding: 1, resource: { buffer: g.bufAux } }]});
+  g.bgG = device.createBindGroup({ layout: g.bglG,
+    entries: [{ binding: 0, resource: { buffer: g.bufGlobals } }] });
+  rebuildLabels();
+  applyBrushes();
+}
+
+/* ------------------------------ text labels ------------------------------ */
+
+function buildFont() {
+  const g = state.gpu;
+  state.fontBytes = b64ToBytes(FONT_B64);
+  const font = parseTTF(state.fontBytes);
+  state.font = font;
+  state.windingSign = windingSignFor(font);
+  const used = new Set();
+  const extra = [0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2026, 0xB3];
+  const codes = [];
+  for (let c = 32; c < 127; c++) codes.push(c);
+  for (let c = 0xA0; c < 0x100; c++) codes.push(c);
+  codes.push(...extra);
+  for (const c of codes) { const gi = font.charToGlyph(c); if (gi) used.add(gi); }
+  const slug = buildSlugData(font, [...used].sort((a, b) => a - b));
+  state.slug = slug;
+  const { device } = g;
+  const meta = new ArrayBuffer(Math.max(slug.glyphMeta.length * 4, 32));
+  const f = new Float32Array(meta), u = new Uint32Array(meta);
+  for (let i = 0; i < slug.glyphMeta.length; i += 8) {
+    f[i] = slug.glyphMeta[i]; f[i+1] = slug.glyphMeta[i+1];
+    f[i+2] = slug.glyphMeta[i+2]; f[i+3] = slug.glyphMeta[i+3];
+    u[i+4] = slug.glyphMeta[i+4];
+  }
+  g.bufGlyphs = device.createBuffer({ size: meta.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(g.bufGlyphs, 0, meta);
+  g.bufBands = mkBuf(device, slug.bands, GPUBufferUsage.STORAGE);
+  g.bufIdx = mkBuf(device, slug.indices, GPUBufferUsage.STORAGE);
+  g.bufCurves = mkBuf(device, slug.curves, GPUBufferUsage.STORAGE);
+  g.bgFont = device.createBindGroup({ layout: g.bglFont, entries: [
+    { binding: 0, resource: { buffer: g.bufGlyphs } },
+    { binding: 1, resource: { buffer: g.bufBands } },
+    { binding: 2, resource: { buffer: g.bufIdx } },
+    { binding: 3, resource: { buffer: g.bufCurves } }]});
+}
+
+/* labels: per column, [name(top), max, min]; meta updated each frame so
+   they track eased axis positions; billboarded via camRight/camUp. */
+function rebuildLabels() {
+  const g = state.gpu, { device } = g, font = state.font;
+  const defs = [];
+  for (let c = 0; c < D; c++) {
+    const m = state.data.cols[c];
+    defs.push({ col: c, text: m.name, y: 1.47, scale: 0.105, bright: 1.0 });
+    defs.push({ col: c, text: m.hiLab, y: 1.30, scale: 0.068, bright: 0.55 });
+    defs.push({ col: c, text: m.loLab, y: -1.34, scale: 0.068, bright: 0.55 });
+  }
+  state.labelDefs = defs;
+  const insts = [];
+  defs.forEach((d, li) => {
+    let w = 0;
+    const gl = [];
+    for (const ch of d.text) {
+      const gid = font.charToGlyph(ch.codePointAt(0));
+      if (state.slug.gpuIndex.has(gid)) gl.push({ gid: state.slug.gpuIndex.get(gid), x: w });
+      w += font.advances[gid] || 0.3;
+    }
+    for (const it of gl) insts.push({ pen: [it.x - w / 2, 0], gid: it.gid, label: li });
+  });
+  const data = new ArrayBuffer(Math.max(insts.length * 16, 16));
+  const f = new Float32Array(data), u = new Uint32Array(data);
+  insts.forEach((it, i) => {
+    f[i*4] = it.pen[0]; f[i*4+1] = it.pen[1];
+    u[i*4+2] = it.gid; u[i*4+3] = it.label;
+  });
+  g.bufLGlyphs?.destroy?.();
+  g.bufLGlyphs = device.createBuffer({ size: data.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  device.queue.writeBuffer(g.bufLGlyphs, 0, data);
+  state.labelGlyphCount = insts.length;
+  g.bufLMeta ??= device.createBuffer({ size: 64 * 16,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  g.bgLabel = device.createBindGroup({ layout: g.bglLabel, entries: [
+    { binding: 0, resource: { buffer: g.bufLGlyphs } },
+    { binding: 1, resource: { buffer: g.bufLMeta } }]});
+}
+
+/* ------------------------------ brushing ------------------------------ */
+
+function applyBrushes() {
+  const { device } = state.gpu;
+  const active = [];
+  for (let c = 0; c < D; c++) if (state.brushes[c]) active.push([c, ...state.brushes[c]]);
+  const N = state.N, norm = state.data.norm, w = state.selWords;
+  if (!active.length) w.fill(0xffffffff);
+  else {
+    w.fill(0);
+    for (let i = 0; i < N; i++) {
+      let ok = true;
+      for (const [c, lo, hi] of active) {
+        const v = norm[i*D + c];
+        if (v < lo || v > hi) { ok = false; break; }
+      }
+      if (ok) w[i >> 5] |= 1 << (i & 31);
+    }
+  }
+  device.queue.writeBuffer(state.gpu.bufSel, 0, w);
+}
+
+/* ------------------------------ frame loop ------------------------------ */
+
+let frameTex = null, depthTex = null, blitBG = null, testTex = null, testPipe = null;
+function ensureTargets() {
+  const g = state.gpu, { device } = g;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(2, Math.floor(canvas.clientWidth * dpr)),
+        h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
+  if (canvas.width !== w || canvas.height !== h || !frameTex) {
+    canvas.width = w; canvas.height = h;
+    frameTex?.destroy(); depthTex?.destroy();
+    frameTex = device.createTexture({ size: [w, h], format: g.FRAME_FMT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
+    depthTex = device.createTexture({ size: [w, h], format: 'depth24plus',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT });
+    blitBG = device.createBindGroup({ layout: g.bglBlit, entries: [
+      { binding: 0, resource: g.samp },
+      { binding: 1, resource: frameTex.createView() },
+      { binding: 2, resource: { buffer: g.bufBlitU } }]});
+    if (TEST) {
+      testTex?.destroy();
+      testTex = device.createTexture({ size: [w, h], format: 'rgba8unorm',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+      testPipe ??= device.createRenderPipeline({
+        layout: device.createPipelineLayout({ bindGroupLayouts: [g.bglBlit] }),
+        vertex: { module: g.modBlit, entryPoint: 'vs' },
+        fragment: { module: g.modBlit, entryPoint: 'fs', targets: [{ format: 'rgba8unorm' }] },
+      });
+    }
+  }
+}
+
+function cameraBasis() {
+  const { az, el, dist, target } = state.cam;
+  const eye = [
+    target[0] + dist * Math.cos(el) * Math.sin(az),
+    target[1] + dist * Math.sin(el),
+    target[2] + dist * Math.cos(el) * Math.cos(az)];
+  const fwd = [(target[0]-eye[0])/dist, (target[1]-eye[1])/dist, (target[2]-eye[2])/dist];
+  const rl = Math.hypot(fwd[2], fwd[0]);
+  const right = rl > 1e-6 ? [-fwd[2]/rl, 0, fwd[0]/rl] : [1, 0, 0];
+  const up = [
+    right[1]*fwd[2] - right[2]*fwd[1],
+    right[2]*fwd[0] - right[0]*fwd[2],
+    right[0]*fwd[1] - right[1]*fwd[0]];
+  return { eye, fwd, right, up };
+}
+
+function writeGlobals(vp, basis) {
+  const g = state.gpu;
+  const buf = new ArrayBuffer(176);
+  const f = new Float32Array(buf), u = new Uint32Array(buf);
+  f.set(vp, 0);
+  f.set([...basis.right, 0], 16);
+  f.set([...basis.up, 0], 20);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  f[24] = canvas.width; f[25] = canvas.height;
+  f[26] = state.widthPx * dpr / 2;
+  f[27] = state.time;
+  f[28] = state.depth;
+  f[29] = 1.15 / state.zInfo.maxAbs;
+  f[30] = state.pattern;
+  f[31] = state.density ? Math.min(0.5, 7 / Math.sqrt(state.N)) : 1.0;
+  f[32] = state.colorMode;
+  f[33] = state.density ? 0.06 : 0.10;    // selDim
+  f[34] = state.windingSign;
+  f[35] = state.density ? 1 : 0;
+  u[36] = state.N; u[37] = D; u[38] = (D - 1) * subSegs(); u[39] = state.patternCol;
+  u[40] = state.hover >= 0 ? state.hover + 1 : 0;
+  g.device.queue.writeBuffer(g.bufGlobals, 0, buf);
+}
+
+function writeAxes() {
+  const g = state.gpu;
+  // order = columns sorted by current x
+  state.order = [...Array(D).keys()].sort((a, b) => state.colX[a] - state.colX[b]);
+  const arr = new Float32Array(D * 4);
+  state.order.forEach((c, p) => {
+    arr[p*4] = state.colX[c]; arr[p*4+1] = c;
+  });
+  g.device.queue.writeBuffer(g.bufAxes, 0, arr);
+}
+
+function writeAux() {
+  const g = state.gpu;
+  const items = [];
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  for (let c = 0; c < D; c++) {
+    const x = state.colX[c];
+    items.push({ a: [x, -1.22, 0, 1.4 * dpr], b: [x, 1.22, 0],
+      color: [0.22, 0.25, 0.32, 0.95] });
+  }
+  state.auxRodCount = items.length;
+  for (let c = 0; c < D; c++) {
+    if (!state.brushes[c]) continue;
+    const [lo, hi] = state.brushes[c];
+    const x = state.colX[c];
+    items.push({ a: [x, (lo - 0.5) * 2.4, 0, 3.6 * dpr], b: [x, (hi - 0.5) * 2.4, 0],
+      color: [0.36, 0.58, 1.0, 0.5] });
+  }
+  state.auxCount = items.length;
+  const arr = new Float32Array(items.length * 12);
+  items.forEach((it, i) => {
+    arr.set([...it.a], i*12);
+    arr.set([...it.b, 0], i*12 + 4);
+    arr.set(it.color, i*12 + 8);
+  });
+  if (items.length) g.device.queue.writeBuffer(g.bufAux, 0, arr);
+}
+
+function writeLabelMeta() {
+  const g = state.gpu;
+  const arr = new Float32Array(state.labelDefs.length * 4);
+  state.labelDefs.forEach((d, i) => {
+    arr[i*4] = state.colX[d.col];
+    arr[i*4+1] = d.y;
+    arr[i*4+2] = d.scale;
+    arr[i*4+3] = d.bright;
+  });
+  g.device.queue.writeBuffer(g.bufLMeta, 0, arr);
+}
+
+function frame(t) {
+  const g = state.gpu;
+  ensureTargets();
+  const dt = state.lastT ? Math.min(t - state.lastT, 100) : 16;
+  state.lastT = t;
+  state.time += dt * 0.001;
+  state.fpsEma = state.fpsEma * 0.92 + (1000 / Math.max(dt, 0.1)) * 0.08;
+  if (state.spin) state.cam.az += dt * 0.00018;
+  if (state.unfolding) {
+    state.depth = Math.min(1, state.depth + dt * 0.0006);
+    $('depth').value = state.depth;
+    if (state.depth >= 1) state.unfolding = false;
+  }
+  // ease axis x toward slots (except a column being dragged)
+  for (let p = 0; p < D; p++) {
+    const c = state.order[p];
+    if (state.drag?.kind === 'reorder' && state.drag.col === c) continue;
+    state.colX[c] += (slotX(p) - state.colX[c]) * Math.min(1, dt * 0.012);
+  }
+
+  const basis = cameraBasis();
+  const view = mat4LookAt(basis.eye, state.cam.target, [0, 1, 0]);
+  const proj = mat4Persp(45 * Math.PI / 180, canvas.width / canvas.height, 0.01, 200);
+  const vp = mat4Mul(proj, view);
+  state.vp = vp;
+  writeGlobals(vp, basis);
+  writeAxes();
+  writeAux();
+  writeLabelMeta();
+  g.device.queue.writeBuffer(g.bufBlitU, 0,
+    new Float32Array([state.density ? 1 : 0, 0, 0, 0]));
+
+  const enc = g.device.createCommandEncoder();
+  const pass = enc.beginRenderPass({
+    colorAttachments: [{ view: frameTex.createView(), loadOp: 'clear', storeOp: 'store',
+      clearValue: state.density ? [0.004, 0.005, 0.008, 1] : [0.012, 0.014, 0.02, 1] }],
+    depthStencilAttachment: { view: depthTex.createView(), depthLoadOp: 'clear',
+      depthStoreOp: 'store', depthClearValue: 1 }});
+  pass.setPipeline(g.pipeAux);
+  pass.setBindGroup(0, g.bgAux);
+  pass.draw(4, state.auxRodCount);
+  pass.setPipeline(state.density ? g.pipeLinesAdd : g.pipeLinesOpaque);
+  pass.setBindGroup(0, g.bgLines);
+  pass.draw(4, state.N * (D - 1) * subSegs());
+  if (state.auxCount > state.auxRodCount) {
+    pass.setPipeline(g.pipeOverlay);
+    pass.setBindGroup(0, g.bgAux);
+    pass.draw(4, state.auxCount - state.auxRodCount, 0, state.auxRodCount);
+  }
+  pass.setPipeline(g.pipeText);
+  pass.setBindGroup(0, g.bgG);
+  pass.setBindGroup(1, g.bgFont);
+  pass.setBindGroup(2, g.bgLabel);
+  pass.draw(4, state.labelGlyphCount);
+  pass.end();
+  const blit = enc.beginRenderPass({ colorAttachments: [{
+    view: g.ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store',
+    clearValue: [0, 0, 0, 1] }]});
+  blit.setPipeline(g.pipeBlit);
+  blit.setBindGroup(0, blitBG);
+  blit.draw(3);
+  blit.end();
+  if (TEST && state.frames === 5) {
+    const tp = enc.beginRenderPass({ colorAttachments: [{
+      view: testTex.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0,0,0,1] }]});
+    tp.setPipeline(testPipe);
+    tp.setBindGroup(0, blitBG);
+    tp.draw(3);
+    tp.end();
+  }
+  g.device.queue.submit([enc.finish()]);
+
+  state.frames++;
+  if (state.frames % 15 === 0) updateStats();
+  if (TEST && state.frames === 6) runSelfTest();
+  if (TEST && state.frames < 40) setTimeout(() => frame(performance.now()), 25);
+  else requestAnimationFrame(frame);
+}
+
+function updateStats() {
+  $('stats').textContent =
+    `${state.fpsEma.toFixed(0)} fps   ${state.N.toLocaleString()} lines   ` +
+    `${(state.N * (D-1) * subSegs()).toLocaleString()} segments\n` +
+    `${canvas.width}×${canvas.height}px   depth ${state.depth.toFixed(2)}   ` +
+    (state.brushes.some(b => b) ? 'brushed' : 'no brush');
+}
+
+async function runSelfTest() {
+  const g = state.gpu;
+  const w = canvas.width, h = canvas.height;
+  const bpr = Math.ceil(w * 4 / 256) * 256;
+  const buf = g.device.createBuffer({ size: bpr * h,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const enc = g.device.createCommandEncoder();
+  enc.copyTextureToBuffer({ texture: testTex }, { buffer: buf, bytesPerRow: bpr }, [w, h]);
+  g.device.queue.submit([enc.finish()]);
+  await buf.mapAsync(GPUMapMode.READ);
+  const data = new Uint8Array(buf.getMappedRange());
+  // background reference from the top-right corner (HUD-free)
+  const bo = 2 * bpr + (w - 4) * 4;
+  const br = data[bo], bg2 = data[bo+1], bb = data[bo+2];
+  let lit = 0;
+  for (let y = 0; y < h; y += 2)
+    for (let x = 0; x < w; x += 2) {
+      const o = y * bpr + x * 4;
+      if (Math.abs(data[o] - br) + Math.abs(data[o+1] - bg2) +
+          Math.abs(data[o+2] - bb) > 45) lit++;
+    }
+  buf.unmap();
+  const ok = lit > 2000;
+  const msg = `MULTI_TEST_${ok ? 'OK' : 'FAIL'} lit=${lit} lines=${state.N} ` +
+    `segs=${state.N*(D-1)*subSegs()} labels=${state.labelGlyphCount} sign=${state.windingSign}`;
+  document.title = msg;
+  $('testout').textContent = msg;
+  console.log(msg);
+}
+
+/* ------------------------------ interaction ------------------------------ */
+
+function projectToPx(wx, wy, wz) {
+  const m = state.vp;
+  const cw = m[3]*wx + m[7]*wy + m[11]*wz + m[15];
+  const cx = (m[0]*wx + m[4]*wy + m[8]*wz + m[12]) / cw;
+  const cy = (m[1]*wx + m[5]*wy + m[9]*wz + m[13]) / cw;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  return [(cx*0.5+0.5)*canvas.width/dpr, (0.5-cy*0.5)*canvas.height/dpr, cw];
+}
+function pointerRay(e) {
+  const basis = cameraBasis();
+  const r = canvas.getBoundingClientRect();
+  const u = (e.clientX - r.left) / r.width * 2 - 1;
+  const v = 1 - (e.clientY - r.top) / r.height * 2;
+  const tf = Math.tan(22.5 * Math.PI / 180);
+  const aspect = r.width / r.height;
+  const d = [
+    basis.fwd[0] + basis.right[0]*u*tf*aspect + basis.up[0]*v*tf,
+    basis.fwd[1] + basis.right[1]*u*tf*aspect + basis.up[1]*v*tf,
+    basis.fwd[2] + basis.right[2]*u*tf*aspect + basis.up[2]*v*tf];
+  return { o: basis.eye, d };
+}
+function rayPlaneX(e) {       // intersect pointer ray with chart plane z=0
+  const { o, d } = pointerRay(e);
+  if (Math.abs(d[2]) < 1e-6) return null;
+  const t = -o[2] / d[2];
+  if (t <= 0) return null;
+  return [o[0] + d[0]*t, o[1] + d[1]*t];
+}
+function axisHit(e) {
+  const r = canvas.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  let best = null;
+  for (let c = 0; c < D; c++) {
+    const x = state.colX[c];
+    const top = projectToPx(x, 1.22, 0), bot = projectToPx(x, -1.22, 0);
+    if (top[2] <= 0 || bot[2] <= 0) continue;
+    const nameAt = projectToPx(x, 1.47, 0);
+    const dn = Math.hypot(px - nameAt[0], py - nameAt[1]);
+    if (dn < (e.pointerType === 'touch' ? 34 : 26)) return { kind: 'reorder', col: c };
+    // distance to rod segment in screen space
+    const ax = top[0], ay = top[1], bx = bot[0], by = bot[1];
+    const abx = bx - ax, aby = by - ay;
+    const h = Math.max(0, Math.min(1, ((px-ax)*abx + (py-ay)*aby) / (abx*abx + aby*aby)));
+    const dd = Math.hypot(px - (ax + abx*h), py - (ay + aby*h));
+    const rodR = e.pointerType === 'touch' ? 16 : 9;
+    if (dd < rodR && (!best || dd < best.d)) best = { kind: 'brush', col: c, d: dd, h };
+  }
+  return best;
+}
+function valueAtPointer(e, col) {
+  // param along the projected rod -> value (rod spans y = ±1.22 ~ v 0..1)
+  const r = canvas.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  const top = projectToPx(state.colX[col], 1.22, 0), bot = projectToPx(state.colX[col], -1.22, 0);
+  const abx = top[0] - bot[0], aby = top[1] - bot[1];
+  const h = ((px-bot[0])*abx + (py-bot[1])*aby) / (abx*abx + aby*aby);
+  const v = Math.max(0, Math.min(1, h)) * (2.44 / 2.4) - 0.02 / 2.4;
+  return Math.max(0, Math.min(1, v));
+}
+
+/* hover: nearest polyline within 8 px (datasets with per-record metadata
+   only — e.g. LNQ: 513 lines x 6 spans, trivial on the CPU) */
+function hoverTest(e) {
+  if (!state.data?.records || state.drag) return -1;
+  const r = canvas.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  const zs = 1.15 / state.zInfo.maxAbs * state.depth;
+  const norm = state.data.norm, zr = state.zInfo.zr;
+  const colAt = state.order;
+  let best = -1, bestD = 8;
+  for (let i = 0; i < state.N; i++) {
+    if (((state.selWords[i >> 5] >> (i & 31)) & 1) === 0) continue;
+    let x0 = 0, y0 = 0, ok0 = false;
+    for (let p = 0; p < D; p++) {
+      const c = colAt[p];
+      const s = projectToPx(state.colX[c], (norm[i*D + c] - 0.5) * 2.4, zr[i*D + c] * zs);
+      const ok1 = s[2] > 0;
+      if (p > 0 && ok0 && ok1) {
+        const abx = s[0] - x0, aby = s[1] - y0;
+        const h = Math.max(0, Math.min(1, ((px - x0)*abx + (py - y0)*aby) /
+                  Math.max(abx*abx + aby*aby, 1e-6)));
+        const d = Math.hypot(px - (x0 + abx*h), py - (y0 + aby*h));
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      x0 = s[0]; y0 = s[1]; ok0 = ok1;
+    }
+  }
+  return best;
+}
+function updateTip(e) {
+  const tip = $('tip');
+  if (state.hover < 0 || !state.data?.records) {
+    tip.style.display = 'none';
+    canvas.style.cursor = '';
+    return;
+  }
+  const rec = state.data.records[state.hover];
+  if (state.tipFor !== rec.id) {
+    state.tipFor = rec.id;
+    $('tipcap').textContent = rec.caption;
+    $('tipsub').textContent = rec.sub;
+    $('tipimg').src = rec.thumb;
+    $('tiplink').href = rec.url;
+  }
+  tip.style.display = 'block';
+  tip.style.left = Math.max(4, Math.min(e.clientX + 18, innerWidth - 348)) + 'px';
+  tip.style.top = Math.max(4, Math.min(e.clientY + 14, innerHeight - 330)) + 'px';
+  canvas.style.cursor = 'pointer';
+}
+function refreshSelects() {
+  const cs = $('colsel'), ps = $('patsel');
+  cs.innerHTML = ''; ps.innerHTML = '';
+  cs.add(new Option(state.data.groupLabel, '-1'));
+  for (let c = 0; c < D; c++) {
+    cs.add(new Option(COLS[c], String(c)));
+    ps.add(new Option(COLS[c], String(c)));
+  }
+  cs.value = String(state.colorMode);
+  ps.value = String(state.patternCol);
+}
+
+function bindInput() {
+  let camDrag = null;
+  const pointers = new Map();
+  let pinch = null;
+  canvas.addEventListener('pointerdown', e => {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    canvas.setPointerCapture(e.pointerId);
+    if (pointers.size === 2) {
+      // second finger: abandon any single-finger gesture, start pinch/pan
+      if (state.drag?.kind === 'brush') {
+        state.brushes[state.drag.col] = null;
+        applyBrushes();
+      }
+      state.drag = null; camDrag = null; state.down = null;
+      const [p1, p2] = [...pointers.values()];
+      pinch = { d0: Math.max(Math.hypot(p1.x - p2.x, p1.y - p2.y), 1),
+                mx: (p1.x + p2.x) / 2, my: (p1.y + p2.y) / 2,
+                dist0: state.cam.dist };
+      state.hover = -1; updateTip(e);
+      return;
+    }
+    state.down = { x: e.clientX, y: e.clientY, hover: state.hover };
+    const hit = axisHit(e);
+    if (hit?.kind === 'reorder') {
+      state.drag = { kind: 'reorder', col: hit.col };
+    } else if (hit?.kind === 'brush') {
+      const v = valueAtPointer(e, hit.col);
+      state.drag = { kind: 'brush', col: hit.col, v0: v };
+      state.brushes[hit.col] = [v, v];
+    } else {
+      camDrag = { x: e.clientX, y: e.clientY, pan: e.shiftKey || e.button === 2 };
+    }
+    canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (pointers.has(e.pointerId))
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && pointers.size >= 2) {
+      const [p1, p2] = [...pointers.values()];
+      const d = Math.max(Math.hypot(p1.x - p2.x, p1.y - p2.y), 1);
+      const c = state.cam;
+      c.dist = Math.max(0.05, Math.min(80, pinch.dist0 * pinch.d0 / d));
+      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+      const s = c.dist * 0.0013;
+      c.target[0] -= (mx - pinch.mx) * s * Math.cos(c.az);
+      c.target[2] += (mx - pinch.mx) * s * Math.sin(c.az);
+      c.target[1] += (my - pinch.my) * s;
+      pinch.mx = mx; pinch.my = my;
+      return;
+    }
+    if (state.drag?.kind === 'reorder') {
+      const w = rayPlaneX(e);
+      if (w) state.colX[state.drag.col] = Math.max(-2.6, Math.min(2.6, w[0]));
+      return;
+    }
+    if (state.drag?.kind === 'brush') {
+      const v = valueAtPointer(e, state.drag.col);
+      state.brushes[state.drag.col] =
+        [Math.min(state.drag.v0, v), Math.max(state.drag.v0, v)];
+      if (!state.brushPending) {
+        state.brushPending = true;
+        requestAnimationFrame(() => { state.brushPending = false; applyBrushes(); });
+      }
+      return;
+    }
+    if (!camDrag) {
+      const h = hoverTest(e);
+      if (h !== state.hover) state.hover = h;
+      updateTip(e);
+      return;
+    }
+    if (state.hover !== -1) { state.hover = -1; updateTip(e); }
+    const dx = e.clientX - camDrag.x, dy = e.clientY - camDrag.y;
+    camDrag.x = e.clientX; camDrag.y = e.clientY;
+    const c = state.cam;
+    if (camDrag.pan) {
+      const s = c.dist * 0.0013;
+      c.target[0] -= dx * s * Math.cos(c.az); c.target[2] += dx * s * Math.sin(c.az);
+      c.target[1] += dy * s;
+    } else {
+      c.az -= dx * 0.005;
+      c.el = Math.max(-1.5, Math.min(1.5, c.el + dy * 0.005));
+    }
+  });
+  const end = e => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch = null;
+    if (state.drag?.kind === 'brush') {
+      const b = state.brushes[state.drag.col];
+      if (b && b[1] - b[0] < 0.004) state.brushes[state.drag.col] = null;  // click clears
+      applyBrushes();
+    }
+    const tap = e.type === 'pointerup' && state.down && !state.drag &&
+      Math.hypot(e.clientX - state.down.x, e.clientY - state.down.y) <
+        (e.pointerType === 'mouse' ? 5 : 10);
+    if (tap && state.data?.records) {
+      if (e.pointerType === 'mouse') {
+        // mouse click on a hovered line -> open the IDC viewer in a new tab
+        if (state.down.hover >= 0)
+          window.open(state.data.records[state.down.hover].url, '_blank', 'noopener');
+      } else {
+        // touch tap: select the line under the finger and show the preview
+        // (the tooltip's "Open in IDC viewer" link is the tappable action)
+        state.hover = hoverTest(e);
+        updateTip(e);
+      }
+    }
+    state.down = null;
+    state.drag = null; camDrag = null;
+    canvas.classList.remove('dragging');
+  };
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    state.cam.dist = Math.max(0.05, Math.min(80, state.cam.dist * Math.exp(e.deltaY * 0.0012)));
+  }, { passive: false });
+  canvas.addEventListener('dblclick', resetCam);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  // keep Safari's page-level pinch zoom out of the way
+  for (const t of ['gesturestart', 'gesturechange', 'gestureend'])
+    document.addEventListener(t, e => e.preventDefault());
+  $('menubtn').addEventListener('click', () =>
+    document.body.classList.toggle('hudhide'));
+  if (MOBILE && !TEST) document.body.classList.add('hudhide');
+
+  $('dsel').value = state.datasetName;
+  $('dsel').addEventListener('change', e => loadDataset(e.target.value));
+  $('nsel').value = String(state.synthN);
+  $('nsel').addEventListener('change', e => {
+    state.synthN = +e.target.value;
+    if (state.datasetName === 'synthetic') loadDataset('synthetic');
+  });
+  $('depth').value = state.depth;
+  $('depth').addEventListener('input', e => state.depth = +e.target.value);
+  $('unfold').addEventListener('click', () => {
+    state.depth = 0; $('depth').value = 0; state.unfolding = true;
+  });
+  $('wid').value = state.widthPx;
+  $('wid').addEventListener('input', e => state.widthPx = +e.target.value);
+  $('spin').addEventListener('change', e => state.spin = e.target.checked);
+  $('blend').value = state.density ? 'density' : 'opaque';
+  $('blend').addEventListener('change', e => state.density = e.target.value === 'density');
+  $('pat').value = String(state.pattern);
+  $('pat').addEventListener('change', e => state.pattern = +e.target.value);
+  $('colsel').addEventListener('change', e => state.colorMode = +e.target.value);
+  $('patsel').addEventListener('change', e => state.patternCol = +e.target.value);
+  $('clearbrush').addEventListener('click', () => {
+    state.brushes.fill(null); applyBrushes();
+  });
+}
+
+/* ------------------------------ boot ------------------------------ */
+
+(async function main() {
+  const boot = s => { if (TEST) document.title = 'BOOT:' + s; };
+  try {
+    boot('gpu');
+    const g = await initGPU();
+    if (!g) return;
+    boot('font');
+    buildFont();
+    boot('data');
+    await loadDataset(state.datasetName);
+    if (PARAMS.get('hover') !== null && state.data.records) {
+      state.hover = Math.min(+PARAMS.get('hover') || 0, state.N - 1);
+      updateTip({ clientX: innerWidth * 0.42, clientY: innerHeight * 0.3 });
+    }
+    boot('loop');
+    bindInput();
+    updateStats();
+    if (TEST) setTimeout(() => frame(performance.now()), 50);
+    else requestAnimationFrame(frame);
+  } catch (err) {
+    console.error(err);
+    fail('Initialization failed: ' + (err && err.message ? err.message : err));
+  }
+})();
+</script>
+</body>
+</html>

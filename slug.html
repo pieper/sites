@@ -37,7 +37,8 @@
 <style>
   :root { color-scheme: dark; }
   html, body { margin: 0; height: 100%; background: #14161a; color: #cfd3da;
-    font: 13px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
+    font: 13px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif;
+    overflow: hidden; overscroll-behavior: none; }
   #gpu { position: fixed; inset: 0; width: 100%; height: 100%; display: block;
     touch-action: none; cursor: grab; }
   #gpu.dragging { cursor: grabbing; }
@@ -1241,6 +1242,10 @@ function bindInput() {
   }, { passive: false });
   canvas.addEventListener('dblclick', resetCam);
   canvas.addEventListener('contextmenu', e => e.preventDefault());
+  // iOS: block pull-to-refresh / native scroll on the canvas
+  canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  for (const t of ['gesturestart', 'gesturechange', 'gestureend'])
+    document.addEventListener(t, e => e.preventDefault());
 
   for (const b of document.querySelectorAll('#modes button')) {
     b.addEventListener('click', async () => {

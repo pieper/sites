@@ -37,7 +37,8 @@
 <style>
   :root { color-scheme: dark; }
   html, body { margin: 0; height: 100%; background: #14161a; color: #cfd3da;
-    font: 13px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
+    font: 13px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif;
+    overflow: hidden; overscroll-behavior: none; }
   #gpu { position: fixed; inset: 0; width: 100%; height: 100%; display: block;
     touch-action: none; cursor: grab; }
   #gpu.dragging { cursor: grabbing; }
@@ -1734,6 +1735,9 @@ function bindInput() {
   // keep Safari's page-level pinch zoom out of the way
   for (const t of ['gesturestart', 'gesturechange', 'gestureend'])
     document.addEventListener(t, e => e.preventDefault());
+  // iOS pull-to-refresh ignores touch-action; block native scroll gestures
+  // on the canvas only (HUD keeps its own scrolling)
+  canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
   $('menubtn').addEventListener('click', () =>
     document.body.classList.toggle('hudhide'));
   if (MOBILE && !TEST) document.body.classList.add('hudhide');
